@@ -2,3 +2,4 @@ node_modules/
 dist/
 .review-comments.json
 *.lock
+.playwright-mcp/
