@@ -27,28 +27,40 @@
   --danger: #f85149;
   --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --sidebar-width: 260px;
 }
 
 body { background: var(--bg); color: var(--text); font-family: var(--font-ui); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
+/* ─── Sidebar Overlay (mobile) ─── */
+#sidebar-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 55;
+}
+#sidebar-overlay.open { display: block; }
+
 /* ─── Header ─── */
 #header {
-  display: flex; align-items: center; gap: 12px; padding: 10px 16px;
-  background: var(--bg2); border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px; padding: 10px 16px;
+  background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0; min-width: 0;
 }
-#project-name { font-weight: 600; font-size: 15px; }
-#round-badge { background: var(--bg3); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; font-size: 13px; color: var(--text-muted); }
-#changed-count { color: var(--text-muted); font-size: 13px; }
-.spacer { flex: 1; }
+#btn-sidebar-toggle {
+  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+  padding: 5px 7px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; flex-shrink: 0;
+}
+#btn-sidebar-toggle:hover { background: var(--bg3); color: var(--text); }
+#project-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#round-badge { background: var(--bg3); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; font-size: 13px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+#changed-count { color: var(--text-muted); font-size: 13px; white-space: nowrap; flex-shrink: 0; }
+.spacer { flex: 1; min-width: 4px; }
+#round-select { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 3px 8px; border-radius: 4px; font-size: 13px; flex-shrink: 0; }
 #btn-new-round {
   background: var(--bg3); border: 1px solid var(--border); color: var(--text);
-  padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
+  padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; white-space: nowrap; flex-shrink: 0;
 }
 #btn-new-round:hover { background: var(--border); }
 #btn-export {
   background: var(--accent); border: none; color: #000;
-  padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;
+  padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; white-space: nowrap; flex-shrink: 0;
 }
 #btn-export:hover { opacity: 0.85; }
 
@@ -57,28 +69,65 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 
 /* ─── Files Sidebar ─── */
 #sidebar {
-  width: 260px; flex-shrink: 0; background: var(--bg2);
-  border-right: 1px solid var(--border); overflow-y: auto; padding: 8px 0;
+  width: var(--sidebar-width); flex-shrink: 0; background: var(--bg2);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  transition: width 0.2s ease; overflow: hidden;
 }
-.sidebar-title { padding: 6px 12px 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: .5px; }
+#sidebar.collapsed { width: 0; border-right: none; }
+#sidebar-inner { display: flex; flex-direction: column; width: var(--sidebar-width); height: 100%; overflow: hidden; }
+
+.sidebar-header { padding: 8px 12px 4px; flex-shrink: 0; }
+.sidebar-title { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: .5px; }
+
+.sidebar-search { padding: 4px 8px 6px; flex-shrink: 0; }
+.sidebar-search input {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); border-radius: 6px; padding: 5px 10px; font-size: 12px;
+  outline: none; font-family: var(--font-ui);
+}
+.sidebar-search input:focus { border-color: var(--accent); }
+.sidebar-search input::placeholder { color: var(--text-dim); }
+
+#file-list { overflow-y: auto; flex: 1; }
+
 .file-item {
   padding: 5px 12px; cursor: pointer; border-left: 2px solid transparent;
-  display: flex; flex-direction: column; gap: 2px;
+  display: flex; flex-direction: column; gap: 3px;
 }
 .file-item:hover { background: var(--bg3); }
 .file-item.active { background: var(--bg3); border-left-color: var(--accent); }
 .file-item-name { font-size: 13px; font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.file-item-stats { display: flex; gap: 6px; font-size: 11px; }
+.file-item-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; }
 .stat-added { color: var(--added-fg); }
 .stat-deleted { color: var(--deleted-fg); }
 .badge-open { color: var(--comment-open); }
 .badge-stale { color: var(--comment-stale); }
 
+/* GitHub-style 5-block stat visualization */
+.stat-blocks { display: flex; gap: 2px; align-items: center; }
+.stat-block { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.stat-block.added { background: var(--added-fg); }
+.stat-block.deleted { background: var(--deleted-fg); }
+.stat-block.neutral { background: var(--bg3); border: 1px solid var(--border); }
+
 /* ─── Diff Viewer ─── */
-#diff-area { flex: 1; overflow-y: auto; background: var(--bg); }
+#diff-area { flex: 1; overflow-y: auto; overflow-x: auto; background: var(--bg); min-width: 0; }
 #diff-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); font-size: 15px; }
 
-.diff-file-header { padding: 10px 16px; background: var(--bg2); border-bottom: 1px solid var(--border); font-family: var(--font-mono); font-size: 13px; position: sticky; top: 0; z-index: 10; }
+.diff-file-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 16px; background: var(--bg2); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10; min-width: 0;
+}
+.diff-file-path { font-family: var(--font-mono); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.diff-file-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.btn-file-action {
+  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+  padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;
+}
+.btn-file-action:hover { background: var(--bg3); color: var(--text); }
+.btn-file-action.active { border-color: var(--accent); color: var(--accent); }
+
 .diff-hunk-header { background: var(--bg3); color: var(--accent); font-family: var(--font-mono); font-size: 12px; padding: 3px 8px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); user-select: none; }
 
 .diff-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 13px; }
@@ -89,6 +138,9 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 }
 .diff-table .td-sign { width: 14px; text-align: center; user-select: none; }
 .diff-table .td-code { width: 100%; }
+
+/* Wrap mode */
+#diff-area.wrap-mode .diff-table td { white-space: pre-wrap; word-break: break-all; }
 
 .diff-line { cursor: pointer; }
 .diff-line:hover .td-code { background: rgba(255,255,255,0.03); }
@@ -103,8 +155,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 .add-comment-btn-wrap { padding: 2px 0 2px 64px; }
 .add-comment-btn {
   font-size: 12px; padding: 2px 8px; background: var(--bg3);
-  border: 1px solid var(--border); color: var(--accent); border-radius: 4px;
-  cursor: pointer;
+  border: 1px solid var(--border); color: var(--accent); border-radius: 4px; cursor: pointer;
 }
 .add-comment-btn:hover { background: var(--border); }
 
@@ -117,8 +168,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 .comment-form-wrap textarea {
   width: 100%; background: var(--bg3); border: 1px solid var(--border);
   color: var(--text); border-radius: 4px; padding: 6px 8px;
-  font-family: var(--font-ui); font-size: 13px; resize: vertical; min-height: 72px;
-  outline: none;
+  font-family: var(--font-ui); font-size: 13px; resize: vertical; min-height: 72px; outline: none;
 }
 .comment-form-wrap textarea:focus { border-color: var(--accent); }
 .comment-form-actions { display: flex; gap: 8px; margin-top: 6px; justify-content: flex-end; }
@@ -129,16 +179,14 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 /* ─── Comment threads ─── */
 .comment-thread-row td { padding: 0; }
 .comment-thread {
-  margin: 2px 8px 4px 64px; border-radius: 6px; overflow: hidden;
-  border: 1px solid var(--border);
+  margin: 2px 8px 4px 64px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border);
 }
 .comment-thread.status-open { border-color: var(--comment-open); }
 .comment-thread.status-stale { border-color: var(--border); background: var(--bg2); opacity: 0.8; }
 .comment-thread.status-resolved { border-color: var(--border); opacity: 0.5; }
 .comment-thread-header {
   display: flex; align-items: center; gap: 8px; padding: 5px 10px;
-  background: var(--bg2); border-bottom: 1px solid var(--border);
-  font-size: 12px; color: var(--text-muted);
+  background: var(--bg2); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-muted);
 }
 .comment-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .status-open .comment-status-dot { background: var(--comment-open); }
@@ -160,12 +208,12 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 /* ─── Modals ─── */
 .modal-overlay {
   display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-  z-index: 100; align-items: center; justify-content: center;
+  z-index: 100; align-items: center; justify-content: center; padding: 16px;
 }
 .modal-overlay.open { display: flex; }
 .modal {
   background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
-  padding: 20px; min-width: 420px; max-width: 640px; width: 90%;
+  padding: 20px; max-width: 640px; width: 100%;
 }
 .modal h3 { margin-bottom: 12px; font-size: 15px; }
 .modal p { color: var(--text-muted); font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
@@ -192,33 +240,83 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 #btn-copy:hover { background: var(--border); }
 #btn-copy.copied { background: var(--added-bg); border-color: var(--added-fg); color: var(--added-fg); }
 
-/* ─── Round history selector ─── */
-#round-select { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 3px 8px; border-radius: 4px; font-size: 13px; }
-
 /* scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ─── Responsive: Tablet ─── */
+@media (min-width: 768px) and (max-width: 1011px) {
+  :root { --sidebar-width: 220px; }
+  #round-badge { display: none; }
+}
+
+/* ─── Responsive: Mobile ─── */
+@media (max-width: 767px) {
+  #header { padding: 8px 10px; gap: 6px; }
+  #project-name { font-size: 13px; max-width: 90px; }
+  #round-badge { display: none; }
+  #changed-count { display: none; }
+  #round-select { max-width: 80px; font-size: 12px; padding: 3px 4px; }
+  #btn-new-round { padding: 5px 8px; }
+  #btn-new-round .btn-label { display: none; }
+  #btn-export { padding: 5px 8px; font-size: 12px; }
+
+  /* Sidebar becomes a fixed left drawer */
+  #sidebar {
+    position: fixed; top: 0; left: 0; height: 100vh; z-index: 60;
+    width: 280px !important; border-right: 1px solid var(--border) !important;
+    overflow: hidden !important;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+  #sidebar.mobile-open { transform: translateX(0); }
+  #sidebar-inner { width: 280px; }
+
+  /* Diff table: allow horizontal scroll */
+  #diff-area { overflow-x: auto; }
+  .diff-table { font-size: 12px; }
+  .diff-table .td-old-ln, .diff-table .td-new-ln { width: 36px; min-width: 36px; }
+
+  /* Reduce comment indentation */
+  .add-comment-btn-wrap { padding-left: 8px; }
+  .comment-form-wrap { margin-left: 8px; }
+  .comment-thread { margin-left: 8px; }
+}
 </style>
 </head>
 <body>
 
+<div id="sidebar-overlay"></div>
+
 <!-- Header -->
 <div id="header">
+  <button id="btn-sidebar-toggle" title="Toggle file sidebar" aria-label="Toggle sidebar">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+      <path d="M2.75 1h10.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 15H2.75A1.75 1.75 0 0 1 1 13.25V2.75C1 1.784 1.784 1 2.75 1ZM2.5 2.5v11h5.75v-11Zm7.25 0v11h3.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25Z"/>
+    </svg>
+  </button>
   <span id="project-name">Code Review</span>
   <span id="round-badge">Round 1</span>
   <span id="changed-count"></span>
   <div class="spacer"></div>
   <select id="round-select" title="View round history"></select>
-  <button id="btn-new-round">New Round</button>
+  <button id="btn-new-round"><span class="btn-label">New Round</span></button>
   <button id="btn-export">Export ▼</button>
 </div>
 
 <!-- Main -->
 <div id="main">
   <div id="sidebar">
-    <div class="sidebar-title">Files Changed</div>
-    <div id="file-list"></div>
+    <div id="sidebar-inner">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Files Changed</span>
+      </div>
+      <div class="sidebar-search">
+        <input type="search" id="sidebar-search-input" placeholder="Filter files…" autocomplete="off" spellcheck="false">
+      </div>
+      <div id="file-list"></div>
+    </div>
   </div>
   <div id="diff-area">
     <div id="diff-placeholder">← Select a file to review</div>
@@ -267,15 +365,16 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 // State
 // ─────────────────────────────────────────────
 const state = {
-  files: [],          // FileDiffStat[]
-  currentFile: null,  // string
-  diff: null,         // ParsedDiff
-  comments: [],       // ReviewComment[] for currentFile (all rounds)
-  rounds: [],         // ReviewRound[]
+  files: [],
+  currentFile: null,
+  diff: null,
+  comments: [],
+  rounds: [],
   currentRound: 1,
-  viewRound: null,    // null = current
-  selection: null,    // { startLine, endLine, side }
-  selectionAnchor: null, // { line, side }
+  viewRound: null,
+  selection: null,
+  selectionAnchor: null,
+  wrapLines: false,
 }
 
 // ─────────────────────────────────────────────
@@ -287,6 +386,59 @@ async function api(method, path, body) {
   const r = await fetch(path, opts)
   if (!r.ok) throw new Error(await r.text())
   return r.json()
+}
+
+// ─────────────────────────────────────────────
+// Sidebar toggle
+// ─────────────────────────────────────────────
+const sidebar = document.getElementById('sidebar')
+const sidebarOverlay = document.getElementById('sidebar-overlay')
+
+function isMobile() { return window.innerWidth < 768 }
+
+document.getElementById('btn-sidebar-toggle').addEventListener('click', () => {
+  if (isMobile()) {
+    const open = sidebar.classList.toggle('mobile-open')
+    sidebarOverlay.classList.toggle('open', open)
+  } else {
+    sidebar.classList.toggle('collapsed')
+  }
+})
+
+sidebarOverlay.addEventListener('click', () => {
+  sidebar.classList.remove('mobile-open')
+  sidebarOverlay.classList.remove('open')
+})
+
+window.addEventListener('resize', () => {
+  if (window.innerWidth >= 768) {
+    sidebar.classList.remove('mobile-open')
+    sidebarOverlay.classList.remove('open')
+  }
+})
+
+// ─────────────────────────────────────────────
+// File filter
+// ─────────────────────────────────────────────
+document.getElementById('sidebar-search-input').addEventListener('input', (e) => {
+  const q = e.target.value.toLowerCase()
+  document.querySelectorAll('.file-item').forEach(el => {
+    el.style.display = el.dataset.file.toLowerCase().includes(q) ? '' : 'none'
+  })
+})
+
+// ─────────────────────────────────────────────
+// GitHub-style 5-block stat helper
+// ─────────────────────────────────────────────
+function buildStatBlocks(added, deleted) {
+  const total = added + deleted
+  if (total === 0) return ''
+  const addedBlocks = Math.round((added / total) * 5)
+  const blocks = []
+  for (let i = 0; i < 5; i++) {
+    blocks.push(`<span class="stat-block ${i < addedBlocks ? 'added' : 'deleted'}"></span>`)
+  }
+  return `<span class="stat-blocks">${blocks.join('')}</span>`
 }
 
 // ─────────────────────────────────────────────
@@ -331,7 +483,7 @@ async function loadFiles() {
   const viewRound = state.viewRound ?? state.currentRound
   const allComments = await api('GET', `/api/comments?round=all`)
 
-  document.getElementById('changed-count').textContent = `Changes (${files.length})`
+  document.getElementById('changed-count').textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`
 
   const list = document.getElementById('file-list')
   list.innerHTML = ''
@@ -350,14 +502,15 @@ async function loadFiles() {
     nameEl.textContent = f.file
     nameEl.title = f.file
 
-    const statsEl = document.createElement('div')
-    statsEl.className = 'file-item-stats'
-    statsEl.innerHTML = `<span class="stat-added">+${f.added}</span><span class="stat-deleted">-${f.deleted}</span>`
-    if (openCount > 0) statsEl.innerHTML += ` <span class="badge-open">● ${openCount} open</span>`
-    if (staleCount > 0) statsEl.innerHTML += ` <span class="badge-stale">⚠ ${staleCount} stale</span>`
+    const metaEl = document.createElement('div')
+    metaEl.className = 'file-item-meta'
+    metaEl.innerHTML = buildStatBlocks(f.added, f.deleted)
+      + `<span class="stat-added">+${f.added}</span><span class="stat-deleted">-${f.deleted}</span>`
+    if (openCount > 0) metaEl.innerHTML += ` <span class="badge-open">● ${openCount}</span>`
+    if (staleCount > 0) metaEl.innerHTML += ` <span class="badge-stale">⚠ ${staleCount}</span>`
 
     el.appendChild(nameEl)
-    el.appendChild(statsEl)
+    el.appendChild(metaEl)
     el.addEventListener('click', () => selectFile(f.file))
     list.appendChild(el)
   }
@@ -370,6 +523,11 @@ async function selectFile(file) {
   state.currentFile = file
   state.selection = null
   state.selectionAnchor = null
+
+  if (isMobile()) {
+    sidebar.classList.remove('mobile-open')
+    sidebarOverlay.classList.remove('open')
+  }
 
   document.querySelectorAll('.file-item').forEach(el => {
     el.classList.toggle('active', el.dataset.file === file)
@@ -393,15 +551,39 @@ function renderDiff() {
   container.style.display = 'block'
   container.innerHTML = ''
 
+  document.getElementById('diff-area').classList.toggle('wrap-mode', state.wrapLines)
+
   const diff = state.diff
   if (!diff || !diff.hunks || diff.hunks.length === 0) {
     container.innerHTML = '<div style="padding:24px;color:var(--text-muted)">No changes in this file.</div>'
     return
   }
 
+  // File header with actions
   const header = document.createElement('div')
   header.className = 'diff-file-header'
-  header.textContent = diff.file
+
+  const filePath = document.createElement('span')
+  filePath.className = 'diff-file-path'
+  filePath.textContent = diff.file
+  filePath.title = diff.file
+
+  const fileActions = document.createElement('div')
+  fileActions.className = 'diff-file-actions'
+
+  const wrapBtn = document.createElement('button')
+  wrapBtn.className = 'btn-file-action' + (state.wrapLines ? ' active' : '')
+  wrapBtn.textContent = 'Wrap'
+  wrapBtn.title = 'Toggle line wrap'
+  wrapBtn.addEventListener('click', () => {
+    state.wrapLines = !state.wrapLines
+    wrapBtn.classList.toggle('active', state.wrapLines)
+    document.getElementById('diff-area').classList.toggle('wrap-mode', state.wrapLines)
+  })
+
+  fileActions.appendChild(wrapBtn)
+  header.appendChild(filePath)
+  header.appendChild(fileActions)
   container.appendChild(header)
 
   const table = document.createElement('table')
@@ -413,14 +595,12 @@ function renderDiff() {
   const readonly = state.viewRound !== null && state.viewRound !== state.currentRound
 
   for (const hunk of diff.hunks) {
-    // Hunk header row
     const hunkHeaderRow = table.insertRow()
     const hunkCell = hunkHeaderRow.insertCell()
     hunkCell.colSpan = 4
     hunkCell.className = 'diff-hunk-header'
     hunkCell.textContent = `@@ -${hunk.oldStart},${hunk.oldCount} +${hunk.newStart},${hunk.newCount} @@`
 
-    // Collect lines with their absolute line numbers
     for (const line of hunk.lines) {
       const lineNum = line.type === 'deleted' ? line.oldLine : line.newLine
       const side = line.type === 'deleted' ? 'old' : 'new'
@@ -442,7 +622,6 @@ function renderDiff() {
       tdSign.textContent = line.type === 'added' ? '+' : line.type === 'deleted' ? '-' : ' '
       tdCode.textContent = line.content
 
-      // highlight if in current selection
       if (state.selection) {
         const s = state.selection
         if (side === s.side && lineNum >= s.startLine && lineNum <= s.endLine) {
@@ -455,7 +634,6 @@ function renderDiff() {
       }
     }
 
-    // After each hunk, render any comment threads anchored within that hunk's new lines range
     const hunkNewEnd = hunk.newStart + hunk.newCount - 1
     const hunkOldEnd = hunk.oldStart + hunk.oldCount - 1
 
@@ -464,10 +642,8 @@ function renderDiff() {
       else return c.endLine >= hunk.oldStart && c.startLine <= hunkOldEnd
     })
 
-    if (hunkComments.length > 0) {
-      for (const comment of hunkComments) {
-        appendCommentThread(table, comment, readonly)
-      }
+    for (const comment of hunkComments) {
+      appendCommentThread(table, comment, readonly)
     }
   }
 }
@@ -477,32 +653,22 @@ function renderDiff() {
 // ─────────────────────────────────────────────
 function handleLineClick(e, line, side) {
   if (e.shiftKey && state.selectionAnchor && state.selectionAnchor.side === side) {
-    // extend selection
     const anchor = state.selectionAnchor.line
-    state.selection = {
-      startLine: Math.min(anchor, line),
-      endLine: Math.max(anchor, line),
-      side,
-    }
+    state.selection = { startLine: Math.min(anchor, line), endLine: Math.max(anchor, line), side }
   } else {
     state.selectionAnchor = { line, side }
     state.selection = { startLine: line, endLine: line, side }
   }
   renderDiff()
-  // Show add-comment button after re-render
   showAddCommentButton()
 }
 
 function showAddCommentButton() {
   if (!state.selection) return
-  const { endLine, side } = state.selection
-
-  // Find the last selected row
   const rows = document.querySelectorAll('.diff-line.selected')
   if (rows.length === 0) return
   const lastRow = rows[rows.length - 1]
 
-  // Remove existing btn row if any
   removeAddCommentUI()
 
   const btnRow = document.createElement('tr')
@@ -518,7 +684,6 @@ function showAddCommentButton() {
   btn.addEventListener('click', (e) => { e.stopPropagation(); showCommentForm() })
   wrap.appendChild(btn)
   td.appendChild(wrap)
-
   lastRow.insertAdjacentElement('afterend', btnRow)
 }
 
@@ -577,8 +742,6 @@ function showCommentForm() {
   wrap.appendChild(textarea)
   wrap.appendChild(actions)
   td.appendChild(wrap)
-  formRow.insertAdjacentElement('afterend', formRow) // placeholder
-
   lastRow.insertAdjacentElement('afterend', formRow)
   textarea.focus()
 }
@@ -586,13 +749,7 @@ function showCommentForm() {
 async function submitComment(body) {
   if (!body || !state.selection || !state.currentFile) return
   const { startLine, endLine, side } = state.selection
-  await api('POST', '/api/comments', {
-    file: state.currentFile,
-    startLine,
-    endLine,
-    side,
-    body,
-  })
+  await api('POST', '/api/comments', { file: state.currentFile, startLine, endLine, side, body })
   state.selection = null
   state.selectionAnchor = null
   await refreshCurrentFile()
@@ -625,13 +782,13 @@ function appendCommentThread(table, comment, readonly) {
   ref.className = 'comment-line-ref'
   ref.textContent = lineRef
 
-  const side = document.createElement('span')
-  side.style.color = 'var(--text-dim)'
-  side.textContent = `(${comment.side})`
+  const sideEl = document.createElement('span')
+  sideEl.style.color = 'var(--text-dim)'
+  sideEl.textContent = `(${comment.side})`
 
   hdr.appendChild(dot)
   hdr.appendChild(ref)
-  hdr.appendChild(side)
+  hdr.appendChild(sideEl)
 
   if (comment.status === 'stale') {
     const staleTag = document.createElement('span')
@@ -716,7 +873,7 @@ async function refreshCurrentFile() {
   state.diff = diffData
   state.comments = comments
   renderDiff()
-  await loadFiles() // refresh sidebar badges
+  await loadFiles()
 }
 
 // ─────────────────────────────────────────────
@@ -751,7 +908,6 @@ document.getElementById('round-select').addEventListener('change', async (e) => 
 // Export
 // ─────────────────────────────────────────────
 document.getElementById('btn-export').addEventListener('click', async () => {
-  // Populate file dropdown
   const allComments = await api('GET', '/api/comments?status=open')
   const filesWithComments = [...new Set(allComments.map(c => c.file))]
 
@@ -802,7 +958,6 @@ document.getElementById('export-output').addEventListener('click', function() {
   sel.addRange(range)
 })
 
-// close modals on overlay click
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) overlay.classList.remove('open')
