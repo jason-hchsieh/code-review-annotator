@@ -9,6 +9,13 @@ export interface ReviewRound {
   createdAt: string
 }
 
+export interface CommentReply {
+  id: string
+  author: 'claude' | 'human'
+  body: string
+  createdAt: string
+}
+
 export interface ReviewComment {
   id: string
   file: string
@@ -20,6 +27,7 @@ export interface ReviewComment {
   round: number
   resolvedInRound?: number
   createdAt: string
+  replies: CommentReply[]
 }
 
 export interface ReviewStore {
@@ -126,6 +134,7 @@ export class CommentStore {
       status: 'open',
       round: this.store.currentRound,
       createdAt: new Date().toISOString(),
+      replies: [],
     }
     this.store.comments.push(comment)
     this.save()
@@ -146,6 +155,16 @@ export class CommentStore {
 
     this.save()
     return comment
+  }
+
+  addReply(commentId: string, author: 'claude' | 'human', body: string): CommentReply | null {
+    const comment = this.store.comments.find(c => c.id === commentId)
+    if (!comment) return null
+    if (!comment.replies) comment.replies = []
+    const reply: CommentReply = { id: nanoid(), author, body, createdAt: new Date().toISOString() }
+    comment.replies.push(reply)
+    this.save()
+    return reply
   }
 
   deleteComment(id: string): boolean {

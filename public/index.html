@@ -209,8 +209,26 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 }
 .comment-action-btn:hover { background: var(--bg3); color: var(--text); }
 .btn-danger:hover { border-color: var(--danger); color: var(--danger); }
+.comment-collapsible.collapsed { display: none; }
 .comment-body-wrap { padding: 8px 10px; background: var(--bg); font-size: 13px; line-height: 1.5; }
-.comment-body-wrap.collapsed { display: none; }
+
+/* ─── Comment Replies ─── */
+.comment-replies { border-top: 1px solid var(--border); }
+.comment-reply { padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 13px; line-height: 1.5; background: var(--bg); }
+.comment-reply:last-child { border-bottom: none; }
+.comment-reply-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; font-size: 11px; }
+.reply-author { font-weight: 600; }
+.reply-author-claude { color: var(--accent); }
+.reply-author-human { color: var(--text-muted); }
+.reply-timestamp { color: var(--text-dim); }
+.comment-reply-form { border-top: 1px solid var(--border); padding: 7px 10px; background: var(--bg2); }
+.comment-reply-form textarea {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); border-radius: 4px; padding: 5px 8px;
+  font-family: var(--font-ui); font-size: 12px; resize: vertical; min-height: 52px; outline: none;
+}
+.comment-reply-form textarea:focus { border-color: var(--accent); }
+.comment-reply-form-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
 
 /* ─── Modals ─── */
 .modal-overlay {
@@ -884,9 +902,9 @@ function appendCommentThread(table, comment, readonly) {
       toggleBtn.className = 'comment-action-btn'
       toggleBtn.textContent = 'Show'
       toggleBtn.addEventListener('click', () => {
-        const body = thread.querySelector('.comment-body-wrap')
-        body.classList.toggle('collapsed')
-        toggleBtn.textContent = body.classList.contains('collapsed') ? 'Show' : 'Hide'
+        const collapsible = thread.querySelector('.comment-collapsible')
+        collapsible.classList.toggle('collapsed')
+        toggleBtn.textContent = collapsible.classList.contains('collapsed') ? 'Show' : 'Hide'
       })
       actions.appendChild(toggleBtn)
     }
@@ -900,12 +918,83 @@ function appendCommentThread(table, comment, readonly) {
     hdr.appendChild(actions)
   }
 
+  // Collapsible section: body + replies + reply form
+  const collapsible = document.createElement('div')
+  collapsible.className = 'comment-collapsible' + (comment.status === 'resolved' ? ' collapsed' : '')
+
   const body = document.createElement('div')
-  body.className = 'comment-body-wrap' + (comment.status === 'resolved' ? ' collapsed' : '')
+  body.className = 'comment-body-wrap'
   body.textContent = comment.body
+  collapsible.appendChild(body)
+
+  // Replies
+  const replies = comment.replies ?? []
+  if (replies.length > 0) {
+    const repliesEl = document.createElement('div')
+    repliesEl.className = 'comment-replies'
+    for (const reply of replies) {
+      const replyEl = document.createElement('div')
+      replyEl.className = 'comment-reply'
+
+      const meta = document.createElement('div')
+      meta.className = 'comment-reply-meta'
+
+      const authorEl = document.createElement('span')
+      authorEl.className = `reply-author reply-author-${reply.author}`
+      authorEl.textContent = reply.author === 'claude' ? 'Claude' : 'Reviewer'
+
+      const tsEl = document.createElement('span')
+      tsEl.className = 'reply-timestamp'
+      tsEl.textContent = new Date(reply.createdAt).toLocaleString()
+
+      meta.appendChild(authorEl)
+      meta.appendChild(tsEl)
+
+      const replyBody = document.createElement('div')
+      replyBody.textContent = reply.body
+
+      replyEl.appendChild(meta)
+      replyEl.appendChild(replyBody)
+      repliesEl.appendChild(replyEl)
+    }
+    collapsible.appendChild(repliesEl)
+  }
+
+  // Reply form (human reviewer)
+  if (!readonly) {
+    const replyForm = document.createElement('div')
+    replyForm.className = 'comment-reply-form'
+
+    const textarea = document.createElement('textarea')
+    textarea.placeholder = 'Reply to this comment…'
+
+    const formActions = document.createElement('div')
+    formActions.className = 'comment-reply-form-actions'
+
+    const submitBtn = document.createElement('button')
+    submitBtn.className = 'btn-primary'
+    submitBtn.style.cssText = 'font-size:12px;padding:3px 10px'
+    submitBtn.textContent = 'Reply'
+    submitBtn.addEventListener('click', async () => {
+      const text = textarea.value.trim()
+      if (!text) return
+      await api('POST', `/api/comments/${comment.id}/replies`, { body: text, author: 'human' })
+      textarea.value = ''
+      await refreshCurrentFile()
+    })
+
+    textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitBtn.click() }
+    })
+
+    formActions.appendChild(submitBtn)
+    replyForm.appendChild(textarea)
+    replyForm.appendChild(formActions)
+    collapsible.appendChild(replyForm)
+  }
 
   thread.appendChild(hdr)
-  thread.appendChild(body)
+  thread.appendChild(collapsible)
   td.appendChild(thread)
 }
 

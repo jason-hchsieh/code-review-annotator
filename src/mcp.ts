@@ -49,7 +49,7 @@ export function startMcpServer(dir: string) {
   store.ensureInitialRound()
 
   const server = new Server(
-    { name: 'code-review-annotator', version: '0.2.0' },
+    { name: 'code-review-annotator', version: '0.3.0' },
     { capabilities: { tools: {} } },
   )
 
@@ -99,6 +99,18 @@ export function startMcpServer(dir: string) {
         name: 'start_new_round',
         description: 'Start a new review round. Marks all open comments in current round as stale.',
         inputSchema: { type: 'object', properties: {} },
+      },
+      {
+        name: 'reply_to_comment',
+        description: 'Add a reply to a reviewer comment. Use this after fixing an issue to explain what you changed.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'Comment ID to reply to' },
+            body: { type: 'string', description: 'Reply text' },
+          },
+          required: ['id', 'body'],
+        },
       },
     ],
   }))
@@ -173,6 +185,16 @@ export function startMcpServer(dir: string) {
           text: `Started round ${result.newRoundId}. ${result.staledCount} comment(s) marked as stale.`,
         }],
       }
+    }
+
+    if (name === 'reply_to_comment') {
+      const id = a.id as string
+      const body = a.body as string
+      const reply = store.addReply(id, 'claude', body)
+      if (!reply) {
+        return { content: [{ type: 'text', text: `Error: comment ${id} not found` }], isError: true }
+      }
+      return { content: [{ type: 'text', text: `Reply added to comment ${id}.` }] }
     }
 
     return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }

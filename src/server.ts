@@ -178,6 +178,17 @@ export function startHttpServer(dir: string, port: number) {
         return json(res, 200, updated)
       }
 
+      // POST /api/comments/:id/replies
+      const replyMatch = pathname.match(/^\/api\/comments\/([^/]+)\/replies$/)
+      if (method === 'POST' && replyMatch) {
+        const id = replyMatch[1]
+        const body = JSON.parse(await readBody(req))
+        if (!body.body) return json(res, 400, { error: 'body required' })
+        const reply = store.addReply(id, body.author ?? 'human', body.body)
+        if (!reply) return json(res, 404, { error: 'not found' })
+        return json(res, 201, reply)
+      }
+
       // DELETE /api/comments/:id
       if (method === 'DELETE' && patchMatch) {
         const id = patchMatch[1]
