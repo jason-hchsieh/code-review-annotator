@@ -49,7 +49,7 @@ export function startMcpServer(dir: string) {
   store.ensureInitialRound()
 
   const server = new Server(
-    { name: 'code-review-annotator', version: '0.1.0' },
+    { name: 'code-review-annotator', version: '0.2.0' },
     { capabilities: { tools: {} } },
   )
 
