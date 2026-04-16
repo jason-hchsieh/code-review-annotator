@@ -32,23 +32,27 @@ export async function getChangedFiles(dir: string, baseCommit: string): Promise<
   let diffOutput: string
 
   try {
-    diffOutput = await git.raw(['diff', '--stat', baseCommit])
+    diffOutput = await git.raw(['diff', '--numstat', baseCommit])
+    // If comparing to a commit yields nothing (e.g. all changes are staged),
+    // fall through to the cached comparison below.
+    if (!diffOutput.trim()) {
+      diffOutput = await git.raw(['diff', '--numstat', '--cached', baseCommit])
+    }
   } catch {
-    diffOutput = await git.raw(['diff', '--stat', '--cached'])
+    diffOutput = await git.raw(['diff', '--numstat', '--cached'])
   }
 
   const result: FileDiffStat[] = []
 
-  // Parse lines like: " src/foo.ts | 12 +++++------"
+  // Parse lines like: "808\t0\tsrc/foo.ts"
+  // Binary files show "-\t-\t<file>" — skip them.
   for (const line of diffOutput.split('\n')) {
-    const match = line.match(/^\s+(.+?)\s+\|\s+\d+\s+([+-]*)$/)
+    const match = line.match(/^(\d+)\t(\d+)\t(.+)$/)
     if (!match) continue
-    const file = match[1].trim()
-    const changes = match[2]
     result.push({
-      file,
-      added: (changes.match(/\+/g) ?? []).length,
-      deleted: (changes.match(/-/g) ?? []).length,
+      file: match[3].trim(),
+      added: parseInt(match[1], 10),
+      deleted: parseInt(match[2], 10),
     })
   }
 
