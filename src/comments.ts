@@ -3,12 +3,6 @@ import * as path from 'node:path'
 import { nanoid } from 'nanoid'
 import { simpleGit } from 'simple-git'
 
-export interface ReviewRound {
-  id: number
-  baseCommit: string
-  createdAt: string
-}
-
 export interface CommentReply {
   id: string
   author: 'claude' | 'human'
@@ -23,16 +17,13 @@ export interface ReviewComment {
   endLine: number
   side: 'old' | 'new'
   body: string
-  status: 'open' | 'resolved' | 'stale'
-  round: number
-  resolvedInRound?: number
+  status: 'open' | 'resolved'
   createdAt: string
   replies: CommentReply[]
 }
 
 export interface ReviewStore {
-  currentRound: number
-  rounds: ReviewRound[]
+  baseCommit: string
   comments: ReviewComment[]
 }
 
@@ -51,27 +42,43 @@ export class CommentStore {
     if (fs.existsSync(this.storePath)) {
       try {
         const raw = fs.readFileSync(this.storePath, 'utf-8')
-        return JSON.parse(raw) as ReviewStore
+        const data = JSON.parse(raw) as Record<string, unknown>
+        // Migrate old round-based format
+        if ('rounds' in data || 'currentRound' in data) {
+          return this.migrate(data)
+        }
+        return data as unknown as ReviewStore
       } catch {
         // corrupted file, start fresh
       }
     }
-    return { currentRound: 1, rounds: [], comments: [] }
+    return { baseCommit: 'HEAD', comments: [] }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private migrate(old: any): ReviewStore {
+    const baseCommit: string = old.rounds?.[0]?.baseCommit ?? 'HEAD'
+    const comments: ReviewComment[] = (old.comments ?? []).map((c: any) => ({
+      id: c.id,
+      file: c.file,
+      startLine: c.startLine,
+      endLine: c.endLine,
+      side: c.side,
+      body: c.body,
+      status: c.status === 'resolved' ? 'resolved' : 'open',
+      createdAt: c.createdAt,
+      replies: c.replies ?? [],
+    }))
+    return { baseCommit, comments }
   }
 
   private save(): void {
     fs.writeFileSync(this.storePath, JSON.stringify(this.store, null, 2), 'utf-8')
   }
 
-  async ensureInitialRound(): Promise<void> {
-    if (this.store.rounds.length === 0) {
-      const baseCommit = await this.getCurrentCommit()
-      this.store.rounds.push({
-        id: 1,
-        baseCommit,
-        createdAt: new Date().toISOString(),
-      })
-      this.store.currentRound = 1
+  async ensureInitialized(): Promise<void> {
+    if (this.store.baseCommit === 'HEAD') {
+      this.store.baseCommit = await this.getCurrentCommit()
       this.save()
     }
   }
@@ -86,38 +93,14 @@ export class CommentStore {
     }
   }
 
-  getStore(): ReviewStore {
-    return this.store
+  getBaseCommit(): string {
+    return this.store.baseCommit
   }
 
-  getCurrentRound(): number {
-    return this.store.currentRound
-  }
-
-  getRounds(): ReviewRound[] {
-    return this.store.rounds
-  }
-
-  getComments(opts: {
-    file?: string
-    round?: number | 'all'
-    status?: 'open' | 'resolved' | 'stale'
-  } = {}): ReviewComment[] {
+  getComments(opts: { file?: string; status?: 'open' | 'resolved' } = {}): ReviewComment[] {
     let comments = this.store.comments
-
-    const targetRound = opts.round === 'all' ? null : (opts.round ?? this.store.currentRound)
-    if (targetRound !== null) {
-      comments = comments.filter(c => c.round === targetRound)
-    }
-
-    if (opts.file) {
-      comments = comments.filter(c => c.file === opts.file)
-    }
-
-    if (opts.status) {
-      comments = comments.filter(c => c.status === opts.status)
-    }
-
+    if (opts.file) comments = comments.filter(c => c.file === opts.file)
+    if (opts.status) comments = comments.filter(c => c.status === opts.status)
     return comments
   }
 
@@ -132,7 +115,6 @@ export class CommentStore {
       id: nanoid(),
       ...data,
       status: 'open',
-      round: this.store.currentRound,
       createdAt: new Date().toISOString(),
       replies: [],
     }
@@ -141,18 +123,11 @@ export class CommentStore {
     return comment
   }
 
-  updateComment(id: string, data: { body?: string; status?: 'open' | 'resolved' | 'stale' }): ReviewComment | null {
+  updateComment(id: string, data: { body?: string; status?: 'open' | 'resolved' }): ReviewComment | null {
     const comment = this.store.comments.find(c => c.id === id)
     if (!comment) return null
-
     if (data.body !== undefined) comment.body = data.body
-    if (data.status !== undefined) {
-      comment.status = data.status
-      if (data.status === 'resolved' || data.status === 'stale') {
-        comment.resolvedInRound = this.store.currentRound
-      }
-    }
-
+    if (data.status !== undefined) comment.status = data.status
     this.save()
     return comment
   }
@@ -173,30 +148,5 @@ export class CommentStore {
     this.store.comments.splice(index, 1)
     this.save()
     return true
-  }
-
-  async startNewRound(): Promise<{ newRoundId: number; staledCount: number }> {
-    const baseCommit = await this.getCurrentCommit()
-    const newId = this.store.currentRound + 1
-
-    // stale all open comments from current round
-    let staledCount = 0
-    for (const comment of this.store.comments) {
-      if (comment.round === this.store.currentRound && comment.status === 'open') {
-        comment.status = 'stale'
-        comment.resolvedInRound = newId
-        staledCount++
-      }
-    }
-
-    this.store.rounds.push({
-      id: newId,
-      baseCommit,
-      createdAt: new Date().toISOString(),
-    })
-    this.store.currentRound = newId
-
-    this.save()
-    return { newRoundId: newId, staledCount }
   }
 }

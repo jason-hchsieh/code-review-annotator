@@ -1,0 +1,63 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - button "Toggle sidebar" [ref=e3] [cursor=pointer]:
+      - img [ref=e4]
+    - generic [ref=e6]: Code Review
+    - generic [ref=e7]: Round 1
+    - generic [ref=e21]: 1 file
+    - combobox "View round history" [ref=e8]:
+      - option "Round 1 (current)" [selected]
+    - button "New Round" [ref=e9] [cursor=pointer]
+    - button "Export ▼" [ref=e10] [cursor=pointer]
+  - generic [ref=e11]:
+    - generic [ref=e13]:
+      - generic [ref=e14]: Files Changed
+      - searchbox "Filter files…" [ref=e16]
+      - generic [ref=e102] [cursor=pointer]:
+        - generic "src/gitDiff.ts" [ref=e103]
+        - generic [ref=e104]:
+          - generic [ref=e111]: "+1"
+          - generic [ref=e112]: "-0"
+          - generic [ref=e113]: ● 1
+    - generic [ref=e33]:
+      - generic [ref=e114]:
+        - generic "src/gitDiff.ts" [ref=e115]
+        - button "Wrap" [ref=e117] [cursor=pointer]
+      - table [ref=e118]:
+        - rowgroup [ref=e119]:
+          - row "@@ -142,3 +142,4 @@" [ref=e120]:
+            - cell "@@ -142,3 +142,4 @@" [ref=e121]
+          - row "142 142 // line numbers are 1-based" [ref=e122] [cursor=pointer]:
+            - cell "142" [ref=e123]
+            - cell "142" [ref=e124]
+            - cell [ref=e125]
+            - cell "// line numbers are 1-based" [ref=e126]
+          - row "143 143 return fileLines.slice(startLine - 1, endLine)" [ref=e127] [cursor=pointer]:
+            - cell "143" [ref=e128]
+            - cell "143" [ref=e129]
+            - cell [ref=e130]
+            - cell "return fileLines.slice(startLine - 1, endLine)" [ref=e131]
+          - 'row "144 144 }" [ref=e132] [cursor=pointer]':
+            - cell "144" [ref=e133]
+            - cell "144" [ref=e134]
+            - cell [ref=e135]
+            - 'cell "}" [ref=e136]'
+          - row "145 + // test change for playwright demo" [ref=e137] [cursor=pointer]:
+            - cell [ref=e138]
+            - cell "145" [ref=e139]
+            - cell "+" [ref=e140]
+            - cell "// test change for playwright demo" [ref=e141]
+          - row "L145 (new) Resolve ✕ 這行只是測試用的 comment，應該移除。 Reply" [ref=e142]:
+            - cell "L145 (new) Resolve ✕ 這行只是測試用的 comment，應該移除。 Reply" [ref=e143]:
+              - generic [ref=e144]:
+                - generic [ref=e145]:
+                  - generic [ref=e147]: L145
+                  - generic [ref=e148]: (new)
+                  - generic [ref=e149]:
+                    - button "Resolve" [ref=e150] [cursor=pointer]
+                    - button "✕" [ref=e151] [cursor=pointer]
+                - generic [ref=e152]:
+                  - generic [ref=e153]: 這行只是測試用的 comment，應該移除。
+                  - generic [ref=e154]:
+                    - textbox "Reply to this comment…" [ref=e155]
+                    - button "Reply" [ref=e157] [cursor=pointer]

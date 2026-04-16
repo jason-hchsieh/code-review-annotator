@@ -1,0 +1,15 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - button "Toggle sidebar" [ref=e3] [cursor=pointer]:
+      - img [ref=e4]
+    - generic [ref=e6]: Code Review
+    - generic [ref=e7]: Round 1
+    - combobox "View round history" [ref=e8]:
+      - option "Round 1 (current)" [selected]
+    - button "New Round" [ref=e9] [cursor=pointer]
+    - button "Export ▼" [ref=e10] [cursor=pointer]
+  - generic [ref=e11]:
+    - generic [ref=e13]:
+      - generic [ref=e14]: Files Changed
+      - searchbox "Filter files…" [ref=e16]
+    - generic [ref=e20]: ← Select a file to review

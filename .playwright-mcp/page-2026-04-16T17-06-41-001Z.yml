@@ -1,0 +1,56 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - button "Toggle sidebar" [ref=e3] [cursor=pointer]:
+      - img [ref=e4]
+    - generic [ref=e6]: Code Review
+    - generic [ref=e7]: Round 1
+    - generic [ref=e21]: 1 file
+    - combobox "View round history" [ref=e8]:
+      - option "Round 1 (current)" [selected]
+    - button "New Round" [ref=e9] [cursor=pointer]
+    - button "Export ▼" [ref=e10] [cursor=pointer]
+  - generic [ref=e11]:
+    - generic [ref=e13]:
+      - generic [ref=e14]: Files Changed
+      - searchbox "Filter files…" [ref=e16]
+      - generic [ref=e22] [cursor=pointer]:
+        - generic "src/gitDiff.ts" [ref=e23]
+        - generic [ref=e24]:
+          - generic [ref=e31]: "+1"
+          - generic [ref=e32]: "-0"
+    - generic [ref=e33]:
+      - generic [ref=e62]:
+        - generic "src/gitDiff.ts" [ref=e63]
+        - button "Wrap" [ref=e65] [cursor=pointer]
+      - table [ref=e66]:
+        - rowgroup [ref=e67]:
+          - row "@@ -142,3 +142,4 @@" [ref=e68]:
+            - cell "@@ -142,3 +142,4 @@" [ref=e69]
+          - row "142 142 // line numbers are 1-based" [ref=e70] [cursor=pointer]:
+            - cell "142" [ref=e71]
+            - cell "142" [ref=e72]
+            - cell [ref=e73]
+            - cell "// line numbers are 1-based" [ref=e74]
+          - row "143 143 return fileLines.slice(startLine - 1, endLine)" [ref=e75] [cursor=pointer]:
+            - cell "143" [ref=e76]
+            - cell "143" [ref=e77]
+            - cell [ref=e78]
+            - cell "return fileLines.slice(startLine - 1, endLine)" [ref=e79]
+          - 'row "144 144 }" [ref=e80] [cursor=pointer]':
+            - cell "144" [ref=e81]
+            - cell "144" [ref=e82]
+            - cell [ref=e83]
+            - 'cell "}" [ref=e84]'
+          - row "145 + // test change for playwright demo" [ref=e85] [cursor=pointer]:
+            - cell [ref=e86]
+            - cell "145" [ref=e87]
+            - cell "+" [ref=e88]
+            - cell "// test change for playwright demo" [ref=e89]
+          - row "Comment on L145 (new side) — Enter to submit, Escape to cancel Cancel Add Comment" [ref=e94]:
+            - cell "Comment on L145 (new side) — Enter to submit, Escape to cancel Cancel Add Comment" [ref=e95]:
+              - generic [ref=e96]:
+                - generic [ref=e97]: Comment on L145 (new side) — Enter to submit, Escape to cancel
+                - textbox "Leave a review comment..." [active] [ref=e98]
+                - generic [ref=e99]:
+                  - button "Cancel" [ref=e100] [cursor=pointer]
+                  - button "Add Comment" [ref=e101] [cursor=pointer]

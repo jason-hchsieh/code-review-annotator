@@ -46,10 +46,10 @@ function generateExportPrompt(
 
 export function startMcpServer(dir: string) {
   const store = new CommentStore(dir)
-  store.ensureInitialRound()
+  store.ensureInitialized()
 
   const server = new Server(
-    { name: 'code-review-annotator', version: '0.3.0' },
+    { name: 'code-review-annotator', version: '0.4.0' },
     { capabilities: { tools: {} } },
   )
 
@@ -57,13 +57,12 @@ export function startMcpServer(dir: string) {
     tools: [
       {
         name: 'get_review_comments',
-        description: 'Get review comments. Defaults to current round open comments.',
+        description: 'Get review comments. Defaults to open comments.',
         inputSchema: {
           type: 'object',
           properties: {
             file: { type: 'string', description: 'Filter by file path (relative to project dir)' },
-            status: { type: 'string', enum: ['open', 'resolved', 'stale'], description: 'Filter by status' },
-            round: { description: 'Round number or "all". Defaults to current round.', oneOf: [{ type: 'number' }, { type: 'string', enum: ['all'] }] },
+            status: { type: 'string', enum: ['open', 'resolved'], description: 'Filter by status. Defaults to open.' },
           },
         },
       },
@@ -96,11 +95,6 @@ export function startMcpServer(dir: string) {
         },
       },
       {
-        name: 'start_new_round',
-        description: 'Start a new review round. Marks all open comments in current round as stale.',
-        inputSchema: { type: 'object', properties: {} },
-      },
-      {
         name: 'reply_to_comment',
         description: 'Add a reply to a reviewer comment. Use this after fixing an issue to explain what you changed.',
         inputSchema: {
@@ -119,17 +113,13 @@ export function startMcpServer(dir: string) {
     const { name, arguments: args } = request.params
     const a = (args ?? {}) as Record<string, unknown>
 
-    await store.ensureInitialRound()
-    const rounds = store.getRounds()
-    const currentRoundData = rounds.find(r => r.id === store.getCurrentRound())
-    const baseCommit = currentRoundData?.baseCommit ?? 'HEAD'
+    await store.ensureInitialized()
+    const baseCommit = store.getBaseCommit()
 
     if (name === 'get_review_comments') {
-      const round = a.round as number | 'all' | undefined
       const comments = store.getComments({
         file: a.file as string | undefined,
-        status: (a.status as 'open' | 'resolved' | 'stale') ?? 'open',
-        round: round ?? store.getCurrentRound(),
+        status: (a.status as 'open' | 'resolved') ?? 'open',
       })
 
       const enriched = await Promise.all(
@@ -175,16 +165,6 @@ export function startMcpServer(dir: string) {
         return { content: [{ type: 'text', text: `Error: comment ${id} not found` }], isError: true }
       }
       return { content: [{ type: 'text', text: `Comment ${id} marked as resolved.` }] }
-    }
-
-    if (name === 'start_new_round') {
-      const result = await store.startNewRound()
-      return {
-        content: [{
-          type: 'text',
-          text: `Started round ${result.newRoundId}. ${result.staledCount} comment(s) marked as stale.`,
-        }],
-      }
     }
 
     if (name === 'reply_to_comment') {

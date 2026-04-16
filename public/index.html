@@ -21,7 +21,6 @@
   --deleted-fg: #f85149;
   --selected-bg: #1a3a5c;
   --comment-open: #e3a44a;
-  --comment-stale: #e3c84a;
   --comment-resolved: #6e7681;
   --accent: #58a6ff;
   --danger: #f85149;
@@ -49,15 +48,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 }
 #btn-sidebar-toggle:hover { background: var(--bg3); color: var(--text); }
 #project-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-#round-badge { background: var(--bg3); border: 1px solid var(--border); border-radius: 20px; padding: 2px 10px; font-size: 13px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
 #changed-count { color: var(--text-muted); font-size: 13px; white-space: nowrap; flex-shrink: 0; }
 .spacer { flex: 1; min-width: 4px; }
-#round-select { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 3px 8px; border-radius: 4px; font-size: 13px; flex-shrink: 0; }
-#btn-new-round {
-  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
-  padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; white-space: nowrap; flex-shrink: 0;
-}
-#btn-new-round:hover { background: var(--border); }
 #btn-export {
   background: var(--accent); border: none; color: #000;
   padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; white-space: nowrap; flex-shrink: 0;
@@ -108,14 +100,12 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 .stat-added { color: var(--added-fg); }
 .stat-deleted { color: var(--deleted-fg); }
 .badge-open { color: var(--comment-open); }
-.badge-stale { color: var(--comment-stale); }
 
 /* GitHub-style 5-block stat visualization */
 .stat-blocks { display: flex; gap: 2px; align-items: center; }
 .stat-block { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 .stat-block.added { background: var(--added-fg); }
 .stat-block.deleted { background: var(--deleted-fg); }
-.stat-block.neutral { background: var(--bg3); border: 1px solid var(--border); }
 
 /* ─── Diff Viewer ─── */
 #diff-area { flex: 1; overflow-y: auto; overflow-x: auto; background: var(--bg); min-width: 0; }
@@ -189,7 +179,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
   margin: 2px 8px 4px 64px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border);
 }
 .comment-thread.status-open { border-color: var(--comment-open); }
-.comment-thread.status-stale { border-color: var(--border); background: var(--bg2); opacity: 0.8; }
 .comment-thread.status-resolved { border-color: var(--border); opacity: 0.5; }
 .comment-thread-header {
   display: flex; align-items: center; gap: 8px; padding: 5px 10px;
@@ -197,11 +186,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 }
 .comment-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .status-open .comment-status-dot { background: var(--comment-open); }
-.status-stale .comment-status-dot { background: var(--comment-stale); }
 .status-resolved .comment-status-dot { background: var(--comment-resolved); }
 .comment-line-ref { font-family: var(--font-mono); font-weight: 600; color: var(--text); }
-.comment-round-tag { color: var(--text-dim); font-size: 11px; }
-.stale-icon { color: var(--comment-stale); }
 .comment-thread-actions { margin-left: auto; display: flex; gap: 4px; }
 .comment-action-btn {
   background: transparent; border: 1px solid var(--border); color: var(--text-muted);
@@ -230,7 +216,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 .comment-reply-form textarea:focus { border-color: var(--accent); }
 .comment-reply-form-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
 
-/* ─── Modals ─── */
+/* ─── Export Modal ─── */
 .modal-overlay {
   display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
   z-index: 100; align-items: center; justify-content: center; padding: 16px;
@@ -238,16 +224,10 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 .modal-overlay.open { display: flex; }
 .modal {
   background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
-  padding: 20px; max-width: 640px; width: 100%;
+  padding: 20px; max-width: 720px; width: 100%;
 }
 .modal h3 { margin-bottom: 12px; font-size: 15px; }
-.modal p { color: var(--text-muted); font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.btn-confirm { background: #da3633; border: none; color: #fff; padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
-.btn-confirm:hover { background: #b91c1c; }
-
-/* Export modal */
-#export-modal .modal { max-width: 720px; }
 .export-controls { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 .export-controls select {
   background: var(--bg3); border: 1px solid var(--border); color: var(--text);
@@ -264,6 +244,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 #btn-copy { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
 #btn-copy:hover { background: var(--border); }
 #btn-copy.copied { background: var(--added-bg); border-color: var(--added-fg); color: var(--added-fg); }
+.btn-cancel { background: transparent; border: 1px solid var(--border); color: var(--text-muted); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
 
 /* scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -273,24 +254,15 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 /* ─── Responsive: Tablet ─── */
 @media (min-width: 768px) and (max-width: 1011px) {
   :root { --sidebar-width: 220px; }
-  #round-badge { display: none; }
 }
 
 /* ─── Responsive: Mobile ─── */
 @media (max-width: 767px) {
   #header { padding: 8px 10px; gap: 6px; }
-  #project-name { font-size: 13px; max-width: 90px; }
-  #round-badge { display: none; }
+  #project-name { font-size: 13px; max-width: 120px; }
   #changed-count { display: none; }
-  #round-select { max-width: 80px; font-size: 12px; padding: 3px 4px; }
-  #btn-new-round { padding: 5px 8px; }
-  #btn-new-round .btn-label { display: none; }
   #btn-export { padding: 5px 8px; font-size: 12px; }
-
-  /* Hide resizer on mobile (sidebar is overlay, not resizable) */
   #sidebar-resizer { display: none; }
-
-  /* Sidebar becomes a fixed left drawer */
   #sidebar {
     position: fixed; top: 0; left: 0; height: 100vh; z-index: 60;
     width: 280px !important; border-right: 1px solid var(--border) !important;
@@ -300,13 +272,9 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
   }
   #sidebar.mobile-open { transform: translateX(0); }
   #sidebar-inner { width: 280px; }
-
-  /* Diff table: allow horizontal scroll */
   #diff-area { overflow-x: auto; }
   .diff-table { font-size: 12px; }
   .diff-table .td-old-ln, .diff-table .td-new-ln { width: 36px; min-width: 36px; }
-
-  /* Reduce comment indentation */
   .add-comment-btn-wrap { padding-left: 8px; }
   .comment-form-wrap { margin-left: 8px; }
   .comment-thread { margin-left: 8px; }
@@ -325,11 +293,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
     </svg>
   </button>
   <span id="project-name">Code Review</span>
-  <span id="round-badge">Round 1</span>
   <span id="changed-count"></span>
   <div class="spacer"></div>
-  <select id="round-select" title="View round history"></select>
-  <button id="btn-new-round"><span class="btn-label">New Round</span></button>
   <button id="btn-export">Export ▼</button>
 </div>
 
@@ -350,18 +315,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
   <div id="diff-area">
     <div id="diff-placeholder">← Select a file to review</div>
     <div id="diff-content" style="display:none"></div>
-  </div>
-</div>
-
-<!-- New Round Confirm Modal -->
-<div class="modal-overlay" id="round-modal">
-  <div class="modal">
-    <h3>Start New Round?</h3>
-    <p>All open comments in the current round will be marked as <strong>stale</strong>. This cannot be undone.</p>
-    <div class="modal-actions">
-      <button class="btn-cancel" id="btn-round-cancel">Cancel</button>
-      <button class="btn-confirm" id="btn-round-confirm">Start New Round</button>
-    </div>
   </div>
 </div>
 
@@ -398,9 +351,6 @@ const state = {
   currentFile: null,
   diff: null,
   comments: [],
-  rounds: [],
-  currentRound: 1,
-  viewRound: null,
   selection: null,
   selectionAnchor: null,
   wrapLines: true,
@@ -483,7 +433,6 @@ document.addEventListener('mouseup', () => {
   localStorage.setItem('sidebar-width', sidebar.style.width)
 })
 
-// Restore persisted sidebar width
 const savedSidebarWidth = localStorage.getItem('sidebar-width')
 if (savedSidebarWidth) {
   sidebar.style.width = savedSidebarWidth
@@ -515,46 +464,18 @@ function buildStatBlocks(added, deleted) {
 }
 
 // ─────────────────────────────────────────────
-// Init
+// Init & load files
 // ─────────────────────────────────────────────
 async function init() {
-  await loadRounds()
   await loadFiles()
 }
 
-async function loadRounds() {
-  const data = await api('GET', '/api/rounds')
-  state.rounds = data.rounds
-  state.currentRound = data.currentRound
-
-  document.getElementById('round-badge').textContent = `Round ${state.currentRound}`
-
-  const sel = document.getElementById('round-select')
-  sel.innerHTML = ''
-  const optCurrent = document.createElement('option')
-  optCurrent.value = ''
-  optCurrent.textContent = `Round ${state.currentRound} (current)`
-  sel.appendChild(optCurrent)
-  for (const r of [...state.rounds].reverse()) {
-    if (r.id === state.currentRound) continue
-    const opt = document.createElement('option')
-    opt.value = r.id
-    opt.textContent = `Round ${r.id} — ${new Date(r.createdAt).toLocaleString()}`
-    sel.appendChild(opt)
-  }
-}
-
 async function loadFiles() {
-  const [files, rounds] = await Promise.all([
+  const [files, allComments] = await Promise.all([
     api('GET', '/api/diff/summary'),
-    api('GET', '/api/rounds'),
+    api('GET', '/api/comments'),
   ])
   state.files = files
-  state.rounds = rounds.rounds
-  state.currentRound = rounds.currentRound
-
-  const viewRound = state.viewRound ?? state.currentRound
-  const allComments = await api('GET', `/api/comments?round=all`)
 
   document.getElementById('changed-count').textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`
 
@@ -562,9 +483,8 @@ async function loadFiles() {
   list.innerHTML = ''
 
   for (const f of files) {
-    const fileComments = allComments.filter(c => c.file === f.file && c.round === viewRound)
+    const fileComments = allComments.filter(c => c.file === f.file)
     const openCount = fileComments.filter(c => c.status === 'open').length
-    const staleCount = fileComments.filter(c => c.status === 'stale').length
 
     const el = document.createElement('div')
     el.className = 'file-item' + (state.currentFile === f.file ? ' active' : '')
@@ -580,7 +500,6 @@ async function loadFiles() {
     metaEl.innerHTML = buildStatBlocks(f.added, f.deleted)
       + `<span class="stat-added">+${f.added}</span><span class="stat-deleted">-${f.deleted}</span>`
     if (openCount > 0) metaEl.innerHTML += ` <span class="badge-open">● ${openCount}</span>`
-    if (staleCount > 0) metaEl.innerHTML += ` <span class="badge-stale">⚠ ${staleCount}</span>`
 
     el.appendChild(nameEl)
     el.appendChild(metaEl)
@@ -608,7 +527,7 @@ async function selectFile(file) {
 
   const [diffData, comments] = await Promise.all([
     api('GET', `/api/diff?file=${encodeURIComponent(file)}`),
-    api('GET', `/api/comments?file=${encodeURIComponent(file)}&round=all`),
+    api('GET', `/api/comments?file=${encodeURIComponent(file)}`),
   ])
 
   state.diff = diffData
@@ -632,7 +551,6 @@ function renderDiff() {
     return
   }
 
-  // File header with actions
   const header = document.createElement('div')
   header.className = 'diff-file-header'
 
@@ -662,10 +580,6 @@ function renderDiff() {
   const table = document.createElement('table')
   table.className = 'diff-table'
   container.appendChild(table)
-
-  const viewRound = state.viewRound ?? state.currentRound
-  const fileComments = state.comments.filter(c => c.round === viewRound)
-  const readonly = state.viewRound !== null && state.viewRound !== state.currentRound
 
   for (const hunk of diff.hunks) {
     const hunkHeaderRow = table.insertRow()
@@ -702,21 +616,19 @@ function renderDiff() {
         }
       }
 
-      if (!readonly) {
-        row.addEventListener('click', (e) => handleLineClick(e, lineNum, side))
-      }
+      row.addEventListener('click', (e) => handleLineClick(e, lineNum, side))
     }
 
     const hunkNewEnd = hunk.newStart + hunk.newCount - 1
     const hunkOldEnd = hunk.oldStart + hunk.oldCount - 1
 
-    const hunkComments = fileComments.filter(c => {
+    const hunkComments = state.comments.filter(c => {
       if (c.side === 'new') return c.endLine >= hunk.newStart && c.startLine <= hunkNewEnd
       else return c.endLine >= hunk.oldStart && c.startLine <= hunkOldEnd
     })
 
     for (const comment of hunkComments) {
-      appendCommentThread(table, comment, readonly)
+      appendCommentThread(table, comment)
     }
   }
 }
@@ -831,7 +743,7 @@ async function submitComment(body) {
 // ─────────────────────────────────────────────
 // Comment Threads
 // ─────────────────────────────────────────────
-function appendCommentThread(table, comment, readonly) {
+function appendCommentThread(table, comment) {
   const row = table.insertRow()
   row.className = 'comment-thread-row'
   const td = row.insertCell()
@@ -863,62 +775,44 @@ function appendCommentThread(table, comment, readonly) {
   hdr.appendChild(ref)
   hdr.appendChild(sideEl)
 
-  if (comment.status === 'stale') {
-    const staleTag = document.createElement('span')
-    staleTag.className = 'stale-icon comment-round-tag'
-    staleTag.textContent = `⚠ Round ${comment.round}`
-    hdr.appendChild(staleTag)
+  const actions = document.createElement('div')
+  actions.className = 'comment-thread-actions'
+
+  if (comment.status === 'open') {
+    const resolveBtn = document.createElement('button')
+    resolveBtn.className = 'comment-action-btn'
+    resolveBtn.textContent = 'Resolve'
+    resolveBtn.addEventListener('click', () => updateCommentStatus(comment.id, 'resolved'))
+    actions.appendChild(resolveBtn)
   }
 
-  if (!readonly) {
-    const actions = document.createElement('div')
-    actions.className = 'comment-thread-actions'
+  if (comment.status === 'resolved') {
+    const reopenBtn = document.createElement('button')
+    reopenBtn.className = 'comment-action-btn'
+    reopenBtn.textContent = 'Reopen'
+    reopenBtn.addEventListener('click', () => updateCommentStatus(comment.id, 'open'))
+    actions.appendChild(reopenBtn)
 
-    if (comment.status === 'open') {
-      const resolveBtn = document.createElement('button')
-      resolveBtn.className = 'comment-action-btn'
-      resolveBtn.textContent = 'Resolve'
-      resolveBtn.addEventListener('click', () => updateCommentStatus(comment.id, 'resolved'))
-      actions.appendChild(resolveBtn)
-    }
-
-    if (comment.status === 'stale') {
-      const reopenBtn = document.createElement('button')
-      reopenBtn.className = 'comment-action-btn'
-      reopenBtn.textContent = 'Reopen'
-      reopenBtn.addEventListener('click', () => updateCommentStatus(comment.id, 'open'))
-
-      const dismissBtn = document.createElement('button')
-      dismissBtn.className = 'comment-action-btn'
-      dismissBtn.textContent = 'Dismiss'
-      dismissBtn.addEventListener('click', () => updateCommentStatus(comment.id, 'resolved'))
-
-      actions.appendChild(reopenBtn)
-      actions.appendChild(dismissBtn)
-    }
-
-    if (comment.status === 'resolved') {
-      const toggleBtn = document.createElement('button')
-      toggleBtn.className = 'comment-action-btn'
-      toggleBtn.textContent = 'Show'
-      toggleBtn.addEventListener('click', () => {
-        const collapsible = thread.querySelector('.comment-collapsible')
-        collapsible.classList.toggle('collapsed')
-        toggleBtn.textContent = collapsible.classList.contains('collapsed') ? 'Show' : 'Hide'
-      })
-      actions.appendChild(toggleBtn)
-    }
-
-    const delBtn = document.createElement('button')
-    delBtn.className = 'comment-action-btn btn-danger'
-    delBtn.textContent = '✕'
-    delBtn.addEventListener('click', () => deleteComment(comment.id))
-    actions.appendChild(delBtn)
-
-    hdr.appendChild(actions)
+    const toggleBtn = document.createElement('button')
+    toggleBtn.className = 'comment-action-btn'
+    toggleBtn.textContent = 'Show'
+    toggleBtn.addEventListener('click', () => {
+      const collapsible = thread.querySelector('.comment-collapsible')
+      collapsible.classList.toggle('collapsed')
+      toggleBtn.textContent = collapsible.classList.contains('collapsed') ? 'Show' : 'Hide'
+    })
+    actions.appendChild(toggleBtn)
   }
 
-  // Collapsible section: body + replies + reply form
+  const delBtn = document.createElement('button')
+  delBtn.className = 'comment-action-btn btn-danger'
+  delBtn.textContent = '✕'
+  delBtn.addEventListener('click', () => deleteComment(comment.id))
+  actions.appendChild(delBtn)
+
+  hdr.appendChild(actions)
+
+  // Collapsible: body + replies + reply form
   const collapsible = document.createElement('div')
   collapsible.className = 'comment-collapsible' + (comment.status === 'resolved' ? ' collapsed' : '')
 
@@ -927,7 +821,6 @@ function appendCommentThread(table, comment, readonly) {
   body.textContent = comment.body
   collapsible.appendChild(body)
 
-  // Replies
   const replies = comment.replies ?? []
   if (replies.length > 0) {
     const repliesEl = document.createElement('div')
@@ -960,38 +853,35 @@ function appendCommentThread(table, comment, readonly) {
     collapsible.appendChild(repliesEl)
   }
 
-  // Reply form (human reviewer)
-  if (!readonly) {
-    const replyForm = document.createElement('div')
-    replyForm.className = 'comment-reply-form'
+  const replyForm = document.createElement('div')
+  replyForm.className = 'comment-reply-form'
 
-    const textarea = document.createElement('textarea')
-    textarea.placeholder = 'Reply to this comment…'
+  const replyTextarea = document.createElement('textarea')
+  replyTextarea.placeholder = 'Reply to this comment…'
 
-    const formActions = document.createElement('div')
-    formActions.className = 'comment-reply-form-actions'
+  const replyActions = document.createElement('div')
+  replyActions.className = 'comment-reply-form-actions'
 
-    const submitBtn = document.createElement('button')
-    submitBtn.className = 'btn-primary'
-    submitBtn.style.cssText = 'font-size:12px;padding:3px 10px'
-    submitBtn.textContent = 'Reply'
-    submitBtn.addEventListener('click', async () => {
-      const text = textarea.value.trim()
-      if (!text) return
-      await api('POST', `/api/comments/${comment.id}/replies`, { body: text, author: 'human' })
-      textarea.value = ''
-      await refreshCurrentFile()
-    })
+  const replySubmitBtn = document.createElement('button')
+  replySubmitBtn.className = 'btn-primary'
+  replySubmitBtn.style.cssText = 'font-size:12px;padding:3px 10px'
+  replySubmitBtn.textContent = 'Reply'
+  replySubmitBtn.addEventListener('click', async () => {
+    const text = replyTextarea.value.trim()
+    if (!text) return
+    await api('POST', `/api/comments/${comment.id}/replies`, { body: text, author: 'human' })
+    replyTextarea.value = ''
+    await refreshCurrentFile()
+  })
 
-    textarea.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitBtn.click() }
-    })
+  replyTextarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); replySubmitBtn.click() }
+  })
 
-    formActions.appendChild(submitBtn)
-    replyForm.appendChild(textarea)
-    replyForm.appendChild(formActions)
-    collapsible.appendChild(replyForm)
-  }
+  replyActions.appendChild(replySubmitBtn)
+  replyForm.appendChild(replyTextarea)
+  replyForm.appendChild(replyActions)
+  collapsible.appendChild(replyForm)
 
   thread.appendChild(hdr)
   thread.appendChild(collapsible)
@@ -1012,41 +902,13 @@ async function refreshCurrentFile() {
   if (!state.currentFile) return
   const [diffData, comments] = await Promise.all([
     api('GET', `/api/diff?file=${encodeURIComponent(state.currentFile)}`),
-    api('GET', `/api/comments?file=${encodeURIComponent(state.currentFile)}&round=all`),
+    api('GET', `/api/comments?file=${encodeURIComponent(state.currentFile)}`),
   ])
   state.diff = diffData
   state.comments = comments
   renderDiff()
   await loadFiles()
 }
-
-// ─────────────────────────────────────────────
-// New Round
-// ─────────────────────────────────────────────
-document.getElementById('btn-new-round').addEventListener('click', () => {
-  document.getElementById('round-modal').classList.add('open')
-})
-document.getElementById('btn-round-cancel').addEventListener('click', () => {
-  document.getElementById('round-modal').classList.remove('open')
-})
-document.getElementById('btn-round-confirm').addEventListener('click', async () => {
-  document.getElementById('round-modal').classList.remove('open')
-  await api('POST', '/api/rounds')
-  state.viewRound = null
-  await loadRounds()
-  await loadFiles()
-  if (state.currentFile) await refreshCurrentFile()
-})
-
-// ─────────────────────────────────────────────
-// Round history selector
-// ─────────────────────────────────────────────
-document.getElementById('round-select').addEventListener('change', async (e) => {
-  const val = e.target.value
-  state.viewRound = val === '' ? null : parseInt(val, 10)
-  await loadFiles()
-  if (state.currentFile) await refreshCurrentFile()
-})
 
 // ─────────────────────────────────────────────
 // Export

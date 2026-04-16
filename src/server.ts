@@ -68,7 +68,7 @@ function generateExportPrompt(
 
 export function startHttpServer(dir: string, port: number) {
   const store = new CommentStore(dir)
-  store.ensureInitialRound()
+  store.ensureInitialized()
 
   const publicDir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'public')
 
@@ -84,7 +84,6 @@ export function startHttpServer(dir: string, port: number) {
       return
     }
 
-    // Favicon
     if (pathname === '/favicon.ico') {
       res.writeHead(204)
       res.end()
@@ -116,38 +115,24 @@ export function startHttpServer(dir: string, port: number) {
         const file = parsed.query.file as string
         if (!file) return json(res, 400, { error: 'file param required' })
 
-        await store.ensureInitialRound()
-        const rounds = store.getRounds()
-        const currentRoundData = rounds.find(r => r.id === store.getCurrentRound())
-        const baseCommit = currentRoundData?.baseCommit ?? 'HEAD'
-
-        const rawDiff = await getFileDiff(dir, file, baseCommit)
+        await store.ensureInitialized()
+        const rawDiff = await getFileDiff(dir, file, store.getBaseCommit())
         const parsed2 = parseDiff(rawDiff, file)
         return json(res, 200, parsed2)
       }
 
       // GET /api/diff/summary
       if (method === 'GET' && pathname === '/api/diff/summary') {
-        await store.ensureInitialRound()
-        const rounds = store.getRounds()
-        const currentRoundData = rounds.find(r => r.id === store.getCurrentRound())
-        const baseCommit = currentRoundData?.baseCommit ?? 'HEAD'
-
-        const files = await getChangedFiles(dir, baseCommit)
+        await store.ensureInitialized()
+        const files = await getChangedFiles(dir, store.getBaseCommit())
         return json(res, 200, files)
       }
 
       // GET /api/comments
       if (method === 'GET' && pathname === '/api/comments') {
         const fileFilter = parsed.query.file as string | undefined
-        const statusFilter = parsed.query.status as 'open' | 'resolved' | 'stale' | undefined
-        const roundParam = parsed.query.round as string | undefined
-
-        let roundFilter: number | 'all' | undefined
-        if (roundParam === 'all') roundFilter = 'all'
-        else if (roundParam) roundFilter = parseInt(roundParam, 10)
-
-        const comments = store.getComments({ file: fileFilter, status: statusFilter, round: roundFilter })
+        const statusFilter = parsed.query.status as 'open' | 'resolved' | undefined
+        const comments = store.getComments({ file: fileFilter, status: statusFilter })
         return json(res, 200, comments)
       }
 
@@ -169,13 +154,21 @@ export function startHttpServer(dir: string, port: number) {
       }
 
       // PATCH /api/comments/:id
-      const patchMatch = pathname.match(/^\/api\/comments\/([^/]+)$/)
-      if (method === 'PATCH' && patchMatch) {
-        const id = patchMatch[1]
+      const commentMatch = pathname.match(/^\/api\/comments\/([^/]+)$/)
+      if (method === 'PATCH' && commentMatch) {
+        const id = commentMatch[1]
         const body = JSON.parse(await readBody(req))
         const updated = store.updateComment(id, { body: body.body, status: body.status })
         if (!updated) return json(res, 404, { error: 'not found' })
         return json(res, 200, updated)
+      }
+
+      // DELETE /api/comments/:id
+      if (method === 'DELETE' && commentMatch) {
+        const id = commentMatch[1]
+        const deleted = store.deleteComment(id)
+        if (!deleted) return json(res, 404, { error: 'not found' })
+        return json(res, 200, { ok: true })
       }
 
       // POST /api/comments/:id/replies
@@ -187,28 +180,6 @@ export function startHttpServer(dir: string, port: number) {
         const reply = store.addReply(id, body.author ?? 'human', body.body)
         if (!reply) return json(res, 404, { error: 'not found' })
         return json(res, 201, reply)
-      }
-
-      // DELETE /api/comments/:id
-      if (method === 'DELETE' && patchMatch) {
-        const id = patchMatch[1]
-        const deleted = store.deleteComment(id)
-        if (!deleted) return json(res, 404, { error: 'not found' })
-        return json(res, 200, { ok: true })
-      }
-
-      // GET /api/rounds
-      if (method === 'GET' && pathname === '/api/rounds') {
-        return json(res, 200, {
-          currentRound: store.getCurrentRound(),
-          rounds: store.getRounds(),
-        })
-      }
-
-      // POST /api/rounds
-      if (method === 'POST' && pathname === '/api/rounds') {
-        const result = await store.startNewRound()
-        return json(res, 201, result)
       }
 
       // GET /api/export

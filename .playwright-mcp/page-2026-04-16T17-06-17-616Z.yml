@@ -1,0 +1,48 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - button "Toggle sidebar" [ref=e3] [cursor=pointer]:
+      - img [ref=e4]
+    - generic [ref=e6]: Code Review
+    - generic [ref=e7]: Round 1
+    - generic [ref=e21]: 1 file
+    - combobox "View round history" [ref=e8]:
+      - option "Round 1 (current)" [selected]
+    - button "New Round" [ref=e9] [cursor=pointer]
+    - button "Export ▼" [ref=e10] [cursor=pointer]
+  - generic [ref=e11]:
+    - generic [ref=e13]:
+      - generic [ref=e14]: Files Changed
+      - searchbox "Filter files…" [ref=e16]
+      - generic [ref=e22] [cursor=pointer]:
+        - generic "src/gitDiff.ts" [ref=e23]
+        - generic [ref=e24]:
+          - generic [ref=e31]: "+1"
+          - generic [ref=e32]: "-0"
+    - generic [ref=e33]:
+      - generic [ref=e34]:
+        - generic "src/gitDiff.ts" [ref=e35]
+        - button "Wrap" [ref=e37] [cursor=pointer]
+      - table [ref=e38]:
+        - rowgroup [ref=e39]:
+          - row "@@ -142,3 +142,4 @@" [ref=e40]:
+            - cell "@@ -142,3 +142,4 @@" [ref=e41]
+          - row "142 142 // line numbers are 1-based" [ref=e42] [cursor=pointer]:
+            - cell "142" [ref=e43]
+            - cell "142" [ref=e44]
+            - cell [ref=e45]
+            - cell "// line numbers are 1-based" [ref=e46]
+          - row "143 143 return fileLines.slice(startLine - 1, endLine)" [ref=e47] [cursor=pointer]:
+            - cell "143" [ref=e48]
+            - cell "143" [ref=e49]
+            - cell [ref=e50]
+            - cell "return fileLines.slice(startLine - 1, endLine)" [ref=e51]
+          - 'row "144 144 }" [ref=e52] [cursor=pointer]':
+            - cell "144" [ref=e53]
+            - cell "144" [ref=e54]
+            - cell [ref=e55]
+            - 'cell "}" [ref=e56]'
+          - row "145 + // test change for playwright demo" [ref=e57] [cursor=pointer]:
+            - cell [ref=e58]
+            - cell "145" [ref=e59]
+            - cell "+" [ref=e60]
+            - cell "// test change for playwright demo" [ref=e61]
