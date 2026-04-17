@@ -17,7 +17,7 @@
   --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   --font-ui: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-display: 'Fraunces', Georgia, serif;
-  --sidebar-width: 320px;
+  --sidebar-width: 340px;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --btn-ink: #1a1611;
 }
@@ -101,17 +101,30 @@ body > * { position: relative; z-index: 1; }
 #project-select {
   background: transparent; border: 1px solid transparent; color: var(--text);
   padding: 4px 8px; border-radius: 6px; font-size: 13px; font-weight: 500;
-  max-width: 360px; cursor: pointer; outline: none;
+  max-width: 300px; cursor: pointer; outline: none;
   transition: all 0.15s var(--ease);
 }
 #project-select:hover { background: var(--bg3); }
 #project-select:focus { border-color: var(--accent); }
 #project-select option { background: var(--bg2); color: var(--text); }
-#session-pill {
-  color: var(--text-muted); font-size: 11px; white-space: nowrap;
-  padding: 3px 9px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
-  font-family: var(--font-mono); letter-spacing: 0.02em;
+
+.mode-switch {
+  display: inline-flex; border: 1px solid var(--border); border-radius: 6px;
+  overflow: hidden; background: var(--bg2);
 }
+.mode-switch button {
+  background: transparent; border: none; color: var(--text-muted);
+  padding: 5px 12px; font-size: 12px; font-weight: 500; cursor: pointer;
+  font-family: var(--font-ui);
+  border-right: 1px solid var(--border);
+  transition: all 0.12s var(--ease);
+}
+.mode-switch button:last-child { border-right: none; }
+.mode-switch button:hover { background: var(--bg3); color: var(--text); }
+.mode-switch button.active {
+  background: var(--accent-soft); color: var(--accent); font-weight: 600;
+}
+
 .spacer { flex: 1; min-width: 4px; }
 #btn-export {
   background: var(--accent); border: none; color: var(--btn-ink);
@@ -146,6 +159,37 @@ body > * { position: relative; z-index: 1; }
   font-size: 11px; color: var(--text-muted); letter-spacing: 0.08em;
 }
 .sidebar-count { color: var(--text-dim); font-size: 11px; font-family: var(--font-mono); }
+
+.session-bar {
+  padding: 4px 12px 8px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+}
+#session-select {
+  flex: 1; min-width: 0;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  padding: 5px 8px; border-radius: 4px; font-size: 12px;
+  outline: none; cursor: pointer;
+  font-family: var(--font-ui);
+}
+#session-select:focus { border-color: var(--accent); }
+#session-select option { background: var(--bg2); color: var(--text); }
+#session-delete, .btn-new-session {
+  background: var(--bg); border: 1px solid var(--border); color: var(--text-muted);
+  padding: 5px 10px; border-radius: 4px; font-size: 11.5px; font-weight: 500;
+  cursor: pointer; outline: none; flex-shrink: 0;
+  font-family: var(--font-ui);
+  transition: all 0.12s var(--ease);
+}
+.btn-new-session { color: var(--accent); border-color: var(--accent); }
+.btn-new-session:hover { background: var(--accent-soft); }
+#session-delete:hover { background: var(--bg3); color: var(--danger); border-color: var(--danger); }
+
+.session-meta {
+  padding: 0 16px 8px; font-size: 11px; color: var(--text-dim);
+  font-family: var(--font-mono); word-break: break-all;
+}
+.session-meta.warn { color: var(--deleted-fg); }
+
 .sidebar-search { padding: 4px 12px 8px; flex-shrink: 0; }
 .sidebar-search input {
   width: 100%; background: var(--bg); border: 1px solid var(--border);
@@ -179,6 +223,10 @@ body > * { position: relative; z-index: 1; }
 .tool-badge.Edit { color: var(--added-fg); background: rgba(139, 179, 111, 0.12); }
 .tool-badge.MultiEdit { color: var(--added-fg); background: rgba(139, 179, 111, 0.12); }
 .tool-badge.NotebookEdit { color: var(--comment-open); background: rgba(233, 165, 62, 0.1); }
+.tool-badge.A, .tool-badge.added { color: var(--added-fg); background: rgba(139, 179, 111, 0.12); }
+.tool-badge.M, .tool-badge.modified { color: var(--accent); background: var(--accent-soft); }
+.tool-badge.D, .tool-badge.deleted { color: var(--deleted-fg); background: var(--deleted-bg); }
+.tool-badge.R, .tool-badge.C { color: var(--comment-open); background: rgba(233, 165, 62, 0.1); }
 .timeline-file {
   font-family: var(--font-mono); font-size: 12px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -429,6 +477,30 @@ body > * { position: relative; z-index: 1; }
 }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 
+.form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.form-row label { font-size: 12px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+.form-row input, .form-row select {
+  background: var(--bg2); border: 1px solid var(--border); color: var(--text);
+  padding: 7px 10px; border-radius: 4px; font-size: 13px; outline: none;
+  font-family: var(--font-ui);
+}
+.form-row input:focus, .form-row select:focus { border-color: var(--accent); }
+.form-row input { font-family: var(--font-mono); font-size: 12.5px; }
+.form-hint { color: var(--text-dim); font-size: 11px; font-style: italic; }
+.form-row.modal-inline { flex-direction: row; gap: 10px; align-items: center; }
+.form-row.modal-inline > * { flex: 1; }
+.ancestry-warn {
+  padding: 8px 12px; border-radius: 4px;
+  background: var(--deleted-bg); color: var(--deleted-fg);
+  font-size: 11.5px; line-height: 1.5; margin-bottom: 10px;
+  border: 1px solid var(--deleted-fg);
+}
+.ancestry-ok {
+  padding: 6px 12px; border-radius: 4px;
+  background: rgba(139, 179, 111, 0.08); color: var(--added-fg);
+  font-size: 11.5px; margin-bottom: 10px;
+}
+
 #toast {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
   background: var(--bg2); color: var(--text); padding: 10px 18px;
@@ -446,7 +518,11 @@ body > * { position: relative; z-index: 1; }
 <div id="header">
   <div id="app-title"><span id="app-title-mark">❧</span>Code Review Annotator</div>
   <select id="project-select" aria-label="Project"></select>
-  <span id="session-pill">tool-call view</span>
+  <div id="mode-switch" class="mode-switch" role="tablist">
+    <button data-mode="tool-call" class="active">Tool calls</button>
+    <button data-mode="git-range">Git diff</button>
+    <button data-mode="browse">Browse</button>
+  </div>
   <div class="spacer"></div>
   <button id="btn-export" disabled>Export</button>
   <select id="theme-select" aria-label="Theme">
@@ -460,9 +536,15 @@ body > * { position: relative; z-index: 1; }
 <div id="main">
   <aside id="sidebar">
     <div class="sidebar-header">
-      <span class="sidebar-title">Tool calls</span>
+      <span class="sidebar-title" id="sidebar-title">Tool calls</span>
       <span class="sidebar-count" id="tl-count">0</span>
     </div>
+    <div class="session-bar" id="session-bar" style="display:none">
+      <select id="session-select" aria-label="Review session"></select>
+      <button class="btn-new-session" id="btn-new-session" title="New review session">+ New</button>
+      <button id="session-delete" title="Delete session">×</button>
+    </div>
+    <div class="session-meta" id="session-meta" style="display:none"></div>
     <div class="sidebar-search"><input id="tl-search" type="text" placeholder="filter by file…" /></div>
     <div id="timeline"><div class="timeline-empty">No tool calls captured yet.<br>Run Claude Code with the plugin installed — each Edit / Write will show up here.</div></div>
   </aside>
@@ -478,6 +560,44 @@ body > * { position: relative; z-index: 1; }
     </div>
     <table class="diff-table" id="diff-table" style="display:none"><tbody></tbody></table>
   </section>
+</div>
+
+<!-- Git refs used by new-session dialog -->
+<datalist id="git-refs-list"></datalist>
+
+<!-- New session modal -->
+<div class="modal-overlay" id="session-modal">
+  <div class="modal">
+    <div class="modal-title" id="session-modal-title">New review session</div>
+    <div id="session-modal-body">
+      <div class="form-row" id="session-kind-row">
+        <label>Kind</label>
+        <select id="session-kind">
+          <option value="git-range">Git diff (between two refs)</option>
+          <option value="browse">Worktree browse</option>
+        </select>
+      </div>
+      <div id="git-range-fields">
+        <div class="form-row">
+          <label>From ref</label>
+          <input id="session-from-ref" list="git-refs-list" placeholder="e.g. main, HEAD, INDEX, 1a2b3c…" spellcheck="false" />
+        </div>
+        <div class="form-row">
+          <label>To ref</label>
+          <input id="session-to-ref" list="git-refs-list" placeholder="e.g. HEAD, WORKTREE, branch name, SHA" spellcheck="false" />
+        </div>
+        <div id="ancestry-status" style="display:none"></div>
+      </div>
+      <div class="form-row">
+        <label>Label (optional)</label>
+        <input id="session-label" placeholder="auto" spellcheck="false" />
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="session-cancel">Cancel</button>
+      <button class="btn-primary" id="session-create">Create</button>
+    </div>
+  </div>
 </div>
 
 <!-- Export modal -->
@@ -497,11 +617,21 @@ body > * { position: relative; z-index: 1; }
 <script>
 const state = {
   project: null,
+  mode: 'tool-call', // tool-call | git-range | browse
+  // tool-call mode
   toolCalls: [],
-  comments: [],
   selectedCallId: null,
-  selection: null, // { side: 'before'|'after', startLine, endLine }
+  // session modes (git-range / browse)
+  sessions: [],
+  selectedSessionId: null,
+  sessionFiles: [],
+  selectedFile: null,
+  sessionFileData: null, // { file, before, after, isBrowse }
+  // shared
+  comments: [],
+  selection: null, // { side, startLine, endLine }
   liveStream: null,
+  gitRefs: [],
 }
 
 const $ = (sel) => document.querySelector(sel)
@@ -514,7 +644,11 @@ async function api(method, path, body) {
     opts.body = JSON.stringify(body)
   }
   const res = await fetch(url, opts)
-  if (!res.ok) throw new Error(`${method} ${path} → ${res.status}`)
+  if (!res.ok) {
+    let detail = ''
+    try { detail = (await res.json()).error ?? '' } catch {}
+    throw new Error(`${method} ${path} → ${res.status}${detail ? ': ' + detail : ''}`)
+  }
   if (res.status === 204) return null
   return res.json()
 }
@@ -554,6 +688,20 @@ function highlightInto(el, text, lang) {
   }
 }
 
+function abbreviate(ref) {
+  if (!ref) return ''
+  if (ref === 'WORKTREE' || ref === 'INDEX') return ref
+  if (/^[0-9a-f]{40}$/i.test(ref)) return ref.slice(0, 8)
+  return ref
+}
+
+function currentTarget(extra = {}) {
+  if (state.mode === 'tool-call') {
+    return { kind: 'tool-call', id: state.selectedCallId, file: '' }
+  }
+  return { kind: state.mode, id: state.selectedSessionId, file: state.selectedFile ?? '' }
+}
+
 // ─── Projects ───
 async function loadProjects() {
   const projects = await (await fetch('/api/projects')).json()
@@ -574,124 +722,295 @@ async function loadProjects() {
   state.project = pick
 }
 
-// ─── Timeline ───
-async function refreshTimeline() {
-  if (!state.project) return
-  const calls = await api('GET', '/api/tool-calls')
-  calls.sort((a, b) => a.startedAt.localeCompare(b.startedAt))
-  state.toolCalls = calls
-  state.comments = await api('GET', '/api/comments')
-  renderTimeline()
-  if (state.selectedCallId && !calls.find(c => c.id === state.selectedCallId)) {
-    state.selectedCallId = null
-    renderContent()
-  } else if (state.selectedCallId) {
-    renderContent()
+// ─── Mode switching ───
+function applyModeUi() {
+  for (const btn of document.querySelectorAll('#mode-switch button')) {
+    btn.classList.toggle('active', btn.dataset.mode === state.mode)
   }
+  const sbTitle = $('#sidebar-title')
+  const sessionBar = $('#session-bar')
+  const sessionMeta = $('#session-meta')
+  if (state.mode === 'tool-call') {
+    sbTitle.textContent = 'Tool calls'
+    sessionBar.style.display = 'none'
+    sessionMeta.style.display = 'none'
+  } else if (state.mode === 'git-range') {
+    sbTitle.textContent = 'Git diff — files'
+    sessionBar.style.display = 'flex'
+    renderSessionSelect('git-range')
+    renderSessionMeta()
+  } else {
+    sbTitle.textContent = 'Browse — files'
+    sessionBar.style.display = 'flex'
+    renderSessionSelect('browse')
+    renderSessionMeta()
+  }
+}
+
+function renderSessionSelect(kind) {
+  const sel = $('#session-select')
+  sel.innerHTML = ''
+  const opts = state.sessions.filter(s => s.kind === kind)
+  if (opts.length === 0) {
+    const opt = document.createElement('option')
+    opt.value = ''; opt.textContent = '— no sessions — click + New —'
+    sel.appendChild(opt)
+    sel.disabled = true
+    state.selectedSessionId = null
+    $('#session-delete').disabled = true
+    return
+  }
+  sel.disabled = false
+  $('#session-delete').disabled = false
+  for (const s of opts) {
+    const opt = document.createElement('option')
+    opt.value = s.id
+    opt.textContent = s.label
+    sel.appendChild(opt)
+  }
+  const saved = localStorage.getItem(`cra-session-${kind}-${state.project?.dir ?? ''}`)
+  const pick = opts.find(s => s.id === saved) ?? opts[0]
+  sel.value = pick.id
+  state.selectedSessionId = pick.id
+}
+
+function renderSessionMeta() {
+  const meta = $('#session-meta')
+  const session = state.sessions.find(s => s.id === state.selectedSessionId)
+  if (!session) { meta.style.display = 'none'; return }
+  if (session.kind === 'browse') {
+    meta.textContent = 'worktree · tracked + untracked (excluding .gitignore)'
+    meta.classList.remove('warn')
+    meta.style.display = 'block'
+  } else {
+    const from = abbreviate(session.fromRef)
+    const to = abbreviate(session.toRef)
+    meta.innerHTML = `${escapeHtml(from)} → ${escapeHtml(to)}`
+    meta.classList.remove('warn')
+    meta.style.display = 'block'
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+}
+
+async function switchMode(mode) {
+  state.mode = mode
+  state.selection = null
+  state.selectedFile = null
+  state.sessionFileData = null
+  state.selectedCallId = null
+  applyModeUi()
+  await refreshData()
+  await refreshContent()
+}
+
+// ─── Data refresh ───
+async function refreshData() {
+  if (!state.project) return
+  state.comments = await api('GET', '/api/comments')
+  if (state.mode === 'tool-call') {
+    const calls = await api('GET', '/api/tool-calls')
+    calls.sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+    state.toolCalls = calls
+    renderTimeline()
+  } else {
+    state.sessions = await api('GET', '/api/sessions')
+    if (!state.sessions.find(s => s.id === state.selectedSessionId && s.kind === state.mode)) {
+      state.selectedSessionId = null
+    }
+    applyModeUi()
+    await refreshSessionFiles()
+  }
+  updateExportBtn()
+}
+
+async function refreshSessionFiles() {
+  if (!state.selectedSessionId) {
+    state.sessionFiles = []
+    renderTimeline()
+    return
+  }
+  localStorage.setItem(`cra-session-${state.mode}-${state.project?.dir ?? ''}`, state.selectedSessionId)
+  try {
+    state.sessionFiles = await api('GET', `/api/sessions/${state.selectedSessionId}/files`)
+  } catch (err) {
+    state.sessionFiles = []
+    toast(`Failed to load files: ${err.message}`)
+  }
+  renderTimeline()
+}
+
+function updateExportBtn() {
   $('#btn-export').disabled = state.comments.filter(c => c.status === 'open').length === 0
 }
 
-function commentsForCall(callId) {
-  return state.comments.filter(c => c.toolCallId === callId)
-}
-
+// ─── Sidebar timeline ───
 function renderTimeline() {
   const tl = $('#timeline')
   const filter = $('#tl-search').value.trim().toLowerCase()
-  const items = filter
-    ? state.toolCalls.filter(c => c.file.toLowerCase().includes(filter))
-    : state.toolCalls
-
-  $('#tl-count').textContent = items.length
   tl.innerHTML = ''
-  if (items.length === 0) {
-    const empty = document.createElement('div')
-    empty.className = 'timeline-empty'
-    empty.innerHTML = state.toolCalls.length === 0
-      ? 'No tool calls captured yet.<br>Run Claude Code with the plugin installed — each Edit / Write will show up here.'
-      : 'No tool calls match that filter.'
-    tl.appendChild(empty)
-    return
+  if (state.mode === 'tool-call') {
+    const items = filter ? state.toolCalls.filter(c => c.file.toLowerCase().includes(filter)) : state.toolCalls
+    $('#tl-count').textContent = items.length
+    if (items.length === 0) {
+      const empty = document.createElement('div'); empty.className = 'timeline-empty'
+      empty.innerHTML = state.toolCalls.length === 0
+        ? 'No tool calls captured yet.<br>Run Claude Code with the plugin installed — each Edit / Write will show up here.'
+        : 'No tool calls match that filter.'
+      tl.appendChild(empty); return
+    }
+    for (const call of items) tl.appendChild(renderToolCallRow(call))
+  } else {
+    if (!state.selectedSessionId) {
+      $('#tl-count').textContent = 0
+      const empty = document.createElement('div'); empty.className = 'timeline-empty'
+      empty.textContent = state.mode === 'git-range'
+        ? 'No git-diff session yet. Click + New to compare two refs.'
+        : 'No browse session yet. Click + New to browse the worktree.'
+      tl.appendChild(empty); return
+    }
+    const items = filter
+      ? state.sessionFiles.filter(f => f.file.toLowerCase().includes(filter))
+      : state.sessionFiles
+    $('#tl-count').textContent = items.length
+    if (items.length === 0) {
+      const empty = document.createElement('div'); empty.className = 'timeline-empty'
+      empty.textContent = state.sessionFiles.length === 0
+        ? (state.mode === 'browse' ? 'Worktree is empty (or ignored).' : 'No file changes in this range.')
+        : 'No files match that filter.'
+      tl.appendChild(empty); return
+    }
+    for (const f of items) tl.appendChild(renderFileRow(f))
   }
+}
 
-  for (const call of items) {
-    const row = document.createElement('div')
-    row.className = 'timeline-item' + (state.selectedCallId === call.id ? ' active' : '')
-    row.addEventListener('click', () => selectCall(call.id))
+function renderToolCallRow(call) {
+  const row = document.createElement('div')
+  row.className = 'timeline-item' + (state.selectedCallId === call.id ? ' active' : '')
+  row.addEventListener('click', () => selectCall(call.id))
 
-    const top = document.createElement('div')
-    top.className = 'timeline-item-top'
+  const top = document.createElement('div'); top.className = 'timeline-item-top'
+  const badge = document.createElement('span'); badge.className = `tool-badge ${call.tool}`; badge.textContent = call.tool
+  const file = document.createElement('span'); file.className = 'timeline-file'; file.textContent = call.file
+  top.appendChild(badge); top.appendChild(file)
+
+  const meta = document.createElement('div'); meta.className = 'timeline-item-meta'
+  const time = document.createElement('span'); time.className = 'timeline-time'
+  time.textContent = relativeTime(call.startedAt); time.title = new Date(call.startedAt).toLocaleString()
+  meta.appendChild(time)
+  const badges = document.createElement('div'); badges.className = 'timeline-badges'
+  if (call.status !== 'complete') {
+    const sb = document.createElement('span'); sb.className = `status-badge ${call.status}`; sb.textContent = call.status
+    badges.appendChild(sb)
+  }
+  const openComments = state.comments.filter(c =>
+    c.target?.kind === 'tool-call' && c.target.id === call.id && c.status === 'open'
+  ).length
+  if (openComments > 0) {
+    const dot = document.createElement('span'); dot.className = 'comment-dot'
+    const cc = document.createElement('span'); cc.className = 'comment-count'; cc.textContent = openComments
+    badges.appendChild(dot); badges.appendChild(cc)
+  }
+  meta.appendChild(badges)
+  row.appendChild(top); row.appendChild(meta)
+  return row
+}
+
+function renderFileRow(f) {
+  const row = document.createElement('div')
+  row.className = 'timeline-item' + (state.selectedFile === f.file ? ' active' : '')
+  row.addEventListener('click', () => selectFile(f.file))
+
+  const top = document.createElement('div'); top.className = 'timeline-item-top'
+  if (state.mode === 'git-range') {
     const badge = document.createElement('span')
-    badge.className = `tool-badge ${call.tool}`
-    badge.textContent = call.tool
-    const file = document.createElement('span')
-    file.className = 'timeline-file'
-    file.textContent = call.file
-    top.appendChild(badge); top.appendChild(file)
-
-    const meta = document.createElement('div')
-    meta.className = 'timeline-item-meta'
-    const time = document.createElement('span')
-    time.className = 'timeline-time'
-    time.textContent = relativeTime(call.startedAt)
-    time.title = new Date(call.startedAt).toLocaleString()
-    meta.appendChild(time)
-
-    const badges = document.createElement('div')
-    badges.className = 'timeline-badges'
-    if (call.status !== 'complete') {
-      const sb = document.createElement('span')
-      sb.className = `status-badge ${call.status}`
-      sb.textContent = call.status
-      badges.appendChild(sb)
-    }
-    const openComments = commentsForCall(call.id).filter(c => c.status === 'open').length
-    if (openComments > 0) {
-      const dot = document.createElement('span'); dot.className = 'comment-dot'
-      const cc = document.createElement('span'); cc.className = 'comment-count'; cc.textContent = openComments
-      badges.appendChild(dot); badges.appendChild(cc)
-    }
-    meta.appendChild(badges)
-
-    row.appendChild(top); row.appendChild(meta)
-    tl.appendChild(row)
+    badge.className = `tool-badge ${f.status}`
+    badge.textContent = f.status
+    top.appendChild(badge)
   }
+  const file = document.createElement('span'); file.className = 'timeline-file'; file.textContent = f.file
+  top.appendChild(file)
+
+  const meta = document.createElement('div'); meta.className = 'timeline-item-meta'
+  const badges = document.createElement('div'); badges.className = 'timeline-badges'
+  const openComments = state.comments.filter(c =>
+    c.target?.kind === state.mode && c.target?.id === state.selectedSessionId &&
+    c.target?.file === f.file && c.status === 'open'
+  ).length
+  if (openComments > 0) {
+    const dot = document.createElement('span'); dot.className = 'comment-dot'
+    const cc = document.createElement('span'); cc.className = 'comment-count'; cc.textContent = openComments
+    badges.appendChild(dot); badges.appendChild(cc)
+  }
+  meta.appendChild(badges)
+  row.appendChild(top); row.appendChild(meta)
+  return row
 }
 
-// ─── Content / diff view ───
+// ─── Content selection / rendering ───
 function selectCall(id) {
-  state.selectedCallId = id
-  state.selection = null
-  renderContent()
-  renderTimeline()
+  state.selectedCallId = id; state.selection = null
+  renderContent(); renderTimeline()
 }
+async function selectFile(file) {
+  state.selectedFile = file; state.selection = null
+  try {
+    state.sessionFileData = await api('GET',
+      `/api/sessions/${state.selectedSessionId}/file?path=${encodeURIComponent(file)}`)
+  } catch (err) {
+    toast(`Failed to load file: ${err.message}`)
+    state.sessionFileData = null
+  }
+  renderContent(); renderTimeline()
+}
+
+async function refreshContent() { renderContent() }
 
 function renderContent() {
-  const call = state.toolCalls.find(c => c.id === state.selectedCallId)
   const emptyEl = $('#empty-state')
   const hdr = $('#call-header')
   const table = $('#diff-table')
-  if (!call) {
-    emptyEl.style.display = 'flex'
-    hdr.style.display = 'none'
-    table.style.display = 'none'
-    return
+  if (state.mode === 'tool-call') {
+    const call = state.toolCalls.find(c => c.id === state.selectedCallId)
+    if (!call) { emptyEl.textContent = 'Pick a tool call from the timeline.'; emptyEl.style.display='flex'; hdr.style.display='none'; table.style.display='none'; return }
+    emptyEl.style.display='none'; hdr.style.display='flex'; table.style.display='table'
+    $('#ch-tool').textContent = call.tool
+    $('#ch-tool').className = `tool-badge ${call.tool}`
+    $('#ch-file').textContent = call.file
+    const metaParts = [new Date(call.startedAt).toLocaleTimeString()]
+    if (call.status === 'pending') metaParts.push('(pending)')
+    else if (call.status === 'orphan') metaParts.push('(orphaned — post-hook never ran)')
+    $('#ch-meta').textContent = metaParts.join(' · ')
+    const comments = state.comments.filter(c => c.target?.kind === 'tool-call' && c.target.id === call.id)
+    renderDiff(call.before, call.after ?? '', call.file,
+      { kind: 'tool-call', id: call.id, file: '' }, comments)
+  } else {
+    if (!state.sessionFileData) {
+      emptyEl.textContent = state.selectedSessionId
+        ? 'Pick a file from the list.'
+        : 'Create or select a review session to begin.'
+      emptyEl.style.display='flex'; hdr.style.display='none'; table.style.display='none'; return
+    }
+    const data = state.sessionFileData
+    emptyEl.style.display='none'; hdr.style.display='flex'; table.style.display='table'
+    const session = state.sessions.find(s => s.id === state.selectedSessionId)
+    $('#ch-tool').textContent = session?.kind === 'browse' ? 'BROWSE' : 'DIFF'
+    $('#ch-tool').className = `tool-badge ${session?.kind === 'browse' ? 'modified' : 'Edit'}`
+    $('#ch-file').textContent = data.file
+    $('#ch-meta').textContent = session?.kind === 'browse'
+      ? 'worktree'
+      : `${abbreviate(session?.fromRef)} → ${abbreviate(session?.toRef)}`
+    const comments = state.comments.filter(c =>
+      c.target?.kind === state.mode && c.target?.id === state.selectedSessionId &&
+      c.target?.file === data.file)
+    if (data.isBrowse) renderBrowse(data.after, data.file, { kind: 'browse', id: state.selectedSessionId, file: data.file }, comments)
+    else renderDiff(data.before, data.after, data.file, { kind: 'git-range', id: state.selectedSessionId, file: data.file }, comments)
   }
-  emptyEl.style.display = 'none'
-  hdr.style.display = 'flex'
-  table.style.display = 'table'
-
-  $('#ch-tool').textContent = call.tool
-  $('#ch-tool').className = `tool-badge ${call.tool}`
-  $('#ch-file').textContent = call.file
-  const metaParts = [new Date(call.startedAt).toLocaleTimeString()]
-  if (call.status === 'pending') metaParts.push('(pending)')
-  else if (call.status === 'orphan') metaParts.push('(orphaned — post-hook never ran)')
-  $('#ch-meta').textContent = metaParts.join(' · ')
-
-  renderDiff(call)
 }
 
+// ─── Diff rendering ───
 function buildHunks(before, after) {
   const parts = Diff.diffLines(before, after)
   const rows = []
@@ -701,23 +1020,16 @@ function buildHunks(before, after) {
     const lines = text === '' && part.count === 0 ? [] : text.split('\n')
     const type = part.added ? 'added' : part.removed ? 'deleted' : 'context'
     for (const line of lines) {
-      if (type === 'added') {
-        rows.push({ type, afterLine: afterLine++, beforeLine: null, content: line })
-      } else if (type === 'deleted') {
-        rows.push({ type, beforeLine: beforeLine++, afterLine: null, content: line })
-      } else {
-        rows.push({ type, beforeLine: beforeLine++, afterLine: afterLine++, content: line })
-      }
+      if (type === 'added') rows.push({ type, afterLine: afterLine++, beforeLine: null, content: line })
+      else if (type === 'deleted') rows.push({ type, beforeLine: beforeLine++, afterLine: null, content: line })
+      else rows.push({ type, beforeLine: beforeLine++, afterLine: afterLine++, content: line })
     }
   }
-  // Collapse long context runs to ±3 around changes.
   const CONTEXT = 3
   const changedIdx = rows.map((r, i) => r.type !== 'context' ? i : -1).filter(i => i >= 0)
   if (changedIdx.length === 0) return rows
   const keep = new Set()
-  for (const i of changedIdx) {
-    for (let j = Math.max(0, i - CONTEXT); j <= Math.min(rows.length - 1, i + CONTEXT); j++) keep.add(j)
-  }
+  for (const i of changedIdx) for (let j = Math.max(0, i - CONTEXT); j <= Math.min(rows.length - 1, i + CONTEXT); j++) keep.add(j)
   const out = []
   let lastKept = -2
   for (let i = 0; i < rows.length; i++) {
@@ -726,25 +1038,20 @@ function buildHunks(before, after) {
         const gap = i - lastKept - 1
         out.push({ type: 'hunk-sep', content: `… ${gap} unchanged line${gap === 1 ? '' : 's'} …` })
       }
-      out.push(rows[i])
-      lastKept = i
+      out.push(rows[i]); lastKept = i
     }
   }
   return out
 }
 
-function renderDiff(call) {
+function renderDiff(before, after, file, target, comments) {
   const tbody = $('#diff-table tbody')
   tbody.innerHTML = ''
-  const after = call.after ?? ''
-  const rows = buildHunks(call.before, after)
-  const lang = detectLang(call.file)
+  const rows = buildHunks(before, after ?? '')
+  const lang = detectLang(file)
 
-  const callComments = commentsForCall(call.id)
-
-  // Index comments by (side, endLine) for quick lookup
   const commentsByAnchor = new Map()
-  for (const c of callComments) {
+  for (const c of comments) {
     const key = `${c.side}:${c.endLine}`
     if (!commentsByAnchor.has(key)) commentsByAnchor.set(key, [])
     commentsByAnchor.get(key).push(c)
@@ -752,10 +1059,8 @@ function renderDiff(call) {
 
   for (const row of rows) {
     if (row.type === 'hunk-sep') {
-      const tr = tbody.insertRow()
-      tr.className = 'diff-row hunk-sep'
-      const td = tr.insertCell()
-      td.colSpan = 4; td.textContent = row.content
+      const tr = tbody.insertRow(); tr.className = 'diff-row hunk-sep'
+      const td = tr.insertCell(); td.colSpan = 4; td.textContent = row.content
       continue
     }
     const tr = tbody.insertRow()
@@ -764,11 +1069,8 @@ function renderDiff(call) {
     tr.dataset.side = side
     if (side === 'before') tr.dataset.line = row.beforeLine
     if (side === 'after') tr.dataset.line = row.afterLine
-
-    const tdBefore = tr.insertCell(); tdBefore.className = 'td-line-num'
-    tdBefore.textContent = row.beforeLine ?? ''
-    const tdAfter = tr.insertCell(); tdAfter.className = 'td-line-num'
-    tdAfter.textContent = row.afterLine ?? ''
+    const tdBefore = tr.insertCell(); tdBefore.className = 'td-line-num'; tdBefore.textContent = row.beforeLine ?? ''
+    const tdAfter = tr.insertCell(); tdAfter.className = 'td-line-num'; tdAfter.textContent = row.afterLine ?? ''
     const tdSign = tr.insertCell(); tdSign.className = 'td-sign'
     tdSign.textContent = row.type === 'added' ? '+' : row.type === 'deleted' ? '-' : ' '
     const tdCode = tr.insertCell(); tdCode.className = 'td-code'
@@ -776,14 +1078,10 @@ function renderDiff(call) {
 
     if (state.selection && state.selection.side === side) {
       const n = side === 'before' ? row.beforeLine : row.afterLine
-      if (n >= state.selection.startLine && n <= state.selection.endLine) {
-        tr.classList.add('selected')
-      }
+      if (n >= state.selection.startLine && n <= state.selection.endLine) tr.classList.add('selected')
     }
+    tr.addEventListener('click', (e) => handleLineClick(e, row, side, target))
 
-    tr.addEventListener('click', (e) => handleLineClick(e, row, side))
-
-    // Attach comment threads that anchor to this line end
     if (row.beforeLine !== null) {
       const list = commentsByAnchor.get(`before:${row.beforeLine}`)
       if (list) for (const c of list) appendCommentThread(tbody, c)
@@ -794,13 +1092,45 @@ function renderDiff(call) {
     }
   }
 
-  // If a selection exists, append form row after last selected row
-  if (state.selection) appendCommentForm(tbody, call)
+  if (state.selection) appendCommentForm(tbody, target)
 }
 
-function handleLineClick(e, row, side) {
+function renderBrowse(content, file, target, comments) {
+  const tbody = $('#diff-table tbody')
+  tbody.innerHTML = ''
+  const lang = detectLang(file)
+  const lines = (content ?? '').split('\n')
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
+  const commentsByAnchor = new Map()
+  for (const c of comments) {
+    const key = `current:${c.endLine}`
+    if (!commentsByAnchor.has(key)) commentsByAnchor.set(key, [])
+    commentsByAnchor.get(key).push(c)
+  }
+  for (let i = 0; i < lines.length; i++) {
+    const n = i + 1
+    const tr = tbody.insertRow()
+    tr.className = 'diff-row context selectable'
+    tr.dataset.side = 'current'
+    tr.dataset.line = n
+    const tdBefore = tr.insertCell(); tdBefore.className = 'td-line-num'; tdBefore.textContent = ''
+    const tdAfter = tr.insertCell(); tdAfter.className = 'td-line-num'; tdAfter.textContent = n
+    const tdSign = tr.insertCell(); tdSign.className = 'td-sign'; tdSign.textContent = ' '
+    const tdCode = tr.insertCell(); tdCode.className = 'td-code'
+    highlightInto(tdCode, lines[i], lang)
+    if (state.selection && state.selection.side === 'current') {
+      if (n >= state.selection.startLine && n <= state.selection.endLine) tr.classList.add('selected')
+    }
+    tr.addEventListener('click', (e) => handleLineClick(e, { afterLine: n, beforeLine: null }, 'current', target))
+    const list = commentsByAnchor.get(`current:${n}`)
+    if (list) for (const c of list) appendCommentThread(tbody, c)
+  }
+  if (state.selection) appendCommentForm(tbody, target)
+}
+
+function handleLineClick(e, row, side, target) {
   if (side === 'context') return
-  const lineNum = side === 'before' ? row.beforeLine : row.afterLine
+  const lineNum = side === 'before' ? row.beforeLine : side === 'after' ? row.afterLine : row.afterLine
   if (!state.selection || state.selection.side !== side) {
     state.selection = { side, startLine: lineNum, endLine: lineNum }
   } else if (e.shiftKey) {
@@ -809,60 +1139,37 @@ function handleLineClick(e, row, side) {
       const t = state.selection.startLine; state.selection.startLine = state.selection.endLine; state.selection.endLine = t
     }
   } else {
-    // Toggle: clicking the same single line cancels
-    if (state.selection.startLine === lineNum && state.selection.endLine === lineNum) {
-      state.selection = null
-    } else {
-      state.selection = { side, startLine: lineNum, endLine: lineNum }
-    }
+    if (state.selection.startLine === lineNum && state.selection.endLine === lineNum) state.selection = null
+    else state.selection = { side, startLine: lineNum, endLine: lineNum }
   }
-  const call = state.toolCalls.find(c => c.id === state.selectedCallId)
-  if (call) renderDiff(call)
+  renderContent()
 }
 
-function appendCommentForm(tbody, call) {
-  const tr = tbody.insertRow()
-  tr.id = 'comment-form-row'
-  const td = tr.insertCell()
-  td.colSpan = 4
-
-  const wrap = document.createElement('div')
-  wrap.className = 'comment-form'
-
-  const hdr = document.createElement('div')
-  hdr.className = 'comment-form-header'
+function appendCommentForm(tbody, target) {
+  const tr = tbody.insertRow(); tr.id = 'comment-form-row'
+  const td = tr.insertCell(); td.colSpan = 4
+  const wrap = document.createElement('div'); wrap.className = 'comment-form'
+  const hdr = document.createElement('div'); hdr.className = 'comment-form-header'
   const sel = state.selection
   const lineRef = sel.startLine === sel.endLine ? `L${sel.startLine}` : `L${sel.startLine}–L${sel.endLine}`
   hdr.textContent = `New comment on ${sel.side} ${lineRef}`
-
-  const body = document.createElement('div')
-  body.className = 'comment-form-body'
-  const ta = document.createElement('textarea')
-  ta.placeholder = 'Leave a comment…'
-  ta.focus()
-
-  const actions = document.createElement('div')
-  actions.className = 'comment-form-actions'
-  const cancel = document.createElement('button')
-  cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
-  cancel.addEventListener('click', () => { state.selection = null; renderDiff(call) })
-  const submit = document.createElement('button')
-  submit.className = 'btn-primary'; submit.textContent = 'Add comment'
+  const body = document.createElement('div'); body.className = 'comment-form-body'
+  const ta = document.createElement('textarea'); ta.placeholder = 'Leave a comment…'; ta.focus()
+  const actions = document.createElement('div'); actions.className = 'comment-form-actions'
+  const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
+  cancel.addEventListener('click', () => { state.selection = null; renderContent() })
+  const submit = document.createElement('button'); submit.className = 'btn-primary'; submit.textContent = 'Add comment'
   submit.addEventListener('click', async () => {
-    const text = ta.value.trim()
-    if (!text) return
+    const text = ta.value.trim(); if (!text) return
     const created = await api('POST', '/api/comments', {
-      toolCallId: call.id,
+      target,
       side: sel.side,
-      startLine: sel.startLine,
-      endLine: sel.endLine,
+      startLine: sel.startLine, endLine: sel.endLine,
       body: text,
     })
     state.selection = null
     state.comments.push(created)
-    renderDiff(call)
-    renderTimeline()
-    $('#btn-export').disabled = false
+    renderContent(); renderTimeline(); updateExportBtn()
   })
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit.click() }
@@ -876,27 +1183,15 @@ function appendCommentForm(tbody, call) {
 
 // ─── Comment threads ───
 function appendCommentThread(tbody, comment) {
-  const row = tbody.insertRow()
-  row.className = 'comment-thread-row'
-  const td = row.insertCell()
-  td.colSpan = 4
-
+  const row = tbody.insertRow(); row.className = 'comment-thread-row'
+  const td = row.insertCell(); td.colSpan = 4
   const startsCollapsed = comment.status === 'resolved'
   const thread = document.createElement('div')
   thread.className = `comment-thread status-${comment.status}${startsCollapsed ? ' collapsed' : ''}`
 
-  const hdr = document.createElement('div')
-  hdr.className = 'comment-thread-header'
-  hdr.title = 'Click to collapse / expand'
-
-  const caret = document.createElement('span')
-  caret.className = 'comment-collapse-caret'
-  caret.textContent = '▾'
-  hdr.appendChild(caret)
-
-  const dot = document.createElement('span'); dot.className = 'comment-status-dot'
-  hdr.appendChild(dot)
-
+  const hdr = document.createElement('div'); hdr.className = 'comment-thread-header'; hdr.title = 'Click to collapse / expand'
+  const caret = document.createElement('span'); caret.className = 'comment-collapse-caret'; caret.textContent = '▾'; hdr.appendChild(caret)
+  const dot = document.createElement('span'); dot.className = 'comment-status-dot'; hdr.appendChild(dot)
   const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
   const ref = document.createElement('span'); ref.className = 'comment-line-ref'; ref.textContent = lineRef
   const sideEl = document.createElement('span'); sideEl.className = 'comment-side-ref'; sideEl.textContent = `(${comment.side})`
@@ -916,9 +1211,7 @@ function appendCommentThread(tbody, comment) {
   }
   hdr.appendChild(actions)
 
-  const collapsible = document.createElement('div')
-  collapsible.className = 'comment-collapsible'
-
+  const collapsible = document.createElement('div'); collapsible.className = 'comment-collapsible'
   hdr.addEventListener('click', () => { thread.classList.toggle('collapsed') })
 
   const primary = document.createElement('div'); primary.className = 'comment-primary'
@@ -937,7 +1230,6 @@ function appendCommentThread(tbody, comment) {
   kebab.classList.add('reply-actions')
   primaryMeta.appendChild(primaryAuthor); primaryMeta.appendChild(primarySep)
   primaryMeta.appendChild(primaryTs); primaryMeta.appendChild(kebab)
-
   primary.appendChild(primaryMeta); primary.appendChild(bodyEl)
   collapsible.appendChild(primary)
 
@@ -959,8 +1251,7 @@ function appendCommentThread(tbody, comment) {
       ])
       rKebab.classList.add('reply-actions')
       rMeta.appendChild(ra); rMeta.appendChild(rSep); rMeta.appendChild(rTs); rMeta.appendChild(rKebab)
-      rEl.appendChild(rMeta); rEl.appendChild(rBody)
-      repliesEl.appendChild(rEl)
+      rEl.appendChild(rMeta); rEl.appendChild(rBody); repliesEl.appendChild(rEl)
     }
     collapsible.appendChild(repliesEl)
   }
@@ -974,7 +1265,7 @@ function appendCommentThread(tbody, comment) {
     const text = ta.value.trim(); if (!text) return
     await api('POST', `/api/comments/${comment.id}/replies`, { body: text, author: 'human' })
     ta.value = ''
-    await refreshTimeline()
+    await refreshAll()
   })
   ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit.click() } })
   fa.appendChild(submit); form.appendChild(ta); form.appendChild(fa)
@@ -984,67 +1275,64 @@ function appendCommentThread(tbody, comment) {
   td.appendChild(thread)
 }
 
-async function updateStatus(id, status) {
-  await api('PATCH', `/api/comments/${id}`, { status })
-  await refreshTimeline()
+async function refreshAll() {
+  await refreshData()
+  renderContent()
 }
 
+async function updateStatus(id, status) {
+  await api('PATCH', `/api/comments/${id}`, { status })
+  await refreshAll()
+}
 async function deleteComment(comment) {
   if (!confirm('Delete this comment and all its replies?')) return
   await api('DELETE', `/api/comments/${comment.id}`)
-  await refreshTimeline()
+  await refreshAll()
 }
-
 async function deleteReply(commentId, reply) {
   if (!confirm('Delete this reply?')) return
   await api('DELETE', `/api/comments/${commentId}/replies/${reply.id}`)
-  await refreshTimeline()
+  await refreshAll()
 }
 
 function startEditComment(comment, bodyEl) {
   if (bodyEl.querySelector('textarea')) return
-  const original = comment.body
-  bodyEl.innerHTML = ''
-  const ta = document.createElement('textarea')
-  ta.value = original
+  const original = comment.body; bodyEl.innerHTML = ''
+  const ta = document.createElement('textarea'); ta.value = original
   ta.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-size:13px;resize:vertical;min-height:60px;outline:none;'
   const actions = document.createElement('div')
   actions.style.cssText = 'display:flex;gap:6px;justify-content:flex-end;margin-top:6px'
   const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
-  cancel.addEventListener('click', () => refreshTimeline())
+  cancel.addEventListener('click', () => refreshAll())
   const save = document.createElement('button'); save.className = 'btn-primary'; save.style.fontSize = '12px'; save.textContent = 'Save'
   save.addEventListener('click', async () => {
     const next = ta.value.trim()
-    if (!next || next === original) return refreshTimeline()
+    if (!next || next === original) return refreshAll()
     await api('PATCH', `/api/comments/${comment.id}`, { body: next })
-    await refreshTimeline()
+    await refreshAll()
   })
   actions.appendChild(cancel); actions.appendChild(save)
-  bodyEl.appendChild(ta); bodyEl.appendChild(actions)
-  ta.focus()
+  bodyEl.appendChild(ta); bodyEl.appendChild(actions); ta.focus()
 }
 
 function startEditReply(commentId, reply, bodyEl) {
   if (bodyEl.querySelector('textarea')) return
-  const original = reply.body
-  bodyEl.innerHTML = ''
-  const ta = document.createElement('textarea')
-  ta.value = original
+  const original = reply.body; bodyEl.innerHTML = ''
+  const ta = document.createElement('textarea'); ta.value = original
   ta.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-size:13px;resize:vertical;min-height:40px;outline:none;'
   const actions = document.createElement('div')
   actions.style.cssText = 'display:flex;gap:6px;justify-content:flex-end;margin-top:6px'
   const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
-  cancel.addEventListener('click', () => refreshTimeline())
+  cancel.addEventListener('click', () => refreshAll())
   const save = document.createElement('button'); save.className = 'btn-primary'; save.style.fontSize = '12px'; save.textContent = 'Save'
   save.addEventListener('click', async () => {
     const next = ta.value.trim()
-    if (!next || next === original) return refreshTimeline()
+    if (!next || next === original) return refreshAll()
     await api('PATCH', `/api/comments/${commentId}/replies/${reply.id}`, { body: next })
-    await refreshTimeline()
+    await refreshAll()
   })
   actions.appendChild(cancel); actions.appendChild(save)
-  bodyEl.appendChild(ta); bodyEl.appendChild(actions)
-  ta.focus()
+  bodyEl.appendChild(ta); bodyEl.appendChild(actions); ta.focus()
 }
 
 // ─── Kebab ───
@@ -1076,7 +1364,10 @@ document.addEventListener('click', () => { if (openKebab) { openKebab.classList.
 
 // ─── Export ───
 $('#btn-export').addEventListener('click', async () => {
-  const { prompt } = await api('GET', '/api/export?mode=both')
+  let query = 'mode=both'
+  if (state.mode === 'tool-call' && state.selectedCallId) query += `&toolCallId=${state.selectedCallId}`
+  if (state.mode !== 'tool-call' && state.selectedSessionId) query += `&sessionId=${state.selectedSessionId}&targetKind=${state.mode}`
+  const { prompt } = await api('GET', `/api/export?${query}`)
   $('#export-textarea').value = prompt
   $('#export-modal').classList.add('open')
 })
@@ -1088,12 +1379,133 @@ $('#export-copy').addEventListener('click', async () => {
   } catch { toast('Copy failed; select and copy manually') }
 })
 
+// ─── New session modal ───
+async function loadGitRefs() {
+  if (!state.project) return
+  try {
+    const data = await api('GET', '/api/git/refs')
+    state.gitRefs = data.refs
+  } catch { state.gitRefs = [] }
+  const dl = $('#git-refs-list')
+  dl.innerHTML = ''
+  for (const r of state.gitRefs) {
+    const opt = document.createElement('option')
+    if (r.kind === 'special') {
+      opt.value = r.ref; opt.label = `(${r.ref})`
+    } else if (r.kind === 'branch') {
+      opt.value = r.ref; opt.label = r.subject ? `branch · ${r.subject}` : 'branch'
+    } else {
+      opt.value = r.ref; opt.label = r.subject ? `${r.ref.slice(0, 8)} · ${r.subject}` : r.ref.slice(0, 8)
+    }
+    dl.appendChild(opt)
+  }
+}
+
+function openSessionModal() {
+  const modal = $('#session-modal')
+  $('#session-kind').value = state.mode === 'browse' ? 'browse' : 'git-range'
+  $('#session-from-ref').value = state.mode === 'git-range' ? 'main' : ''
+  $('#session-to-ref').value = state.mode === 'git-range' ? 'HEAD' : ''
+  $('#session-label').value = ''
+  $('#ancestry-status').style.display = 'none'
+  updateSessionModalFields()
+  modal.classList.add('open')
+  setTimeout(() => $('#session-from-ref').focus(), 20)
+}
+function closeSessionModal() { $('#session-modal').classList.remove('open') }
+
+function updateSessionModalFields() {
+  const kind = $('#session-kind').value
+  $('#git-range-fields').style.display = kind === 'git-range' ? 'block' : 'none'
+}
+
+async function checkAncestry() {
+  const from = $('#session-from-ref').value.trim()
+  const to = $('#session-to-ref').value.trim()
+  const status = $('#ancestry-status')
+  if (!from || !to) { status.style.display = 'none'; return }
+  try {
+    const r = await api('POST', '/api/git/check-ancestor', { fromRef: from, toRef: to })
+    if (r.ancestor === true) {
+      status.className = 'ancestry-ok'
+      status.textContent = `${from} is an ancestor of ${to} ✓`
+      status.style.display = 'block'
+    } else if (r.ancestor === false) {
+      status.className = 'ancestry-warn'
+      status.textContent = `⚠️ ${from} is NOT an ancestor of ${to}. Non-ancestor diffs are outside this tool's design; the A..B range will still compute, but expect weird results.`
+      status.style.display = 'block'
+    } else {
+      status.className = 'ancestry-ok'
+      status.textContent = r.note ?? ''
+      status.style.display = 'block'
+    }
+  } catch (err) {
+    status.className = 'ancestry-warn'
+    status.textContent = `Could not verify: ${err.message}`
+    status.style.display = 'block'
+  }
+}
+
+$('#session-kind').addEventListener('change', updateSessionModalFields)
+$('#session-from-ref').addEventListener('change', checkAncestry)
+$('#session-to-ref').addEventListener('change', checkAncestry)
+$('#session-cancel').addEventListener('click', closeSessionModal)
+$('#session-create').addEventListener('click', async () => {
+  const kind = $('#session-kind').value
+  const label = $('#session-label').value.trim()
+  try {
+    if (kind === 'git-range') {
+      const fromRef = $('#session-from-ref').value.trim()
+      const toRef = $('#session-to-ref').value.trim()
+      if (!fromRef || !toRef) { toast('Both refs required'); return }
+      const session = await api('POST', '/api/sessions', { kind, fromRef, toRef, label })
+      state.sessions.push(session)
+      state.mode = 'git-range'
+      state.selectedSessionId = session.id
+    } else {
+      const session = await api('POST', '/api/sessions', { kind: 'browse', label })
+      state.sessions.push(session)
+      state.mode = 'browse'
+      state.selectedSessionId = session.id
+    }
+    closeSessionModal()
+    applyModeUi()
+    await refreshSessionFiles()
+    renderContent()
+  } catch (err) {
+    toast(`Failed: ${err.message}`)
+  }
+})
+$('#btn-new-session').addEventListener('click', openSessionModal)
+
+$('#session-select').addEventListener('change', async (e) => {
+  state.selectedSessionId = e.target.value || null
+  state.selectedFile = null
+  state.sessionFileData = null
+  renderSessionMeta()
+  await refreshSessionFiles()
+  renderContent()
+})
+
+$('#session-delete').addEventListener('click', async () => {
+  if (!state.selectedSessionId) return
+  if (!confirm('Delete this session? (Comments stay attached and become orphaned.)')) return
+  await api('DELETE', `/api/sessions/${state.selectedSessionId}`)
+  state.sessions = state.sessions.filter(s => s.id !== state.selectedSessionId)
+  state.selectedSessionId = null
+  state.selectedFile = null
+  state.sessionFileData = null
+  applyModeUi()
+  renderContent()
+  renderTimeline()
+})
+
 // ─── SSE ───
 function startLiveStream() {
   if (state.liveStream) { state.liveStream.close(); state.liveStream = null }
   if (!state.project) return
   const es = new EventSource(`/api/events?project=${encodeURIComponent(state.project.dir)}`)
-  es.addEventListener('log', async () => { await refreshTimeline() })
+  es.addEventListener('log', async () => { await refreshAll() })
   state.liveStream = es
 }
 
@@ -1105,7 +1517,6 @@ $('#theme-select').addEventListener('change', (e) => {
   const t = e.target.value
   document.documentElement.setAttribute('data-theme', t)
   localStorage.setItem('cra-theme', t)
-  // Re-pick hljs theme for light/dark
   const hljs = $('#hljs-theme')
   hljs.href = t === 'paper'
     ? 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github.min.css'
@@ -1113,13 +1524,18 @@ $('#theme-select').addEventListener('change', (e) => {
 })
 
 // ─── Events ───
+for (const btn of document.querySelectorAll('#mode-switch button')) {
+  btn.addEventListener('click', () => switchMode(btn.dataset.mode))
+}
 $('#project-select').addEventListener('change', async (e) => {
   const dir = e.target.value
   localStorage.setItem('cra-project', dir)
   const projects = await (await fetch('/api/projects')).json()
   state.project = projects.find(p => p.dir === dir)
-  state.selectedCallId = null
-  await refreshTimeline()
+  state.selectedCallId = null; state.selectedSessionId = null; state.selectedFile = null
+  await loadGitRefs()
+  await refreshData()
+  renderContent()
   startLiveStream()
 })
 $('#tl-search').addEventListener('input', () => renderTimeline())
@@ -1128,7 +1544,10 @@ $('#tl-search').addEventListener('input', () => renderTimeline())
 ;(async function main() {
   await loadProjects()
   if (state.project) {
-    await refreshTimeline()
+    await loadGitRefs()
+    await refreshData()
+    applyModeUi()
+    renderContent()
     startLiveStream()
   }
 })()

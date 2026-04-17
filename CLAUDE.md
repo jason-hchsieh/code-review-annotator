@@ -43,11 +43,15 @@ Use semver: patch for bug fixes, minor for new features.
 
 The tool has two runtime modes, both sharing the same core modules. A central **project registry** at `$XDG_CONFIG_HOME/code-review-annotator/projects.json` (default `~/.config/...`) lets a single HTTP server serve many projects / worktrees — each MCP server registers its `--dir` on startup, and the browser UI lists every registered project in a dropdown. The HTTP server also writes its port into every registered project's entry on startup and clears it on shutdown, so the Pre/PostToolUse hook scripts can discover where to send captures. Stale entries (dir missing) are filtered on read; the file is safe to hand-edit.
 
-### Data model — tool-call timeline
+### Review modes
 
-Unlike a GitHub-style PR view, this tool models each Edit / Write / MultiEdit / NotebookEdit as an independent **tool call**. Every call captures the target file's full contents before and after the tool ran. The UI renders a timeline of tool calls; clicking one opens a two-panel before→after diff. Reviewers anchor comments to specific lines of either side.
+The UI has a header mode switcher with three independent modes. Comments live separately in each mode — switching the mode does not move comments between them, and each comment carries a `target: { kind, id, file }` tag identifying where it was written.
 
-Because snapshots are captured at the moment the tool ran, the diff view is stable — later edits to the same file produce *new* tool-call cards rather than mutating existing ones. There is no merge-base and no base branch.
+1. **Tool calls** (default / always-on) — each `Edit` / `Write` / `MultiEdit` / `NotebookEdit` is captured by Pre/PostToolUse hooks as an independent before→after snapshot. The timeline lists every call; clicking one opens its diff. Snapshots are immutable so later edits to the same file produce new cards, never mutate old ones.
+2. **Git diff** — user-created review sessions that compare any two refs: branch name / commit SHA / `HEAD` / `INDEX` (staged) / `WORKTREE` (current worktree incl. untracked). The session freezes each side's SHA at creation time for non-special refs; `WORKTREE` / `INDEX` re-resolve at request time. Non-ancestor ranges still compute `A..B` but the UI flags them with a warning — non-ancestor is outside the tool's design.
+3. **Browse** — user-created sessions listing every worktree file (tracked + untracked, respecting `.gitignore`). No diff; each file is shown as a single-column view with selectable lines for commenting. Comments use `side: 'current'`.
+
+Sessions (git-range / browse) are persisted — creating one, then re-visiting later, brings its comments back. Deleting a session leaves its comments in storage as orphans (their `target.id` no longer resolves).
 
 ### Web UI mode (`startHttpServer` in `src/server.ts`)
 A plain `node:http` server (no framework) serving:
@@ -58,10 +62,11 @@ A plain `node:http` server (no framework) serving:
 On startup the HTTP server iterates `listProjects()` and writes its port into each project's registry entry via `setHttpPort(dir, port)`. `SIGINT` / `SIGTERM` / `beforeExit` clear those entries so hooks don't try to POST to a dead server.
 
 ### MCP mode (`startMcpServer` in `src/mcp.ts`)
-An MCP stdio server exposing 5 tools to Claude Code:
+An MCP stdio server exposing 6 tools to Claude Code:
 - `get_tool_calls` — list captured Edit/Write/MultiEdit/NotebookEdit snapshots (optionally filtered by file / status)
-- `get_review_comments` — open comments enriched with `toolCall` context and actual `sourceLines` at the anchor
-- `get_export_prompt` — fix / report / both prompt string
+- `get_review_sessions` — list user-created git-range / browse sessions
+- `get_review_comments` — open comments enriched with `target`, `file`, `sourceLines`, and either `toolCall` or `session` context. Filters by `toolCallId` / `sessionId` / `targetKind` / `file` / `status`.
+- `get_export_prompt` — fix / report / both prompt string. Filters by `toolCallId` / `sessionId` / `targetKind`.
 - `mark_resolved` — close a comment by id
 - `reply_to_comment` — add a reply authored as `claude`
 
@@ -80,7 +85,8 @@ The script **always exits 0** on any failure (server down, no matching project, 
 
 | File | Responsibility |
 |------|---------------|
-| `src/log.ts` | `LogStore` — all state. Reads/writes `.review-log.json` in the target repo root. Manages tool-call lifecycle (`pending` → `complete` / `orphan`), comments (`open` ↔ `resolved`) and reply threads. Atomic tmp+rename writes. The constructor only reads; it never writes on load, so the HTTP handler can safely create a fresh store per request without self-triggering the SSE watcher. |
+| `src/log.ts` | `LogStore` — all state. Reads/writes `.review-log.json` in the target repo root. Manages tool-call lifecycle (`pending` → `complete` / `orphan`), `ReviewSession` records (git-range / browse), comments (`open` ↔ `resolved`) and reply threads. `normalizeComment()` migrates pre-v0.14 `{ toolCallId }` comments to `{ target: { kind, id, file } }` on load. Atomic tmp+rename writes. The constructor only reads; it never writes on load, so the HTTP handler can safely create a fresh store per request without self-triggering the SSE watcher. |
+| `src/git.ts` | Git helpers for the session modes. `resolveRef`, `listRefs` (branches + recent commits + `WORKTREE`/`INDEX`), `isAncestor`, `mergeBase`, `listChangedFiles(fromRef, toRef)` (handles all combinations of commit / `WORKTREE` / `INDEX`; includes untracked as 'A' when the to-side is `WORKTREE`), `readBlob(ref, file)`, `listWorktreeFiles()` (uses `git ls-files --cached --others --exclude-standard` — no ignored files). Shells out to `git` via `execFileSync`; no libgit2 dependency. |
 | `src/registry.ts` | Central project registry. Atomic writes. `registerProject(dir)` upserts by abs path. `setHttpPort` / `clearHttpPort` let the HTTP server advertise its listening port. `listProjects()` filters entries whose `dir` no longer exists. |
 | `src/watcher.ts` | `startProjectWatcher(dir, onEvent)` — 1.5 s interval comparing `.review-log.json` `mtime+size`; invokes `onEvent({ type: 'log' })` on change. Returns a stop function. |
 | `scripts/hook.js` | PreToolUse / PostToolUse capture script. Silent exit 0 on any failure. |
@@ -102,10 +108,25 @@ The script **always exits 0** on any failure (server down, no matching project, 
     startedAt,
     completedAt,
   }],
+  sessions: [{        // user-created review sessions (git-range / browse)
+    id,
+    kind,             // 'git-range' | 'browse'
+    label,
+    fromRef,          // e.g. 'main' | 'HEAD' | 'INDEX' | SHA — null for browse
+    toRef,            // same; browse is always 'WORKTREE'
+    fromSha,          // resolved SHA at creation time; null for special refs
+    toSha,
+    createdAt,
+  }],
   comments: [{
     id,
-    toolCallId,       // which tool-call this comment is anchored to
-    side,             // 'before' | 'after'
+    target: {         // anchors the comment to its mode
+      kind,           // 'tool-call' | 'git-range' | 'browse'
+      id,             // toolCall.id or session.id
+      file,           // relative path (for session targets; empty for tool-call)
+    },
+    toolCallId,       // mirror of target.id for tool-call targets; '' otherwise (back-compat)
+    side,             // 'before' | 'after' | 'current'
     startLine, endLine,
     body, status,     // open | resolved
     createdAt,
@@ -113,6 +134,8 @@ The script **always exits 0** on any failure (server down, no matching project, 
   }]
 }
 ```
+
+**Migration:** pre-v0.14 logs store comments as `{ toolCallId, side, ... }` with no `target`. `LogStore.load()` calls `normalizeComment()` which rewrites them to the new shape in memory; the file is re-serialized with the new shape on the next write.
 
 ### CLI flags
 

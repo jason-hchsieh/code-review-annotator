@@ -1,11 +1,13 @@
 import * as http from 'node:http'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { LogStore, ReviewComment, ToolCall, ToolKind } from './log.ts'
+import { CommentSide, CommentTarget, LogStore, ReviewComment, ReviewSession, TargetKind, ToolCall, ToolKind } from './log.ts'
 import { listProjects, setHttpPort, clearHttpPort, RegistryProject } from './registry.ts'
 import { startProjectWatcher, WatcherEvent } from './watcher.ts'
+import { isAncestor, isGitRepo, listChangedFiles, listRefs, listWorktreeFiles, mergeBase, readBlob, resolveRef } from './git.ts'
 
 const TOOL_KINDS: ReadonlyArray<ToolKind> = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
+const TARGET_KINDS: ReadonlyArray<TargetKind> = ['tool-call', 'git-range', 'browse']
 
 function json(res: http.ServerResponse, status: number, data: unknown) {
   const body = JSON.stringify(data)
@@ -34,22 +36,36 @@ function projectName(dir: string): string {
   return parent ? `${parent}/${base}` : base
 }
 
+function fileForComment(comment: ReviewComment, store: LogStore): string {
+  if (comment.target.kind === 'tool-call') {
+    const call = store.getToolCall(comment.target.id)
+    return call?.file ?? '(unknown)'
+  }
+  return comment.target.file ?? '(unknown)'
+}
+
+function toolRefForComment(comment: ReviewComment, store: LogStore): string {
+  if (comment.target.kind === 'tool-call') {
+    const call = store.getToolCall(comment.target.id)
+    return call?.tool ?? 'tool'
+  }
+  const session = store.getSession(comment.target.id)
+  if (!session) return comment.target.kind
+  return session.kind === 'browse' ? 'Browse' : `${session.fromRef}→${session.toRef}`
+}
+
 function exportPrompt(
-  calls: ToolCall[],
+  store: LogStore,
   comments: ReviewComment[],
   mode: 'fix' | 'report' | 'both',
 ): string {
   if (comments.length === 0) return '// No open comments found.'
 
-  const byCall = new Map<string, ToolCall>()
-  for (const c of calls) byCall.set(c.id, c)
-
-  const byFile = new Map<string, Array<{ call: ToolCall; comment: ReviewComment }>>()
+  const byFile = new Map<string, ReviewComment[]>()
   for (const cm of comments) {
-    const call = byCall.get(cm.toolCallId)
-    if (!call) continue
-    if (!byFile.has(call.file)) byFile.set(call.file, [])
-    byFile.get(call.file)!.push({ call, comment: cm })
+    const file = fileForComment(cm, store)
+    if (!byFile.has(file)) byFile.set(file, [])
+    byFile.get(file)!.push(cm)
   }
 
   const lines: string[] = []
@@ -58,9 +74,10 @@ function exportPrompt(
     lines.push('Please address the following review comments:\n')
     for (const [file, entries] of byFile.entries()) {
       lines.push(`### ${file}`)
-      for (const { call, comment } of entries) {
+      for (const comment of entries) {
         const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
-        lines.push(`- [${call.tool}, ${comment.side}, ${lineRef}] ${comment.body}`)
+        const ctx = toolRefForComment(comment, store)
+        lines.push(`- [${ctx}, ${comment.side}, ${lineRef}] ${comment.body}`)
       }
       lines.push('')
     }
@@ -71,9 +88,10 @@ function exportPrompt(
     lines.push('## Review Summary\n')
     for (const [file, entries] of byFile.entries()) {
       lines.push(`### ${file}`)
-      for (const { call, comment } of entries) {
+      for (const comment of entries) {
         const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
-        lines.push(`- **[${call.tool} ${lineRef} ${comment.side}]**: ${comment.body}`)
+        const ctx = toolRefForComment(comment, store)
+        lines.push(`- **[${ctx} ${lineRef} ${comment.side}]**: ${comment.body}`)
       }
       lines.push('')
     }
@@ -160,6 +178,16 @@ function handleSse(req: http.IncomingMessage, res: http.ServerResponse, project:
   req.on('error', cleanup)
 }
 
+function parseTarget(raw: unknown): CommentTarget | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const kind = r.kind as TargetKind | undefined
+  const id = r.id as string | undefined
+  if (!kind || !TARGET_KINDS.includes(kind)) return null
+  if (!id) return null
+  return { kind, id, file: typeof r.file === 'string' ? r.file : '' }
+}
+
 export function startHttpServer(port: number) {
   function resolveProject(query: URLSearchParams): RegistryProject | null {
     const requested = query.get('project')
@@ -234,7 +262,130 @@ export function startHttpServer(port: number) {
           dir,
           displayPath: homeRelative(dir),
           name: projectName(dir),
+          isGitRepo: isGitRepo(dir),
         })
+      }
+
+      // ─── Git refs / ancestry ───
+
+      if (method === 'GET' && pathname === '/api/git/refs') {
+        return json(res, 200, { isGitRepo: isGitRepo(dir), refs: listRefs(dir) })
+      }
+
+      if (method === 'POST' && pathname === '/api/git/check-ancestor') {
+        const body = JSON.parse(await readBody(req)) as { fromRef?: string; toRef?: string }
+        if (!body.fromRef || !body.toRef) return json(res, 400, { error: 'fromRef and toRef required' })
+        try {
+          const fromR = resolveRef(dir, body.fromRef)
+          const toR = resolveRef(dir, body.toRef)
+          if (!fromR.sha || !toR.sha) {
+            return json(res, 200, { ancestor: null, note: 'one side is WORKTREE/INDEX' })
+          }
+          const ancestor = isAncestor(dir, fromR.sha, toR.sha)
+          const base = mergeBase(dir, fromR.sha, toR.sha)
+          return json(res, 200, { ancestor, mergeBase: base })
+        } catch (err: any) {
+          return json(res, 400, { error: err.message ?? String(err) })
+        }
+      }
+
+      // ─── Sessions ───
+
+      if (method === 'GET' && pathname === '/api/sessions') {
+        return json(res, 200, store.getSessions())
+      }
+
+      if (method === 'POST' && pathname === '/api/sessions') {
+        const body = JSON.parse(await readBody(req)) as {
+          kind?: 'git-range' | 'browse'
+          label?: string
+          fromRef?: string | null
+          toRef?: string
+        }
+        if (!body.kind || (body.kind !== 'git-range' && body.kind !== 'browse')) {
+          return json(res, 400, { error: 'kind must be git-range or browse' })
+        }
+        if (body.kind === 'git-range') {
+          if (!body.fromRef || !body.toRef) return json(res, 400, { error: 'fromRef and toRef required' })
+          try {
+            const fromR = resolveRef(dir, body.fromRef)
+            const toR = resolveRef(dir, body.toRef)
+            const session = store.addSession({
+              kind: 'git-range',
+              label: body.label?.trim() || `${fromR.ref} → ${toR.ref}`,
+              fromRef: fromR.ref,
+              toRef: toR.ref,
+              fromSha: fromR.sha,
+              toSha: toR.sha,
+            })
+            return json(res, 201, session)
+          } catch (err: any) {
+            return json(res, 400, { error: err.message ?? String(err) })
+          }
+        }
+        // browse
+        const session = store.addSession({
+          kind: 'browse',
+          label: body.label?.trim() || 'Worktree browse',
+          fromRef: null,
+          toRef: 'WORKTREE',
+          fromSha: null,
+          toSha: null,
+        })
+        return json(res, 201, session)
+      }
+
+      const sessionMatch = pathname.match(/^\/api\/sessions\/([^/]+)$/)
+      if (method === 'GET' && sessionMatch) {
+        const session = store.getSession(sessionMatch[1])
+        if (!session) return json(res, 404, { error: 'not found' })
+        return json(res, 200, session)
+      }
+      if (method === 'PATCH' && sessionMatch) {
+        const body = JSON.parse(await readBody(req)) as { label?: string }
+        const updated = store.updateSession(sessionMatch[1], { label: body.label })
+        if (!updated) return json(res, 404, { error: 'not found' })
+        return json(res, 200, updated)
+      }
+      if (method === 'DELETE' && sessionMatch) {
+        const ok = store.deleteSession(sessionMatch[1])
+        if (!ok) return json(res, 404, { error: 'not found' })
+        return json(res, 200, { ok: true })
+      }
+
+      const sessionFilesMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/files$/)
+      if (method === 'GET' && sessionFilesMatch) {
+        const session = store.getSession(sessionFilesMatch[1])
+        if (!session) return json(res, 404, { error: 'not found' })
+        if (session.kind === 'browse') {
+          const files = listWorktreeFiles(dir).map(f => ({ file: f, status: 'M' as const }))
+          return json(res, 200, files)
+        }
+        const from = session.fromSha ?? session.fromRef ?? ''
+        const to = session.toSha ?? session.toRef ?? ''
+        try {
+          const files = listChangedFiles(dir, from, to)
+          return json(res, 200, files)
+        } catch (err: any) {
+          return json(res, 400, { error: err.message ?? String(err) })
+        }
+      }
+
+      const sessionFileMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/file$/)
+      if (method === 'GET' && sessionFileMatch) {
+        const session = store.getSession(sessionFileMatch[1])
+        if (!session) return json(res, 404, { error: 'not found' })
+        const file = query.get('path')
+        if (!file) return json(res, 400, { error: 'path query param required' })
+        if (session.kind === 'browse') {
+          const content = readBlob(dir, 'WORKTREE', file)
+          return json(res, 200, { file, before: '', after: content, isBrowse: true })
+        }
+        const from = session.fromSha ?? session.fromRef ?? ''
+        const to = session.toSha ?? session.toRef ?? ''
+        const before = readBlob(dir, from, file)
+        const after = readBlob(dir, to, file)
+        return json(res, 200, { file, before, after, isBrowse: false })
       }
 
       // ─── Tool calls ───
@@ -296,27 +447,43 @@ export function startHttpServer(port: number) {
 
       if (method === 'GET' && pathname === '/api/comments') {
         const toolCallId = query.get('toolCallId') ?? undefined
+        const sessionId = query.get('sessionId') ?? undefined
+        const targetKind = (query.get('targetKind') as TargetKind | null) ?? undefined
+        const file = query.get('file') ?? undefined
         const status = (query.get('status') as ReviewComment['status'] | null) ?? undefined
-        return json(res, 200, store.getComments({ toolCallId, status }))
+        return json(res, 200, store.getComments({ toolCallId, sessionId, targetKind, file, status }))
       }
 
       if (method === 'POST' && pathname === '/api/comments') {
         const body = JSON.parse(await readBody(req)) as {
+          target?: unknown
           toolCallId?: string
-          side?: 'before' | 'after'
+          side?: CommentSide
           startLine?: number
           endLine?: number
           body?: string
         }
-        if (!body.toolCallId || !body.side || !body.startLine || !body.body) {
-          return json(res, 400, { error: 'toolCallId, side, startLine, body required' })
+        let target = parseTarget(body.target)
+        if (!target && body.toolCallId) {
+          target = { kind: 'tool-call', id: body.toolCallId, file: '' }
         }
-        const call = store.getToolCall(body.toolCallId)
-        if (!call) return json(res, 404, { error: 'toolCallId not found' })
+        if (!target) return json(res, 400, { error: 'target {kind,id} or legacy toolCallId required' })
+        if (!body.side || !body.startLine || !body.body) {
+          return json(res, 400, { error: 'side, startLine, body required' })
+        }
+        // Validate target exists
+        if (target.kind === 'tool-call') {
+          if (!store.getToolCall(target.id)) return json(res, 404, { error: 'toolCallId not found' })
+        } else {
+          const s = store.getSession(target.id)
+          if (!s) return json(res, 404, { error: 'sessionId not found' })
+          if (s.kind === 'browse' && target.kind !== 'browse') return json(res, 400, { error: 'target.kind must match session kind' })
+          if (s.kind === 'git-range' && target.kind !== 'git-range') return json(res, 400, { error: 'target.kind must match session kind' })
+        }
         const sLine = Number(body.startLine)
         const eLine = Number(body.endLine ?? sLine)
         const comment = store.addComment({
-          toolCallId: body.toolCallId,
+          target,
           side: body.side,
           startLine: sLine,
           endLine: eLine,
@@ -371,9 +538,10 @@ export function startHttpServer(port: number) {
       if (method === 'GET' && pathname === '/api/export') {
         const mode = (query.get('mode') as 'fix' | 'report' | 'both' | null) ?? 'both'
         const toolCallId = query.get('toolCallId') ?? undefined
-        const comments = store.getComments({ status: 'open', toolCallId })
-        const calls = store.getToolCalls()
-        const prompt = exportPrompt(calls, comments, mode)
+        const sessionId = query.get('sessionId') ?? undefined
+        const targetKind = (query.get('targetKind') as TargetKind | null) ?? undefined
+        const comments = store.getComments({ status: 'open', toolCallId, sessionId, targetKind })
+        const prompt = exportPrompt(store, comments, mode)
         return json(res, 200, { prompt })
       }
 
