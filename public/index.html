@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Code Review Annotator</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/highlight.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -160,6 +162,9 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 .diff-line.type-added .td-sign { color: var(--added-fg); }
 .diff-line.type-deleted td { background: var(--deleted-bg); }
 .diff-line.type-deleted .td-sign { color: var(--deleted-fg); }
+
+/* hljs tokens inside diff cells — keep diff-row backgrounds, only inherit token colors */
+.td-code .hljs, .anchor-snippet .hljs { background: transparent; padding: 0; }
 
 /* ─── Add comment button ─── */
 .add-comment-btn-row td { padding: 0; }
@@ -428,6 +433,50 @@ const state = {
   selection: null,
   selectionAnchor: null,
   wrapLines: true,
+}
+
+// ─────────────────────────────────────────────
+// Syntax highlighting
+// ─────────────────────────────────────────────
+const EXT_LANG = {
+  ts: 'typescript', tsx: 'typescript', mts: 'typescript', cts: 'typescript',
+  js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',
+  py: 'python', pyi: 'python',
+  rb: 'ruby', go: 'go', rs: 'rust',
+  java: 'java', kt: 'kotlin', kts: 'kotlin', swift: 'swift', scala: 'scala',
+  c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp', hxx: 'cpp',
+  cs: 'csharp', php: 'php',
+  sh: 'bash', bash: 'bash', zsh: 'bash', fish: 'bash',
+  html: 'xml', htm: 'xml', xml: 'xml', svg: 'xml', vue: 'xml',
+  css: 'css', scss: 'scss', sass: 'scss', less: 'less',
+  json: 'json', jsonc: 'json',
+  yaml: 'yaml', yml: 'yaml',
+  toml: 'ini', ini: 'ini', conf: 'ini',
+  md: 'markdown', markdown: 'markdown',
+  sql: 'sql', lua: 'lua', r: 'r', dart: 'dart',
+  pl: 'perl', pm: 'perl',
+  dockerfile: 'dockerfile', makefile: 'makefile', mk: 'makefile',
+  graphql: 'graphql', gql: 'graphql',
+  diff: 'diff', patch: 'diff',
+}
+function detectLang(filename) {
+  if (!filename || !window.hljs) return null
+  const base = filename.split('/').pop().toLowerCase()
+  if (base === 'dockerfile' || base.endsWith('.dockerfile')) return 'dockerfile'
+  if (base === 'makefile' || base === 'gnumakefile') return 'makefile'
+  const ext = base.includes('.') ? base.split('.').pop() : base
+  const lang = EXT_LANG[ext]
+  if (lang && hljs.getLanguage(lang)) return lang
+  return null
+}
+function highlightInto(el, text, lang) {
+  if (lang && window.hljs) {
+    try {
+      el.innerHTML = hljs.highlight(text, { language: lang, ignoreIllegals: true }).value
+      return
+    } catch { /* fall through */ }
+  }
+  el.textContent = text
 }
 
 // ─────────────────────────────────────────────
@@ -818,6 +867,8 @@ function renderDiff() {
   table.className = 'diff-table'
   container.appendChild(table)
 
+  const lang = detectLang(diff.file)
+
   for (const hunk of diff.hunks) {
     const hunkHeaderRow = table.insertRow()
     const hunkCell = hunkHeaderRow.insertCell()
@@ -852,7 +903,7 @@ function renderDiff() {
       else { tdOld.textContent = line.oldLine; tdNew.textContent = line.newLine }
 
       tdSign.textContent = line.type === 'added' ? '+' : line.type === 'deleted' ? '-' : ' '
-      tdCode.textContent = line.content
+      highlightInto(tdCode, line.content, lang)
 
       if (state.selection) {
         const s = state.selection
@@ -1105,7 +1156,7 @@ function appendCommentThread(table, comment) {
 
     const snippet = document.createElement('div')
     snippet.className = 'anchor-snippet'
-    snippet.textContent = comment.anchorSnippet.join('\n')
+    highlightInto(snippet, comment.anchorSnippet.join('\n'), detectLang(comment.file))
     collapsible.appendChild(snippet)
   }
 
