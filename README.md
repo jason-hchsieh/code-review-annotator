@@ -18,8 +18,8 @@ When using Claude Code on a remote server, you can't easily review the code it g
 1. Claude Code generates changes on the remote server
 2. You SSH port-forward and review the diff in a browser UI
 3. You leave inline comments on lines that need fixing
-4. You tell Claude Code `"fix review comments"` — it reads comments via MCP and applies fixes
-5. Open a new round and repeat
+4. You tell Claude Code `"fix review comments"` — it reads comments via MCP, applies fixes, and replies on each thread
+5. You resolve or push back in the browser, then iterate
 
 ---
 
@@ -27,11 +27,14 @@ When using Claude Code on a remote server, you can't easily review the code it g
 
 ### As a Claude Code Plugin (recommended)
 
-```bash
-claude plugin install /path/to/code-review-annotator --scope project
+The plugin ships with a `.claude-plugin/marketplace.json`, so install via Claude Code's plugin commands:
+
+```
+/plugin marketplace add /path/to/code-review-annotator
+/plugin install code-review-annotator@code-review-annotator-local
 ```
 
-The plugin bundles a MCP server that connects automatically when Claude Code starts. No `claude mcp add` needed.
+The plugin bundles an MCP server that connects automatically when Claude Code starts. No `claude mcp add` needed.
 
 ### Standalone (npx)
 
@@ -79,23 +82,20 @@ open http://localhost:8080
 fix review comments
 ```
 
-Claude Code calls `get_review_comments`, reads the `sourceLines` for context, applies each fix, then calls `mark_resolved`. When done, open a new round for the next iteration.
+Claude Code calls `get_review_comments`, reads the `sourceLines` for context, applies each fix, calls `reply_to_comment` to explain what changed, then calls `mark_resolved`.
 
 ---
 
-## Review Rounds
+## Comment Lifecycle
 
-Each round tracks which comments are active:
+Comments have two states:
 
 | Status | Meaning |
 |--------|---------|
 | `open` | Needs fixing |
 | `resolved` | Fixed and marked done |
-| `stale` | Was open in a previous round, not carried forward |
 
-**New Round** button (or `start_new_round` via MCP) — marks all current open comments as `stale` and starts fresh. Use after Claude Code has applied a batch of fixes and committed or staged the changes. The round's `baseCommit` is recorded so diffs are always relative to the correct baseline.
-
-Round history is viewable in the dropdown (read-only).
+The `baseCommit` (captured on first use and stored in `.review-comments.json`) is the reference point all diffs are computed against. Each comment also has a `replies` thread so Claude Code and the human reviewer can have a back-and-forth on a single issue without losing context.
 
 ---
 
@@ -105,19 +105,18 @@ Claude Code accesses these tools via the `code-review` MCP server:
 
 | Tool | Description |
 |------|-------------|
-| `get_review_comments` | Fetch comments. Defaults to current round, `open` status. Each result includes `sourceLines` (actual file content at that line range). |
+| `get_review_comments` | Fetch comments. Defaults to `open` status. Each result includes `sourceLines` (actual file content at that line range) and any existing `replies`. |
 | `get_changed_files` | List all files in `git diff` with open comment counts. |
 | `get_export_prompt` | Generate a ready-to-use fix/report/both prompt string. |
 | `mark_resolved` | Mark a comment as resolved by ID. |
-| `start_new_round` | Open a new round; stale all open comments from the current round. |
+| `reply_to_comment` | Add a reply to a comment thread (authored as `claude`). Use after fixing to explain what changed. |
 
 `get_review_comments` parameters:
 
 ```ts
 get_review_comments(
   file?: string,           // filter by file path
-  status?: 'open' | 'resolved' | 'stale',  // default: 'open'
-  round?: number | 'all'  // default: current round
+  status?: 'open' | 'resolved',  // default: 'open'
 )
 ```
 
@@ -136,12 +135,11 @@ The HTTP server also exposes a REST API for custom integrations:
 | `GET` | `/api/files` | Directory file tree (respects `.gitignore` / `.claudeignore`) |
 | `GET` | `/api/diff?file=` | Parsed unified diff for a file |
 | `GET` | `/api/diff/summary` | All changed files with `+/-` stats |
-| `GET` | `/api/comments` | Comments (`?file=`, `?round=`, `?status=` filters) |
+| `GET` | `/api/comments` | Comments (`?file=`, `?status=` filters) |
 | `POST` | `/api/comments` | Add a comment |
 | `PATCH` | `/api/comments/:id` | Update body or status |
 | `DELETE` | `/api/comments/:id` | Delete a comment |
-| `GET` | `/api/rounds` | List all rounds |
-| `POST` | `/api/rounds` | Start a new round |
+| `POST` | `/api/comments/:id/replies` | Add a reply to a comment thread |
 | `GET` | `/api/export?mode=fix\|report\|both` | Generate prompt string |
 
 ---
@@ -152,11 +150,7 @@ Comments are persisted to `.review-comments.json` in the project root. Add it to
 
 ```jsonc
 {
-  "currentRound": 2,
-  "rounds": [
-    { "id": 1, "baseCommit": "abc123", "createdAt": "..." },
-    { "id": 2, "baseCommit": "def456", "createdAt": "..." }
-  ],
+  "baseCommit": "abc123",
   "comments": [
     {
       "id": "abc",
@@ -166,12 +160,16 @@ Comments are persisted to `.review-comments.json` in the project root. Add it to
       "side": "new",
       "body": "This match block can be extracted into a helper",
       "status": "open",
-      "round": 2,
-      "createdAt": "..."
+      "createdAt": "...",
+      "replies": [
+        { "id": "r1", "author": "claude", "body": "Extracted into `parseMatch()`.", "createdAt": "..." }
+      ]
     }
   ]
 }
 ```
+
+Old round-based stores are auto-migrated on load (`currentRound` / `rounds[]` collapse into a single `baseCommit`).
 
 The HTTP server and MCP server are separate processes that both read/write this file. Run the HTTP server for the browser UI and install the plugin (or `claude mcp add`) for the MCP server — they share state through the JSON file.
 
@@ -195,7 +193,7 @@ When installed as a Claude Code plugin:
 - `scripts/run-mcp.sh` is spawned by Claude Code at session start
 - On first run, the script copies `package.json` to `${CLAUDE_PLUGIN_DATA}` and runs `npm ci` there — keeps `node_modules` out of the plugin cache and survives plugin updates
 - The script re-installs automatically when `package.json` changes between plugin versions
-- The `review-workflow` skill teaches Claude Code the fix loop: `get_review_comments` → apply edits → `mark_resolved`
+- The `review-workflow` skill teaches Claude Code the fix loop: `get_review_comments` → apply edits → `reply_to_comment` → `mark_resolved`
 
 ---
 
