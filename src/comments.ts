@@ -1,7 +1,6 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { nanoid } from 'nanoid'
-import { simpleGit } from 'simple-git'
 
 export interface CommentReply {
   id: string
@@ -20,81 +19,56 @@ export interface ReviewComment {
   status: 'open' | 'resolved'
   createdAt: string
   replies: CommentReply[]
+  commitSha: string
+  anchorSnippet: string[]
 }
 
 export interface ReviewStore {
-  baseCommit: string
+  baseBranch: string
   comments: ReviewComment[]
 }
 
 export class CommentStore {
   private storePath: string
   private store: ReviewStore
-  private dir: string
 
-  constructor(dir: string) {
-    this.dir = dir
+  constructor(dir: string, baseBranch: string) {
     this.storePath = path.join(dir, '.review-comments.json')
-    this.store = this.load()
+    this.store = this.load(baseBranch)
+    this.save()
   }
 
-  private load(): ReviewStore {
+  static readStoredBaseBranch(dir: string): string | null {
+    const storePath = path.join(dir, '.review-comments.json')
+    if (!fs.existsSync(storePath)) return null
+    try {
+      const data = JSON.parse(fs.readFileSync(storePath, 'utf-8')) as Record<string, unknown>
+      return typeof data.baseBranch === 'string' ? data.baseBranch : null
+    } catch {
+      return null
+    }
+  }
+
+  private load(baseBranch: string): ReviewStore {
     if (fs.existsSync(this.storePath)) {
       try {
         const raw = fs.readFileSync(this.storePath, 'utf-8')
         const data = JSON.parse(raw) as Record<string, unknown>
-        // Migrate old round-based format
-        if ('rounds' in data || 'currentRound' in data) {
-          return this.migrate(data)
-        }
-        return data as unknown as ReviewStore
+        const comments = Array.isArray(data.comments) ? (data.comments as ReviewComment[]) : []
+        return { baseBranch, comments }
       } catch {
-        // corrupted file, start fresh
+        // corrupted file — start fresh
       }
     }
-    return { baseCommit: 'HEAD', comments: [] }
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private migrate(old: any): ReviewStore {
-    const baseCommit: string = old.rounds?.[0]?.baseCommit ?? 'HEAD'
-    const comments: ReviewComment[] = (old.comments ?? []).map((c: any) => ({
-      id: c.id,
-      file: c.file,
-      startLine: c.startLine,
-      endLine: c.endLine,
-      side: c.side,
-      body: c.body,
-      status: c.status === 'resolved' ? 'resolved' : 'open',
-      createdAt: c.createdAt,
-      replies: c.replies ?? [],
-    }))
-    return { baseCommit, comments }
+    return { baseBranch, comments: [] }
   }
 
   private save(): void {
     fs.writeFileSync(this.storePath, JSON.stringify(this.store, null, 2), 'utf-8')
   }
 
-  async ensureInitialized(): Promise<void> {
-    if (this.store.baseCommit === 'HEAD') {
-      this.store.baseCommit = await this.getCurrentCommit()
-      this.save()
-    }
-  }
-
-  private async getCurrentCommit(): Promise<string> {
-    try {
-      const git = simpleGit(this.dir)
-      const log = await git.log({ maxCount: 1 })
-      return log.latest?.hash ?? 'HEAD'
-    } catch {
-      return 'HEAD'
-    }
-  }
-
-  getBaseCommit(): string {
-    return this.store.baseCommit
+  getBaseBranch(): string {
+    return this.store.baseBranch
   }
 
   getComments(opts: { file?: string; status?: 'open' | 'resolved' } = {}): ReviewComment[] {
@@ -110,6 +84,8 @@ export class CommentStore {
     endLine: number
     side: 'old' | 'new'
     body: string
+    commitSha: string
+    anchorSnippet: string[]
   }): ReviewComment {
     const comment: ReviewComment = {
       id: nanoid(),

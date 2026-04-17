@@ -6,10 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Start web UI (default port 8080, target the repo to review)
-npx tsx src/cli.ts --dir /path/to/repo --port 8080
+npx tsx src/cli.ts --dir /path/to/repo --base main --port 8080
 
 # Start MCP stdio server (used by Claude Code via `claude mcp add`)
-npx tsx src/cli.ts --mcp --dir /path/to/repo
+npx tsx src/cli.ts --mcp --dir /path/to/repo --base main
 ```
 
 There is no build step, no test suite, and no lint script. The project runs directly via `tsx`.
@@ -36,12 +36,27 @@ Use semver: patch for bug fixes, minor for new features.
 
 ## Architecture
 
-The tool has two runtime modes, both sharing the same core modules:
+The tool has two runtime modes, both sharing the same core modules.
+
+### Diff model — GitHub-style
+
+The base is a **branch ref** (e.g. `main`), not a frozen commit. On every diff/comment fetch the server re-runs:
+
+```
+git diff $(git merge-base HEAD <baseBranch>)
+```
+
+This mirrors how GitHub PRs work:
+- Feature branch advances → diff expands
+- Base branch advances → merge-base shifts → diff narrows
+- Working tree + unstaged changes are always included (local-tool concession — GitHub has no "working tree")
+
+Comments anchor to `(file, startLine, endLine, side)` plus a captured `commitSha` and `anchorSnippet` (the exact `sourceLines` when the comment was written). On read, the server re-fetches current `sourceLines` and compares with `anchorSnippet`; mismatch → `outdated: true`.
 
 ### Web UI mode (`startHttpServer` in `src/server.ts`)
 A plain `node:http` server (no framework) serving:
 - `public/index.html` — single-file SPA (vanilla JS, no build step)
-- REST API endpoints under `/api/` (diff, comments, replies, export)
+- REST API endpoints under `/api/` (meta, diff, comments, replies, export)
 
 ### MCP mode (`startMcpServer` in `src/mcp.ts`)
 An MCP stdio server exposing 5 tools to Claude Code:
@@ -51,22 +66,34 @@ An MCP stdio server exposing 5 tools to Claude Code:
 
 | File | Responsibility |
 |------|---------------|
-| `src/comments.ts` | `CommentStore` — all state. Reads/writes `.review-comments.json` in the target repo root. Manages comment lifecycle (`open` ↔ `resolved`) and reply threads. Auto-migrates legacy round-based stores. |
-| `src/gitDiff.ts` | Git diff computation via `simple-git`. Uses `--numstat` for accurate line counts and falls back to `--cached` for newly staged files. Parses unified diff into typed `ParsedHunk[]` / `ParsedLine[]`. |
+| `src/comments.ts` | `CommentStore` — all state. Reads/writes `.review-comments.json` in the target repo root. Manages comment lifecycle (`open` ↔ `resolved`) and reply threads. Stores `baseBranch` and per-comment `commitSha` + `anchorSnippet`. |
+| `src/gitDiff.ts` | Git diff computation via `simple-git`. `resolveMergeBase(dir, baseBranch)` runs `git merge-base HEAD <baseBranch>`. `detectDefaultBase` tries `main` then `master` for the CLI auto-detect. |
 | `src/fileTree.ts` | Directory scanner respecting `.gitignore` and `.claudeignore`. Used by `/api/files` but not the sidebar (sidebar uses diff summary). |
 
 ### Data model
 
 `.review-comments.json` is written to the **target project's root** (not this repo). It stores:
 ```
-{ baseCommit, comments: [{ id, file, startLine, endLine, side, body, status, createdAt, replies: [...] }] }
+{
+  baseBranch: "main",
+  comments: [{
+    id, file, startLine, endLine, side, body, status, createdAt,
+    commitSha,        // HEAD when comment was written
+    anchorSnippet,    // string[] — sourceLines captured at write time
+    replies: [...]
+  }]
+}
 ```
-`baseCommit` is the HEAD commit hash captured on first use — diffs are computed relative to this commit, not HEAD. Each comment has a `replies[]` thread for Claude Code ↔ reviewer dialogue.
 
-### Diff computation flow
+### CLI flags
 
-`getChangedFiles` / `getFileDiff` first try `git diff <baseCommit>`, then fall back to `git diff --cached <baseCommit>` when the working tree diff is empty (covers newly staged files not yet in HEAD).
+- `--dir <path>` — project root (must be a git repo)
+- `--base <ref>` — base branch; omit to auto-detect `main` then `master`
+- `--port <n>` — HTTP port (default `8080`)
+- `--mcp` — run as MCP stdio server instead of HTTP
 
-### Migration from round-based stores
+The CLI resolves `baseBranch` once at startup and passes it to `startHttpServer` / `startMcpServer`. `CommentStore` persists it to `.review-comments.json` but the CLI flag always takes precedence — on next launch the file is overwritten with the flag value.
 
-`CommentStore.load()` detects legacy stores (those containing `rounds` or `currentRound`) and collapses them into the current flat shape, preserving `baseCommit` from the first round and mapping any non-`resolved` status to `open`.
+### Outdated detection
+
+`server.ts` `enrichComments()` and `mcp.ts` both re-fetch current `sourceLines` for each comment and compare with `anchorSnippet`. UI shows an `outdated` badge + the original snippet when `outdated: true`. MCP `get_review_comments` includes `outdated` in every returned comment.

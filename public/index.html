@@ -22,6 +22,7 @@
   --selected-bg: #1a3a5c;
   --comment-open: #e3a44a;
   --comment-resolved: #6e7681;
+  --comment-outdated: #8b5cf6;
   --accent: #58a6ff;
   --danger: #f85149;
   --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
@@ -49,6 +50,12 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 #btn-sidebar-toggle:hover { background: var(--bg3); color: var(--text); }
 #project-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 #changed-count { color: var(--text-muted); font-size: 13px; white-space: nowrap; flex-shrink: 0; }
+#base-branch {
+  color: var(--text-muted); font-size: 12px; white-space: nowrap; flex-shrink: 0;
+  padding: 2px 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
+  font-family: var(--font-mono);
+}
+#base-branch::before { content: "base: "; color: var(--text-dim); }
 .spacer { flex: 1; min-width: 4px; }
 #btn-export {
   background: var(--accent); border: none; color: #000;
@@ -180,6 +187,18 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 }
 .comment-thread.status-open { border-color: var(--comment-open); }
 .comment-thread.status-resolved { border-color: var(--border); opacity: 0.5; }
+.comment-thread.outdated { border-color: var(--comment-outdated); opacity: 0.75; }
+.comment-thread.outdated .comment-status-dot { background: var(--comment-outdated); }
+.comment-outdated-badge {
+  font-size: 10px; padding: 1px 6px; border-radius: 10px;
+  background: rgba(139, 92, 246, 0.2); color: var(--comment-outdated);
+  font-weight: 600; text-transform: uppercase; letter-spacing: .3px;
+}
+.anchor-snippet {
+  margin: 6px 10px; padding: 6px 8px; background: var(--bg2); border-left: 2px solid var(--comment-outdated);
+  font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); white-space: pre-wrap; border-radius: 2px;
+}
+.anchor-snippet-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .3px; margin-bottom: 3px; }
 .comment-thread-header {
   display: flex; align-items: center; gap: 8px; padding: 5px 10px;
   background: var(--bg2); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-muted);
@@ -294,6 +313,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
   </button>
   <span id="project-name">Code Review</span>
   <span id="changed-count"></span>
+  <span id="base-branch" title="Base branch — diff computed from merge-base(HEAD, base)"></span>
   <div class="spacer"></div>
   <button id="btn-export">Export ▼</button>
 </div>
@@ -467,6 +487,10 @@ function buildStatBlocks(added, deleted) {
 // Init & load files
 // ─────────────────────────────────────────────
 async function init() {
+  try {
+    const meta = await api('GET', '/api/meta')
+    document.getElementById('base-branch').textContent = meta.baseBranch
+  } catch {}
   await loadFiles()
 }
 
@@ -750,7 +774,7 @@ function appendCommentThread(table, comment) {
   td.colSpan = 4
 
   const thread = document.createElement('div')
-  thread.className = `comment-thread status-${comment.status}`
+  thread.className = `comment-thread status-${comment.status}${comment.outdated ? ' outdated' : ''}`
   thread.id = `thread-${comment.id}`
 
   const lineRef = comment.startLine === comment.endLine
@@ -774,6 +798,14 @@ function appendCommentThread(table, comment) {
   hdr.appendChild(dot)
   hdr.appendChild(ref)
   hdr.appendChild(sideEl)
+
+  if (comment.outdated) {
+    const outdatedBadge = document.createElement('span')
+    outdatedBadge.className = 'comment-outdated-badge'
+    outdatedBadge.textContent = 'outdated'
+    outdatedBadge.title = 'The line at this anchor no longer matches the snippet captured when the comment was written.'
+    hdr.appendChild(outdatedBadge)
+  }
 
   const actions = document.createElement('div')
   actions.className = 'comment-thread-actions'
@@ -820,6 +852,19 @@ function appendCommentThread(table, comment) {
   body.className = 'comment-body-wrap'
   body.textContent = comment.body
   collapsible.appendChild(body)
+
+  if (comment.outdated && comment.anchorSnippet && comment.anchorSnippet.length > 0) {
+    const snippetLabel = document.createElement('div')
+    snippetLabel.className = 'anchor-snippet-label'
+    snippetLabel.style.cssText = 'padding: 4px 10px 0 10px; background: var(--bg);'
+    snippetLabel.textContent = 'Original anchor (when comment was written):'
+    collapsible.appendChild(snippetLabel)
+
+    const snippet = document.createElement('div')
+    snippet.className = 'anchor-snippet'
+    snippet.textContent = comment.anchorSnippet.join('\n')
+    collapsible.appendChild(snippet)
+  }
 
   const replies = comment.replies ?? []
   if (replies.length > 0) {

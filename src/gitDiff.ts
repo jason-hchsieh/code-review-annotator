@@ -18,7 +18,7 @@ export interface ParsedLine {
   type: 'context' | 'added' | 'deleted'
   oldLine: number | null
   newLine: number | null
-  content: string  // without the leading +/-/ prefix
+  content: string
 }
 
 export interface ParsedDiff {
@@ -27,25 +27,38 @@ export interface ParsedDiff {
   rawDiff: string
 }
 
-export async function getChangedFiles(dir: string, baseCommit: string): Promise<FileDiffStat[]> {
+export async function resolveMergeBase(dir: string, baseBranch: string): Promise<string> {
   const git = simpleGit(dir)
-  let diffOutput: string
+  const out = await git.raw(['merge-base', 'HEAD', baseBranch])
+  return out.trim()
+}
 
-  try {
-    diffOutput = await git.raw(['diff', '--numstat', baseCommit])
-    // If comparing to a commit yields nothing (e.g. all changes are staged),
-    // fall through to the cached comparison below.
-    if (!diffOutput.trim()) {
-      diffOutput = await git.raw(['diff', '--numstat', '--cached', baseCommit])
+export async function getHeadSha(dir: string): Promise<string> {
+  const git = simpleGit(dir)
+  const out = await git.raw(['rev-parse', 'HEAD'])
+  return out.trim()
+}
+
+export async function detectDefaultBase(dir: string): Promise<string | null> {
+  const git = simpleGit(dir)
+  for (const branch of ['main', 'master']) {
+    try {
+      await git.raw(['rev-parse', '--verify', branch])
+      return branch
+    } catch {
+      // try next
     }
-  } catch {
-    diffOutput = await git.raw(['diff', '--numstat', '--cached'])
   }
+  return null
+}
+
+export async function getChangedFiles(dir: string, baseBranch: string): Promise<FileDiffStat[]> {
+  const git = simpleGit(dir)
+  const mergeBase = await resolveMergeBase(dir, baseBranch)
+
+  const diffOutput = await git.raw(['diff', '--numstat', mergeBase])
 
   const result: FileDiffStat[] = []
-
-  // Parse lines like: "808\t0\tsrc/foo.ts"
-  // Binary files show "-\t-\t<file>" — skip them.
   for (const line of diffOutput.split('\n')) {
     const match = line.match(/^(\d+)\t(\d+)\t(.+)$/)
     if (!match) continue
@@ -55,17 +68,13 @@ export async function getChangedFiles(dir: string, baseCommit: string): Promise<
       deleted: parseInt(match[2], 10),
     })
   }
-
   return result
 }
 
-export async function getFileDiff(dir: string, file: string, baseCommit: string): Promise<string> {
+export async function getFileDiff(dir: string, file: string, baseBranch: string): Promise<string> {
   const git = simpleGit(dir)
-  try {
-    return await git.raw(['diff', baseCommit, '--', file])
-  } catch {
-    return await git.raw(['diff', '--cached', '--', file])
-  }
+  const mergeBase = await resolveMergeBase(dir, baseBranch)
+  return git.raw(['diff', mergeBase, '--', file])
 }
 
 export function parseDiff(rawDiff: string, file: string): ParsedDiff {
@@ -77,7 +86,6 @@ export function parseDiff(rawDiff: string, file: string): ParsedDiff {
   let newLine = 0
 
   for (const line of lines) {
-    // Hunk header: @@ -40,6 +40,8 @@ optional context
     const hunkMatch = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/)
     if (hunkMatch) {
       if (currentHunk) hunks.push(currentHunk)
@@ -117,14 +125,15 @@ export async function getSourceLines(
   startLine: number,
   endLine: number,
   side: 'old' | 'new',
-  baseCommit: string,
+  baseBranch: string,
 ): Promise<string[]> {
   const git = simpleGit(dir)
 
   let content: string
   if (side === 'old') {
     try {
-      content = await git.raw(['show', `${baseCommit}:${file}`])
+      const mergeBase = await resolveMergeBase(dir, baseBranch)
+      content = await git.raw(['show', `${mergeBase}:${file}`])
     } catch {
       return []
     }
@@ -139,6 +148,5 @@ export async function getSourceLines(
   }
 
   const fileLines = content.split('\n')
-  // line numbers are 1-based
   return fileLines.slice(startLine - 1, endLine)
 }
