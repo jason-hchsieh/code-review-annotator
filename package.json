@@ -1,6 +1,6 @@
 {
   "name": "code-review-annotator",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Inline code review tool with MCP integration for Claude Code",
   "type": "module",
   "bin": {

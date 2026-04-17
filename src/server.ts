@@ -244,6 +244,23 @@ export function startHttpServer(port: number) {
         return json(res, 201, reply)
       }
 
+      const replyItemMatch = pathname.match(/^\/api\/comments\/([^/]+)\/replies\/([^/]+)$/)
+      if (method === 'PATCH' && replyItemMatch) {
+        const [, commentId, replyId] = replyItemMatch
+        const body = JSON.parse(await readBody(req))
+        if (!body.body) return json(res, 400, { error: 'body required' })
+        const reply = store.updateReply(commentId, replyId, body.body)
+        if (!reply) return json(res, 404, { error: 'not found' })
+        return json(res, 200, reply)
+      }
+
+      if (method === 'DELETE' && replyItemMatch) {
+        const [, commentId, replyId] = replyItemMatch
+        const ok = store.deleteReply(commentId, replyId)
+        if (!ok) return json(res, 404, { error: 'not found' })
+        return json(res, 200, { ok: true })
+      }
+
       if (method === 'GET' && pathname === '/api/export') {
         const fileFilter = query.get('file')
         const mode = (query.get('mode') as 'fix' | 'report' | 'both' | null) ?? 'both'

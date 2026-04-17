@@ -949,11 +949,29 @@ function appendCommentThread(table, comment) {
       tsEl.className = 'reply-timestamp'
       tsEl.textContent = new Date(reply.createdAt).toLocaleString()
 
+      const replyActions = document.createElement('span')
+      replyActions.style.cssText = 'margin-left:auto;display:flex;gap:4px'
+
+      const replyEditBtn = document.createElement('button')
+      replyEditBtn.className = 'comment-action-btn'
+      replyEditBtn.textContent = 'Edit'
+
+      const replyDelBtn = document.createElement('button')
+      replyDelBtn.className = 'comment-action-btn btn-danger'
+      replyDelBtn.textContent = '✕'
+      replyDelBtn.addEventListener('click', () => deleteReply(comment.id, reply.id))
+
+      replyActions.appendChild(replyEditBtn)
+      replyActions.appendChild(replyDelBtn)
+
       meta.appendChild(authorEl)
       meta.appendChild(tsEl)
+      meta.appendChild(replyActions)
 
       const replyBody = document.createElement('div')
       replyBody.textContent = reply.body
+
+      replyEditBtn.addEventListener('click', () => startEditReply(comment.id, reply, replyBody))
 
       replyEl.appendChild(meta)
       replyEl.appendChild(replyBody)
@@ -1049,6 +1067,54 @@ function startEditComment(comment, bodyEl) {
 async function deleteComment(id) {
   await api('DELETE', `/api/comments/${id}`)
   await refreshCurrentFile()
+}
+
+async function deleteReply(commentId, replyId) {
+  await api('DELETE', `/api/comments/${commentId}/replies/${replyId}`)
+  await refreshCurrentFile()
+}
+
+function startEditReply(commentId, reply, bodyEl) {
+  if (bodyEl.querySelector('textarea')) return
+  const original = reply.body
+  bodyEl.innerHTML = ''
+
+  const textarea = document.createElement('textarea')
+  textarea.value = original
+  textarea.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font-family:var(--font-ui);font-size:13px;resize:vertical;min-height:52px;outline:none;'
+  textarea.addEventListener('focus', () => { textarea.style.borderColor = 'var(--accent)' })
+  textarea.addEventListener('blur', () => { textarea.style.borderColor = 'var(--border)' })
+
+  const actions = document.createElement('div')
+  actions.style.cssText = 'display:flex;gap:6px;justify-content:flex-end;margin-top:4px'
+
+  const cancelBtn = document.createElement('button')
+  cancelBtn.className = 'btn-cancel'
+  cancelBtn.textContent = 'Cancel'
+  cancelBtn.addEventListener('click', () => { refreshCurrentFile() })
+
+  const saveBtn = document.createElement('button')
+  saveBtn.className = 'btn-primary'
+  saveBtn.style.cssText = 'font-size:12px;padding:3px 10px'
+  saveBtn.textContent = 'Save'
+  saveBtn.addEventListener('click', async () => {
+    const next = textarea.value.trim()
+    if (!next || next === original) { await refreshCurrentFile(); return }
+    await api('PATCH', `/api/comments/${commentId}/replies/${reply.id}`, { body: next })
+    await refreshCurrentFile()
+  })
+
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveBtn.click() }
+    if (e.key === 'Escape') { e.preventDefault(); cancelBtn.click() }
+  })
+
+  actions.appendChild(cancelBtn)
+  actions.appendChild(saveBtn)
+  bodyEl.appendChild(textarea)
+  bodyEl.appendChild(actions)
+  textarea.focus()
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length)
 }
 
 async function refreshCurrentFile() {

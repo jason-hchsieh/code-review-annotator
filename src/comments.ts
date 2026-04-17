@@ -118,6 +118,26 @@ export class CommentStore {
     return reply
   }
 
+  updateReply(commentId: string, replyId: string, body: string): CommentReply | null {
+    const comment = this.store.comments.find(c => c.id === commentId)
+    if (!comment || !comment.replies) return null
+    const reply = comment.replies.find(r => r.id === replyId)
+    if (!reply) return null
+    reply.body = body
+    this.save()
+    return reply
+  }
+
+  deleteReply(commentId: string, replyId: string): boolean {
+    const comment = this.store.comments.find(c => c.id === commentId)
+    if (!comment || !comment.replies) return false
+    const idx = comment.replies.findIndex(r => r.id === replyId)
+    if (idx === -1) return false
+    comment.replies.splice(idx, 1)
+    this.save()
+    return true
+  }
+
   deleteComment(id: string): boolean {
     const index = this.store.comments.findIndex(c => c.id === id)
     if (index === -1) return false

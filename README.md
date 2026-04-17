@@ -183,6 +183,8 @@ Every project-scoped endpoint takes a `project=<abs-dir>` query parameter identi
 | `PATCH` | `/api/comments/:id` | Update body or status |
 | `DELETE` | `/api/comments/:id` | Delete a comment |
 | `POST` | `/api/comments/:id/replies` | Add a reply to a comment thread |
+| `PATCH` | `/api/comments/:id/replies/:replyId` | Update a reply's body |
+| `DELETE` | `/api/comments/:id/replies/:replyId` | Delete a reply |
 | `GET` | `/api/export?mode=fix\|report\|both` | Generate prompt string |
 
 ---
