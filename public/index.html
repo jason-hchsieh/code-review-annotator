@@ -894,6 +894,12 @@ function appendCommentThread(table, comment) {
     actions.appendChild(toggleBtn)
   }
 
+  const editBtn = document.createElement('button')
+  editBtn.className = 'comment-action-btn'
+  editBtn.textContent = 'Edit'
+  editBtn.addEventListener('click', () => startEditComment(comment, body))
+  actions.appendChild(editBtn)
+
   const delBtn = document.createElement('button')
   delBtn.className = 'comment-action-btn btn-danger'
   delBtn.textContent = '✕'
@@ -994,6 +1000,50 @@ function appendCommentThread(table, comment) {
 async function updateCommentStatus(id, status) {
   await api('PATCH', `/api/comments/${id}`, { status })
   await refreshCurrentFile()
+}
+
+function startEditComment(comment, bodyEl) {
+  if (bodyEl.querySelector('textarea')) return
+  const original = comment.body
+  bodyEl.innerHTML = ''
+  bodyEl.style.padding = '8px 10px'
+
+  const textarea = document.createElement('textarea')
+  textarea.value = original
+  textarea.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-family:var(--font-ui);font-size:13px;resize:vertical;min-height:60px;outline:none;'
+  textarea.addEventListener('focus', () => { textarea.style.borderColor = 'var(--accent)' })
+  textarea.addEventListener('blur', () => { textarea.style.borderColor = 'var(--border)' })
+
+  const actions = document.createElement('div')
+  actions.style.cssText = 'display:flex;gap:6px;justify-content:flex-end;margin-top:6px'
+
+  const cancelBtn = document.createElement('button')
+  cancelBtn.className = 'btn-cancel'
+  cancelBtn.textContent = 'Cancel'
+  cancelBtn.addEventListener('click', () => { refreshCurrentFile() })
+
+  const saveBtn = document.createElement('button')
+  saveBtn.className = 'btn-primary'
+  saveBtn.style.cssText = 'font-size:12px;padding:3px 10px'
+  saveBtn.textContent = 'Save'
+  saveBtn.addEventListener('click', async () => {
+    const next = textarea.value.trim()
+    if (!next || next === original) { await refreshCurrentFile(); return }
+    await api('PATCH', `/api/comments/${comment.id}`, { body: next })
+    await refreshCurrentFile()
+  })
+
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveBtn.click() }
+    if (e.key === 'Escape') { e.preventDefault(); cancelBtn.click() }
+  })
+
+  actions.appendChild(cancelBtn)
+  actions.appendChild(saveBtn)
+  bodyEl.appendChild(textarea)
+  bodyEl.appendChild(actions)
+  textarea.focus()
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length)
 }
 
 async function deleteComment(id) {
