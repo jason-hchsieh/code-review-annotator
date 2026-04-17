@@ -95,9 +95,15 @@ An MCP stdio server exposing 5 tools to Claude Code:
 ### CLI flags
 
 - `--port <n>` — HTTP port (default `8080`, HTTP mode only)
-- `--dir <path>` — project root (must be a git repo). Defaults to `process.cwd()` in `--mcp` mode so a single global `claude mcp add` works across projects. Optional in HTTP mode — if provided, auto-registers the project into the registry at startup.
+- `--dir <path>` — project root (must be a git repo). Optional in HTTP mode — if provided, auto-registers the project into the registry at startup.
 - `--base <ref>` — base branch; omit to auto-detect `main` then `master`. Used when `--dir` is being registered.
 - `--mcp` — run as MCP stdio server instead of HTTP. MCP mode registers `--dir` into the shared registry on startup so it shows up in the browser UI.
+
+**MCP project-dir resolution order** (first match wins):
+1. `--dir <path>` flag
+2. `$CLAUDE_PROJECT_DIR` env var — forwarded by `scripts/run-mcp.sh` as `--dir` when the value is an existing directory. `.mcp.json` requests this var under `env` so Claude Code can substitute the current session's project.
+3. `process.cwd()` — works when launched directly with `tsx src/cli.ts --mcp` from a git repo.
+4. Registry fallback in `src/cli.ts` — if the resolved cwd has no `.review-comments.json`, the most recently registered project from `~/.config/code-review-annotator/projects.json` is used. This handles plugin-mode MCP servers whose cwd is the plugin install path.
 
 HTTP mode resolves the project per request by reading the registry and matching the `?project=<abs-dir>` query param (or picking the first registered project when absent). MCP mode resolves `baseBranch` once at startup and passes it to the `CommentStore`. `CommentStore` persists it to `.review-comments.json` but the CLI flag always takes precedence — on next launch the file is overwritten with the flag value.
 

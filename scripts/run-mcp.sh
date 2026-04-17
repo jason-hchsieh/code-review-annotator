@@ -20,4 +20,13 @@ if ! diff -q "$ROOT/package.json" "$DATA/package.json" >/dev/null 2>&1; then
   fi
 fi
 
-exec "$DATA/node_modules/.bin/tsx" "$ROOT/src/cli.ts" --mcp "$@"
+# Prefer CLAUDE_PROJECT_DIR (current Claude Code session's project) over cwd
+# since plugin MCP servers inherit the plugin install path as cwd, not the user's project.
+# Accept the value only if it's an existing directory — guards against unsubstituted
+# "${CLAUDE_PROJECT_DIR}" literals leaking through if the manifest isn't expanded.
+EXTRA_ARGS=()
+if [ -n "$CLAUDE_PROJECT_DIR" ] && [ -d "$CLAUDE_PROJECT_DIR" ]; then
+  EXTRA_ARGS=(--dir "$CLAUDE_PROJECT_DIR")
+fi
+
+exec "$DATA/node_modules/.bin/tsx" "$ROOT/src/cli.ts" --mcp "${EXTRA_ARGS[@]}" "$@"

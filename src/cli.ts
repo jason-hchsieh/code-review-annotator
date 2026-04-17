@@ -5,6 +5,7 @@ import { detectDefaultBase } from './gitDiff.ts'
 import { CommentStore } from './comments.ts'
 import { registerProject, listProjects } from './registry.ts'
 import * as path from 'node:path'
+import * as fs from 'node:fs'
 
 const args = process.argv.slice(2)
 
@@ -44,7 +45,23 @@ async function resolveBaseBranch(target: string): Promise<string> {
 }
 
 if (mcpMode) {
-  const target = dir ?? process.cwd()
+  let target = dir ?? process.cwd()
+  // If cwd has no .review-comments.json, fall back to the most recently
+  // registered project that does — lets a global MCP plugin work from any session.
+  if (!dir && !fs.existsSync(path.join(target, '.review-comments.json'))) {
+    const registered = listProjects().filter(p =>
+      fs.existsSync(path.join(p.dir, '.review-comments.json'))
+    )
+    if (registered.length === 1) {
+      target = registered[0].dir
+      console.error(`[code-review-annotator] cwd has no comments; using registered project: ${target}`)
+    } else if (registered.length > 1) {
+      // Most recently registered
+      const latest = registered[registered.length - 1]
+      target = latest.dir
+      console.error(`[code-review-annotator] Multiple projects with comments; using most recent: ${target}`)
+    }
+  }
   const baseBranch = await resolveBaseBranch(target)
   startMcpServer(target, baseBranch)
 } else {
