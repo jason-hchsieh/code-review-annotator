@@ -2,6 +2,8 @@
 
 Tool-call review for [Claude Code](https://claude.ai/code). Every `Edit` / `Write` / `MultiEdit` / `NotebookEdit` Claude Code runs is captured as a before→after snapshot, rendered in a browser UI as a timeline of cards. Leave inline comments on specific lines of either side, then let Claude Code read them via MCP and apply fixes.
 
+Beyond the tool-call timeline, you can also create ad-hoc **git diff** review sessions (compare any two refs — branch / HEAD / SHA / `INDEX` / `WORKTREE`) and **browse** sessions (annotate any file in the worktree, no diff). Comments made in each mode are kept independent of one another.
+
 ```
 ssh -L 8080:localhost:8080 your-server
 npx code-review-annotator --port 8080
@@ -82,11 +84,16 @@ open http://localhost:8080
 
 ### 3. Review and annotate
 
-- **Timeline** sidebar — every captured tool call, newest at top. Each card shows the tool, file, relative time, status (`pending` / `orphan` badges when relevant), and open-comment count.
-- Click a card to open its **before → after** diff in the main panel.
+The header has a three-way **mode switcher**:
+
+- **Tool calls** — the default live timeline. Each captured `Edit` / `Write` / `MultiEdit` / `NotebookEdit` is a card. Click one to open its before→after diff. Newest at top. Status badges: `pending` / `orphan`.
+- **Git diff** — user-created sessions that compare any two refs. Pick from branches / commits / `HEAD` / `INDEX` (staged) / `WORKTREE` (current files incl. untracked), or paste a SHA. A warning appears if the two refs have no ancestor relationship — that case is outside this tool's design but still renders `A..B`. Each session is saved; switch between sessions via the sidebar dropdown.
+- **Browse** — a user-created session that lists every worktree file (tracked + untracked, respecting `.gitignore`). No diff; pick a file, leave comments on any line.
+
+In any mode:
 - **Click** any line to add a single-line comment. Clicking the same line again deselects.
-- **Shift+Click** a second line on the same side to select a range, then add a multi-line comment.
-- Comments appear as inline threads anchored to the snapshot, so they stay put even if the file continues to evolve.
+- **Shift+Click** a second line on the same side to select a range.
+- Comments anchor to `(target-kind, target-id, file, side, line-range)` and are kept separately per mode — switching modes doesn't move comments.
 
 ### 4. Ask Claude Code to fix
 
@@ -128,8 +135,9 @@ Claude Code accesses these tools via the `code-review` MCP server:
 | Tool | Description |
 |------|-------------|
 | `get_tool_calls` | List captured tool-call snapshots. Filters: `file`, `status`. Returns compact records (id, tool, file, status, timestamps, line counts). |
-| `get_review_comments` | Fetch comments. Defaults to `open`. Each result is enriched with `toolCall` context (tool / file / startedAt / status) and `sourceLines` — the actual lines the reviewer was pointing at. |
-| `get_export_prompt` | Generate a ready-to-use fix/report/both prompt string, optionally scoped to one `toolCallId`. |
+| `get_review_sessions` | List user-created review sessions (git-range and browse). Each has `{ id, kind, label, fromRef, toRef, fromSha, toSha, createdAt }`. |
+| `get_review_comments` | Fetch comments across all modes. Filters: `toolCallId`, `sessionId`, `targetKind`, `file`, `status` (defaults to `open`). Each result is enriched with the comment's `target`, `file`, `sourceLines` (actual lines the reviewer pointed at), plus `toolCall` *or* `session` context. |
+| `get_export_prompt` | Generate a fix / report / both prompt string. Filters: `toolCallId`, `sessionId`, `targetKind`. |
 | `mark_resolved` | Mark a comment as resolved by ID. |
 | `reply_to_comment` | Add a reply to a comment thread (authored as `claude`). Use after fixing to explain what changed. |
 
@@ -137,14 +145,18 @@ Claude Code accesses these tools via the `code-review` MCP server:
 
 ```ts
 get_review_comments(
-  toolCallId?: string,           // filter to a single tool call
-  status?: 'open' | 'resolved',  // default: 'open'
+  toolCallId?: string,                       // filter to a single tool call
+  sessionId?:  string,                       // filter to a single git-range / browse session
+  targetKind?: 'tool-call' | 'git-range' | 'browse',
+  file?:       string,                       // only applies to session comments
+  status?:     'open' | 'resolved',          // default: 'open'
 )
 ```
 
-Line numbers are **1-based file line numbers inside the captured snapshot** — not diff positions.
-- `side: "after"` → line in the file after the edit ran
-- `side: "before"` → line in the file before the edit ran
+Line numbers are **1-based file line numbers inside the captured content** — not diff positions.
+- `side: "after"` → line in the file after the edit ran / at the to-ref
+- `side: "before"` → line in the file before the edit ran / at the from-ref
+- `side: "current"` → line in the worktree file (browse mode)
 
 ---
 
@@ -157,19 +169,28 @@ Every project-scoped endpoint takes a `project=<abs-dir>` query parameter identi
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/projects` | `[{ id, dir, displayPath, name, httpPort, updatedAt }]` — the registry |
-| `GET` | `/api/meta` | `{ dir, displayPath, name }` for the resolved project |
+| `GET` | `/api/meta` | `{ dir, displayPath, name, isGitRepo }` for the resolved project |
 | `GET` | `/api/tool-calls` | All captured tool calls (filters: `file`, `status`) |
 | `GET` | `/api/tool-calls/:id` | One tool call including full `before` / `after` text |
 | `POST` | `/api/tool-calls/start` | **Hook endpoint** — PreToolUse: `{ toolUseId, sessionId, tool, file, before, startedAt? }` |
 | `POST` | `/api/tool-calls/complete` | **Hook endpoint** — PostToolUse: `{ toolUseId, after, completedAt? }` |
-| `GET` | `/api/comments` | Comments (`?toolCallId=`, `?status=` filters) |
-| `POST` | `/api/comments` | Add a comment: `{ toolCallId, side, startLine, endLine?, body }` |
+| `GET` | `/api/git/refs` | `{ isGitRepo, refs[] }` — branches + recent commits + special refs (`WORKTREE`, `INDEX`). Used by the new-session dialog. |
+| `POST` | `/api/git/check-ancestor` | `{ fromRef, toRef }` → `{ ancestor: boolean \| null, mergeBase: sha \| null }`. `ancestor: null` means one side is `WORKTREE`/`INDEX`. |
+| `GET` | `/api/sessions` | List user-created review sessions |
+| `POST` | `/api/sessions` | Create a session: `{ kind: 'git-range' \| 'browse', fromRef?, toRef?, label? }` |
+| `GET` | `/api/sessions/:id` | One session |
+| `PATCH` | `/api/sessions/:id` | Update label |
+| `DELETE` | `/api/sessions/:id` | Delete session (comments remain in storage but become orphaned) |
+| `GET` | `/api/sessions/:id/files` | `[{ file, status }]` — changed files (git-range) or all worktree files (browse) |
+| `GET` | `/api/sessions/:id/file?path=` | `{ file, before, after, isBrowse }` — resolved blobs at each ref |
+| `GET` | `/api/comments` | Comments (filters: `toolCallId`, `sessionId`, `targetKind`, `file`, `status`) |
+| `POST` | `/api/comments` | Add a comment: `{ target: { kind, id, file? }, side, startLine, endLine?, body }`. Legacy `toolCallId` still accepted for tool-call targets. |
 | `PATCH` | `/api/comments/:id` | Update body or status |
 | `DELETE` | `/api/comments/:id` | Delete a comment |
 | `POST` | `/api/comments/:id/replies` | Add a reply to a comment thread |
 | `PATCH` | `/api/comments/:id/replies/:replyId` | Update a reply's body |
 | `DELETE` | `/api/comments/:id/replies/:replyId` | Delete a reply |
-| `GET` | `/api/export?mode=fix\|report\|both&toolCallId=?` | Generate prompt string |
+| `GET` | `/api/export?mode=fix\|report\|both&toolCallId=?&sessionId=?&targetKind=?` | Generate prompt string |
 | `GET` | `/api/events` | Server-Sent Events stream. Sends `hello` on connect; then `log` when `.review-log.json` changes. 20 s `: ping` heartbeat. |
 
 ### Live updates
@@ -198,23 +219,57 @@ State is persisted to `.review-log.json` in the project root. Add it to `.gitign
       "completedAt": "2026-04-17T09:00:00.240Z"
     }
   ],
+  "sessions": [
+    {
+      "id": "s1",
+      "kind": "git-range",
+      "label": "main → HEAD",
+      "fromRef": "main",
+      "toRef": "HEAD",
+      "fromSha": "1a2b3c…",        // resolved at creation; null for WORKTREE/INDEX
+      "toSha":   "4d5e6f…",
+      "createdAt": "2026-04-17T10:00:00.000Z"
+    },
+    {
+      "id": "s2",
+      "kind": "browse",
+      "label": "Worktree browse",
+      "fromRef": null,
+      "toRef":   "WORKTREE",
+      "fromSha": null,
+      "toSha":   null,
+      "createdAt": "2026-04-17T10:05:00.000Z"
+    }
+  ],
   "comments": [
     {
       "id": "c1",
-      "toolCallId": "abc",
+      "target": { "kind": "tool-call", "id": "abc", "file": "" },
+      "toolCallId": "abc",       // mirror of target.id for tool-call targets (back-compat)
       "side": "after",
       "startLine": 42,
       "endLine": 45,
       "body": "This match block can be extracted into a helper",
       "status": "open",
       "createdAt": "2026-04-17T09:01:00.000Z",
-      "replies": [
-        { "id": "r1", "author": "claude", "body": "Extracted into `parseMatch()`.", "createdAt": "2026-04-17T09:05:00.000Z" }
-      ]
+      "replies": []
+    },
+    {
+      "id": "c2",
+      "target": { "kind": "git-range", "id": "s1", "file": "src/parser.ts" },
+      "toolCallId": "",
+      "side": "after",
+      "startLine": 10, "endLine": 10,
+      "body": "Rename this to `parseHeader`.",
+      "status": "open",
+      "createdAt": "2026-04-17T10:10:00.000Z",
+      "replies": []
     }
   ]
 }
 ```
+
+Pre-v0.14 logs (comments with only `toolCallId`) are auto-migrated to the `target` shape on load.
 
 The HTTP server, MCP server, and hook scripts all read/write this file. Install the plugin so all three land together — they share state through the JSON file.
 

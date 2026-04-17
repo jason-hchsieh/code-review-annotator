@@ -1,8 +1,9 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { LogStore, ReviewComment, ToolCall } from './log.ts'
+import { LogStore, ReviewComment, ReviewSession, TargetKind, ToolCall } from './log.ts'
 import { registerProject } from './registry.ts'
+import { readBlob } from './git.ts'
 
 function sliceLines(text: string, startLine: number, endLine: number): string[] {
   const all = text.split('\n')
@@ -11,22 +12,35 @@ function sliceLines(text: string, startLine: number, endLine: number): string[] 
   return all.slice(s, e)
 }
 
+function fileForComment(comment: ReviewComment, store: LogStore): string {
+  if (comment.target.kind === 'tool-call') {
+    return store.getToolCall(comment.target.id)?.file ?? '(unknown)'
+  }
+  return comment.target.file ?? '(unknown)'
+}
+
+function contextLabel(comment: ReviewComment, store: LogStore): string {
+  if (comment.target.kind === 'tool-call') {
+    const call = store.getToolCall(comment.target.id)
+    return call?.tool ?? 'tool'
+  }
+  const s = store.getSession(comment.target.id)
+  if (!s) return comment.target.kind
+  return s.kind === 'browse' ? 'Browse' : `${s.fromRef}→${s.toRef}`
+}
+
 function exportPrompt(
-  calls: ToolCall[],
+  store: LogStore,
   comments: ReviewComment[],
   mode: 'fix' | 'report' | 'both',
 ): string {
   if (comments.length === 0) return '// No open comments found.'
 
-  const byCall = new Map<string, ToolCall>()
-  for (const c of calls) byCall.set(c.id, c)
-
-  const byFile = new Map<string, Array<{ call: ToolCall; comment: ReviewComment }>>()
-  for (const cm of comments) {
-    const call = byCall.get(cm.toolCallId)
-    if (!call) continue
-    if (!byFile.has(call.file)) byFile.set(call.file, [])
-    byFile.get(call.file)!.push({ call, comment: cm })
+  const byFile = new Map<string, ReviewComment[]>()
+  for (const c of comments) {
+    const file = fileForComment(c, store)
+    if (!byFile.has(file)) byFile.set(file, [])
+    byFile.get(file)!.push(c)
   }
 
   const lines: string[] = []
@@ -35,9 +49,9 @@ function exportPrompt(
     lines.push('Please address the following review comments on edits you made:\n')
     for (const [file, entries] of byFile.entries()) {
       lines.push(`### ${file}`)
-      for (const { call, comment } of entries) {
+      for (const comment of entries) {
         const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
-        lines.push(`- [${call.tool}, ${comment.side}, ${lineRef}] ${comment.body}`)
+        lines.push(`- [${contextLabel(comment, store)}, ${comment.side}, ${lineRef}] ${comment.body}`)
       }
       lines.push('')
     }
@@ -48,15 +62,34 @@ function exportPrompt(
     lines.push('## Review Summary\n')
     for (const [file, entries] of byFile.entries()) {
       lines.push(`### ${file}`)
-      for (const { call, comment } of entries) {
+      for (const comment of entries) {
         const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
-        lines.push(`- **[${call.tool} ${lineRef} ${comment.side}]**: ${comment.body}`)
+        lines.push(`- **[${contextLabel(comment, store)} ${lineRef} ${comment.side}]**: ${comment.body}`)
       }
       lines.push('')
     }
   }
 
   return lines.join('\n')
+}
+
+function sourceForComment(comment: ReviewComment, store: LogStore, dir: string): string {
+  if (comment.target.kind === 'tool-call') {
+    const call = store.getToolCall(comment.target.id)
+    if (!call) return ''
+    return comment.side === 'before' ? call.before : (call.after ?? '')
+  }
+  const session = store.getSession(comment.target.id)
+  if (!session || !comment.target.file) return ''
+  if (session.kind === 'browse') {
+    return readBlob(dir, 'WORKTREE', comment.target.file)
+  }
+  // git-range
+  const ref = comment.side === 'before'
+    ? (session.fromSha ?? session.fromRef ?? '')
+    : (session.toSha ?? session.toRef ?? '')
+  if (!ref) return ''
+  return readBlob(dir, ref, comment.target.file)
 }
 
 export function startMcpServer(dir: string) {
@@ -69,7 +102,7 @@ export function startMcpServer(dir: string) {
   }
 
   const server = new Server(
-    { name: 'code-review-annotator', version: '0.13.0' },
+    { name: 'code-review-annotator', version: '0.14.0' },
     { capabilities: { tools: {} } },
   )
 
@@ -77,7 +110,7 @@ export function startMcpServer(dir: string) {
     tools: [
       {
         name: 'get_tool_calls',
-        description: 'List captured tool-call snapshots (Edit / Write / MultiEdit / NotebookEdit) for this project, optionally filtered by file or status. Each entry has id, tool, file, status (pending|complete|orphan), startedAt, completedAt. Use this to discover which tool-call id a review comment is anchored to.',
+        description: 'List captured tool-call snapshots (Edit / Write / MultiEdit / NotebookEdit) for this project, optionally filtered by file or status. Each entry has id, tool, file, status (pending|complete|orphan), startedAt, completedAt.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -87,12 +120,20 @@ export function startMcpServer(dir: string) {
         },
       },
       {
+        name: 'get_review_sessions',
+        description: 'List user-created review sessions (git-range diffs and worktree browse sessions). Each session has its own set of comments independent of the tool-call timeline.',
+        inputSchema: { type: 'object', properties: {} },
+      },
+      {
         name: 'get_review_comments',
-        description: 'Get review comments. Each comment is anchored to a specific tool call and side ("before" = file content before the edit; "after" = file content after the edit). The response includes the tool call context (file, tool, startedAt) and the actual source lines at the anchor so Claude can see what the reviewer was pointing at. Defaults to open comments.',
+        description: 'Get review comments across all modes. Each comment is anchored to a target: kind="tool-call" (anchored to a captured Edit / Write), kind="git-range" (anchored to a file in a user-defined git diff session), or kind="browse" (anchored to a file in a worktree browse session). side is "before" / "after" for diffs or "current" for browse. The response includes the source lines at the anchor so Claude can see what the reviewer pointed at. Defaults to open comments.',
         inputSchema: {
           type: 'object',
           properties: {
-            toolCallId: { type: 'string', description: 'Filter to a specific tool-call id' },
+            toolCallId: { type: 'string', description: 'Filter to comments anchored to a specific tool-call id' },
+            sessionId: { type: 'string', description: 'Filter to comments anchored to a specific review-session id' },
+            targetKind: { type: 'string', enum: ['tool-call', 'git-range', 'browse'], description: 'Filter by target kind' },
+            file: { type: 'string', description: 'Filter by file (git-range / browse comments only)' },
             status: { type: 'string', enum: ['open', 'resolved'], description: 'Filter by status. Defaults to open.' },
           },
         },
@@ -104,6 +145,8 @@ export function startMcpServer(dir: string) {
           type: 'object',
           properties: {
             toolCallId: { type: 'string', description: 'Filter to a specific tool-call id' },
+            sessionId: { type: 'string', description: 'Filter to a specific session id' },
+            targetKind: { type: 'string', enum: ['tool-call', 'git-range', 'browse'], description: 'Filter by target kind' },
             mode: { type: 'string', enum: ['fix', 'report', 'both'], description: 'Prompt mode' },
           },
           required: ['mode'],
@@ -158,40 +201,56 @@ export function startMcpServer(dir: string) {
       return { content: [{ type: 'text', text: JSON.stringify(compact, null, 2) }] }
     }
 
+    if (name === 'get_review_sessions') {
+      const sessions: ReviewSession[] = store.getSessions()
+      return { content: [{ type: 'text', text: JSON.stringify(sessions, null, 2) }] }
+    }
+
     if (name === 'get_review_comments') {
       const comments = store.getComments({
         toolCallId: a.toolCallId as string | undefined,
+        sessionId: a.sessionId as string | undefined,
+        targetKind: a.targetKind as TargetKind | undefined,
+        file: a.file as string | undefined,
         status: (a.status as 'open' | 'resolved') ?? 'open',
       })
       const enriched = comments.map((c) => {
-        const call = store.getToolCall(c.toolCallId)
-        const source = call
-          ? (c.side === 'before' ? call.before : (call.after ?? ''))
-          : ''
+        const source = sourceForComment(c, store, dir)
         const sourceLines = sliceLines(source, c.startLine, c.endLine)
-        return {
+        const file = fileForComment(c, store)
+        const base: Record<string, unknown> = {
           id: c.id,
-          toolCallId: c.toolCallId,
+          target: c.target,
+          toolCallId: c.target.kind === 'tool-call' ? c.target.id : undefined,
           status: c.status,
           body: c.body,
           side: c.side,
           startLine: c.startLine,
           endLine: c.endLine,
+          file,
           createdAt: c.createdAt,
           replies: c.replies,
-          toolCall: call ? { tool: call.tool, file: call.file, startedAt: call.startedAt, status: call.status } : null,
           sourceLines,
         }
+        if (c.target.kind === 'tool-call') {
+          const call = store.getToolCall(c.target.id)
+          base.toolCall = call ? { tool: call.tool, file: call.file, startedAt: call.startedAt, status: call.status } : null
+        } else {
+          const session = store.getSession(c.target.id)
+          base.session = session ?? null
+        }
+        return base
       })
       return { content: [{ type: 'text', text: JSON.stringify(enriched, null, 2) }] }
     }
 
     if (name === 'get_export_prompt') {
       const toolCallId = a.toolCallId as string | undefined
+      const sessionId = a.sessionId as string | undefined
+      const targetKind = a.targetKind as TargetKind | undefined
       const mode = (a.mode as 'fix' | 'report' | 'both') ?? 'both'
-      const comments = store.getComments({ status: 'open', toolCallId })
-      const calls = store.getToolCalls()
-      const prompt = exportPrompt(calls, comments, mode)
+      const comments = store.getComments({ status: 'open', toolCallId, sessionId, targetKind })
+      const prompt = exportPrompt(store, comments, mode)
       return { content: [{ type: 'text', text: prompt }] }
     }
 
