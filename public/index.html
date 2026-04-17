@@ -226,7 +226,9 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 .btn-reopen:hover { background: var(--accent); color: #000; }
 .btn-danger:hover { border-color: var(--danger); color: var(--danger); }
 .comment-collapsible.collapsed { display: none; }
-.comment-body-wrap { padding: 8px 10px; background: var(--bg); font-size: 13px; line-height: 1.5; }
+.comment-primary { padding: 7px 10px; background: var(--bg); font-size: 13px; line-height: 1.5; border-bottom: 1px solid var(--border); }
+.comment-primary:last-child { border-bottom: none; }
+.comment-body-text { font-size: 13px; line-height: 1.5; }
 
 /* ─── Kebab menu ─── */
 .kebab-wrap { position: relative; }
@@ -1010,15 +1012,9 @@ function appendCommentThread(table, comment) {
   sideEl.style.color = 'var(--text-dim)'
   sideEl.textContent = `(${comment.side})`
 
-  const ts = document.createElement('span')
-  ts.className = 'reply-timestamp'
-  ts.textContent = relativeTime(comment.createdAt)
-  ts.title = new Date(comment.createdAt).toLocaleString()
-
   hdr.appendChild(dot)
   hdr.appendChild(ref)
   hdr.appendChild(sideEl)
-  hdr.appendChild(ts)
 
   if (comment.outdated) {
     const outdatedBadge = document.createElement('span')
@@ -1055,23 +1051,50 @@ function appendCommentThread(table, comment) {
     actions.appendChild(toggleBtn)
   }
 
-  const kebab = buildKebabMenu([
+  hdr.appendChild(actions)
+
+  // Collapsible: primary comment (with its own meta) + replies + reply form
+  const collapsible = document.createElement('div')
+  collapsible.className = 'comment-collapsible' + (comment.status === 'resolved' ? ' collapsed' : '')
+
+  const primary = document.createElement('div')
+  primary.className = 'comment-primary'
+
+  const primaryMeta = document.createElement('div')
+  primaryMeta.className = 'comment-reply-meta'
+
+  const primaryAuthor = document.createElement('span')
+  primaryAuthor.className = 'reply-author reply-author-human'
+  primaryAuthor.textContent = 'Reviewer'
+
+  const primarySep = document.createElement('span')
+  primarySep.className = 'reply-sep'
+  primarySep.textContent = '·'
+
+  const primaryTs = document.createElement('span')
+  primaryTs.className = 'reply-timestamp'
+  primaryTs.textContent = relativeTime(comment.createdAt)
+  primaryTs.title = new Date(comment.createdAt).toLocaleString()
+
+  const body = document.createElement('div')
+  body.className = 'comment-body-text'
+  body.textContent = comment.body
+
+  const primaryKebab = buildKebabMenu([
     { label: 'Edit', onClick: () => startEditComment(comment, body) },
     { separator: true },
     { label: 'Delete comment', danger: true, onClick: () => deleteComment(comment) },
   ])
-  actions.appendChild(kebab)
+  primaryKebab.classList.add('reply-actions')
 
-  hdr.appendChild(actions)
+  primaryMeta.appendChild(primaryAuthor)
+  primaryMeta.appendChild(primarySep)
+  primaryMeta.appendChild(primaryTs)
+  primaryMeta.appendChild(primaryKebab)
 
-  // Collapsible: body + replies + reply form
-  const collapsible = document.createElement('div')
-  collapsible.className = 'comment-collapsible' + (comment.status === 'resolved' ? ' collapsed' : '')
-
-  const body = document.createElement('div')
-  body.className = 'comment-body-wrap'
-  body.textContent = comment.body
-  collapsible.appendChild(body)
+  primary.appendChild(primaryMeta)
+  primary.appendChild(body)
+  collapsible.appendChild(primary)
 
   if (comment.outdated && comment.anchorSnippet && comment.anchorSnippet.length > 0) {
     const snippetLabel = document.createElement('div')
@@ -1176,7 +1199,6 @@ function startEditComment(comment, bodyEl) {
   if (bodyEl.querySelector('textarea')) return
   const original = comment.body
   bodyEl.innerHTML = ''
-  bodyEl.style.padding = '8px 10px'
 
   const textarea = document.createElement('textarea')
   textarea.value = original
