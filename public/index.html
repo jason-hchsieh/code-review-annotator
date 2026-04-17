@@ -7,13 +7,22 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,400&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github-dark.min.css">
+<link rel="stylesheet" id="hljs-theme" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github-dark.min.css">
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/highlight.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Warm charcoal "paper" palette — editorial-technical dark */
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  --font-ui: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+  --sidebar-width: 260px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --btn-ink: #1a1611;
+}
+
+/* ─── Theme: Editorial (default) — warm charcoal + amber ─── */
+:root, [data-theme="editorial"] {
   --bg: #13120f;
   --bg2: #1b1a15;
   --bg3: #25231c;
@@ -22,24 +31,102 @@
   --text: #e8e2d1;
   --text-muted: #a8a294;
   --text-dim: #70695d;
-  /* Desaturated diff tints — legible over warm bg */
   --added-bg: #1e2a1c;
   --added-fg: #8bb36f;
   --deleted-bg: #2f1f1b;
   --deleted-fg: #d28570;
   --selected-bg: #2d2a1c;
-  /* Amber is the ONE confident accent — used for open comments & primary CTA */
   --accent: #e9a53e;
+  --accent-hover: #f0b555;
   --accent-soft: rgba(233, 165, 62, 0.12);
   --comment-open: #e9a53e;
   --comment-resolved: #70695d;
   --comment-outdated: #b08cd9;
   --danger: #d28570;
-  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  --font-ui: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-display: 'Fraunces', Georgia, serif;
-  --sidebar-width: 260px;
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --overlay-a: rgba(233, 165, 62, 0.04);
+  --overlay-b: rgba(176, 140, 217, 0.025);
+  --btn-ink: #1a1611;
+}
+
+/* ─── Theme: Classic (GitHub-dark-like, cool blue accent) ─── */
+[data-theme="classic"] {
+  --bg: #0d1117;
+  --bg2: #161b22;
+  --bg3: #21262d;
+  --border: #30363d;
+  --border-strong: #454d56;
+  --text: #c9d1d9;
+  --text-muted: #8b949e;
+  --text-dim: #6e7681;
+  --added-bg: #1f3d2a;
+  --added-fg: #3fb950;
+  --deleted-bg: #3d1f1f;
+  --deleted-fg: #f85149;
+  --selected-bg: #1a3a5c;
+  --accent: #58a6ff;
+  --accent-hover: #79b8ff;
+  --accent-soft: rgba(88, 166, 255, 0.14);
+  --comment-open: #e3a44a;
+  --comment-resolved: #6e7681;
+  --comment-outdated: #8b5cf6;
+  --danger: #f85149;
+  --overlay-a: rgba(88, 166, 255, 0.03);
+  --overlay-b: rgba(139, 92, 246, 0.02);
+  --btn-ink: #ffffff;
+}
+
+/* ─── Theme: Solarized Dark ─── */
+[data-theme="solarized"] {
+  --bg: #002b36;
+  --bg2: #073642;
+  --bg3: #0e4857;
+  --border: #15586a;
+  --border-strong: #2a6e7f;
+  --text: #eee8d5;
+  --text-muted: #93a1a1;
+  --text-dim: #657b83;
+  --added-bg: #0f3a20;
+  --added-fg: #859900;
+  --deleted-bg: #3a1f1f;
+  --deleted-fg: #dc322f;
+  --selected-bg: #1a4d57;
+  --accent: #b58900;
+  --accent-hover: #d4a117;
+  --accent-soft: rgba(181, 137, 0, 0.16);
+  --comment-open: #b58900;
+  --comment-resolved: #657b83;
+  --comment-outdated: #d33682;
+  --danger: #dc322f;
+  --overlay-a: rgba(181, 137, 0, 0.05);
+  --overlay-b: rgba(42, 161, 152, 0.03);
+  --btn-ink: #002b36;
+}
+
+/* ─── Theme: Paper (light) ─── */
+[data-theme="paper"] {
+  --bg: #f7f2e7;
+  --bg2: #efe9dc;
+  --bg3: #e6ddc8;
+  --border: #d6cbaf;
+  --border-strong: #b8ac8c;
+  --text: #2d2820;
+  --text-muted: #6b6455;
+  --text-dim: #958e7c;
+  --added-bg: #dce6ce;
+  --added-fg: #4f7c3d;
+  --deleted-bg: #eed4cb;
+  --deleted-fg: #b04a3a;
+  --selected-bg: #eadba1;
+  --accent: #b17d1f;
+  --accent-hover: #c68f28;
+  --accent-soft: rgba(177, 125, 31, 0.14);
+  --comment-open: #b17d1f;
+  --comment-resolved: #958e7c;
+  --comment-outdated: #7a5dbf;
+  --danger: #b04a3a;
+  --overlay-a: rgba(177, 125, 31, 0.05);
+  --overlay-b: rgba(120, 90, 180, 0.04);
+  --btn-ink: #f7f2e7;
 }
 
 body {
@@ -51,8 +138,9 @@ body {
 body::before {
   content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
   background:
-    radial-gradient(1200px 600px at 85% -10%, rgba(233, 165, 62, 0.04), transparent 60%),
-    radial-gradient(900px 500px at 0% 110%, rgba(176, 140, 217, 0.025), transparent 60%);
+    radial-gradient(1200px 600px at 85% -10%, var(--overlay-a), transparent 60%),
+    radial-gradient(900px 500px at 0% 110%, var(--overlay-b), transparent 60%);
+  transition: background 0.25s var(--ease);
 }
 body > * { position: relative; z-index: 1; }
 
@@ -77,8 +165,8 @@ body > * { position: relative; z-index: 1; }
 #project-select {
   background: transparent; border: 1px solid transparent; color: var(--text);
   padding: 4px 8px; border-radius: 6px;
-  font-family: var(--font-display); font-size: 18px; font-weight: 500;
-  letter-spacing: -0.01em;
+  font-family: var(--font-ui); font-size: 13px; font-weight: 600;
+  letter-spacing: -0.005em;
   max-width: 360px; outline: none; cursor: pointer; min-width: 0;
   transition: all 0.15s var(--ease);
 }
@@ -87,8 +175,7 @@ body > * { position: relative; z-index: 1; }
 #project-select option { font-family: var(--font-ui); font-size: 13px; background: var(--bg2); }
 #changed-count {
   color: var(--text-muted); font-size: 12px; white-space: nowrap; flex-shrink: 0;
-  font-family: var(--font-display); font-style: italic; font-weight: 400;
-  letter-spacing: 0.01em;
+  font-family: var(--font-ui); letter-spacing: 0.01em;
 }
 #base-branch {
   color: var(--text-muted); font-size: 11px; white-space: nowrap; flex-shrink: 0;
@@ -98,15 +185,28 @@ body > * { position: relative; z-index: 1; }
 #base-branch::before { content: "↳ "; color: var(--accent); font-family: var(--font-ui); }
 .spacer { flex: 1; min-width: 4px; }
 #btn-export {
-  background: var(--accent); border: none; color: #1a1611;
+  background: var(--accent); border: none; color: var(--btn-ink);
   padding: 6px 14px; border-radius: 6px; cursor: pointer;
   font-family: var(--font-ui); font-size: 12px; font-weight: 600;
   letter-spacing: 0.02em; white-space: nowrap; flex-shrink: 0;
   transition: all 0.15s var(--ease);
   box-shadow: 0 1px 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15);
 }
-#btn-export:hover { background: #f0b555; transform: translateY(-1px); box-shadow: 0 3px 8px rgba(233, 165, 62, 0.25), inset 0 1px 0 rgba(255,255,255,0.15); }
+#btn-export:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 3px 8px var(--accent-soft), inset 0 1px 0 rgba(255,255,255,0.15); }
 #btn-export:active { transform: translateY(0); }
+#theme-select {
+  background: var(--bg2); border: 1px solid var(--border); color: var(--text-muted);
+  padding: 4px 24px 4px 10px; border-radius: 6px;
+  font-family: var(--font-ui); font-size: 12px; letter-spacing: 0.01em;
+  outline: none; cursor: pointer; flex-shrink: 0;
+  transition: all 0.15s var(--ease);
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23a8a294' d='M2 4l3 3 3-3z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 7px center;
+}
+#theme-select:hover { color: var(--text); border-color: var(--border-strong); }
+#theme-select:focus { border-color: var(--accent); }
+#theme-select option { background: var(--bg2); color: var(--text); }
 
 /* ─── Main Layout ─── */
 #main { display: flex; flex: 1; overflow: hidden; }
@@ -131,12 +231,8 @@ body > * { position: relative; z-index: 1; }
 
 .sidebar-header { padding: 14px 16px 8px; flex-shrink: 0; }
 .sidebar-title {
-  font-family: var(--font-display); font-style: italic; font-weight: 400;
-  font-size: 13px; color: var(--text-muted); letter-spacing: 0.01em;
-  text-transform: none;
-}
-.sidebar-title::before {
-  content: "§ "; color: var(--accent); font-style: normal; font-weight: 500;
+  font-family: var(--font-ui); font-weight: 600; text-transform: uppercase;
+  font-size: 11px; color: var(--text-muted); letter-spacing: 0.08em;
 }
 
 .sidebar-search { padding: 4px 12px 8px; flex-shrink: 0; }
@@ -186,8 +282,8 @@ body > * { position: relative; z-index: 1; }
 #diff-placeholder {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   height: 100%; color: var(--text-muted); padding: 40px;
-  font-family: var(--font-display); font-style: italic; font-weight: 400;
-  font-size: 17px; letter-spacing: 0.005em; text-align: center; line-height: 1.5;
+  font-family: var(--font-ui); font-weight: 400;
+  font-size: 14px; letter-spacing: 0.01em; text-align: center; line-height: 1.5;
 }
 
 .diff-file-header {
@@ -270,13 +366,13 @@ body > * { position: relative; z-index: 1; }
 .comment-form-wrap textarea:focus { border-color: var(--accent); }
 .comment-form-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
 .btn-primary {
-  background: var(--accent); border: none; color: #1a1611;
+  background: var(--accent); border: none; color: var(--btn-ink);
   padding: 5px 14px; border-radius: 4px; cursor: pointer;
   font-family: var(--font-ui); font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
   transition: all 0.12s var(--ease);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
 }
-.btn-primary:hover { background: #f0b555; }
+.btn-primary:hover { background: var(--accent-hover); }
 .btn-cancel {
   background: transparent; border: 1px solid var(--border); color: var(--text-muted);
   padding: 5px 14px; border-radius: 4px; cursor: pointer;
@@ -344,9 +440,9 @@ body > * { position: relative; z-index: 1; }
 }
 .comment-action-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--border-strong); }
 .btn-resolve { border-color: var(--accent); color: var(--accent); }
-.btn-resolve:hover { background: var(--accent); color: #1a1611; }
+.btn-resolve:hover { background: var(--accent); color: var(--btn-ink); }
 .btn-reopen { border-color: var(--accent); color: var(--accent); }
-.btn-reopen:hover { background: var(--accent); color: #1a1611; }
+.btn-reopen:hover { background: var(--accent); color: var(--btn-ink); }
 .btn-danger:hover { border-color: var(--danger); color: var(--danger); background: transparent; }
 .comment-collapsible.collapsed { display: none; }
 .comment-primary {
@@ -531,6 +627,12 @@ body > * { position: relative; z-index: 1; }
   <span id="changed-count"></span>
   <span id="base-branch" title="Base branch — diff computed from merge-base(HEAD, base)"></span>
   <div class="spacer"></div>
+  <select id="theme-select" title="Switch theme" aria-label="Theme">
+    <option value="editorial">Editorial</option>
+    <option value="classic">Classic</option>
+    <option value="solarized">Solarized</option>
+    <option value="paper">Paper</option>
+  </select>
   <button id="btn-export">Export ▼</button>
 </div>
 
@@ -549,7 +651,7 @@ body > * { position: relative; z-index: 1; }
   </div>
   <div id="sidebar-resizer"></div>
   <div id="diff-area">
-    <div id="diff-placeholder">Open a file from the margins.</div>
+    <div id="diff-placeholder">Select a file to review.</div>
     <div id="diff-content" style="display:none"></div>
   </div>
 </div>
@@ -561,7 +663,7 @@ body > * { position: relative; z-index: 1; }
     <div id="confirm-message" style="color: var(--text-muted); font-family: var(--font-display); font-size: 15px; line-height: 1.5; margin-bottom: 18px; letter-spacing: 0;"></div>
     <div class="modal-actions">
       <button class="btn-cancel" id="confirm-cancel">Cancel</button>
-      <button id="confirm-ok" style="background: var(--danger); color: #1a1611; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-family: var(--font-ui); font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em; box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);">Delete</button>
+      <button id="confirm-ok" style="background: var(--danger); color: var(--btn-ink); border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-family: var(--font-ui); font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em; box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);">Delete</button>
     </div>
   </div>
 </div>
@@ -605,6 +707,22 @@ const state = {
   selectionAnchor: null,
   wrapLines: true,
 }
+
+// ─────────────────────────────────────────────
+// Theme
+// ─────────────────────────────────────────────
+const THEMES = ['editorial', 'classic', 'solarized', 'paper']
+const HLJS_DARK = 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github-dark.min.css'
+const HLJS_LIGHT = 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github.min.css'
+function applyTheme(name) {
+  if (!THEMES.includes(name)) name = 'editorial'
+  document.documentElement.dataset.theme = name
+  const hljsLink = document.getElementById('hljs-theme')
+  hljsLink.href = name === 'paper' ? HLJS_LIGHT : HLJS_DARK
+  localStorage.setItem('ui-theme', name)
+}
+// Apply saved theme immediately (before render) to avoid flash.
+applyTheme(localStorage.getItem('ui-theme') ?? 'editorial')
 
 // ─────────────────────────────────────────────
 // Syntax highlighting
@@ -883,6 +1001,10 @@ function buildStatBlocks(added, deleted) {
 // Init & load files
 // ─────────────────────────────────────────────
 async function init() {
+  const themeSelect = document.getElementById('theme-select')
+  themeSelect.value = document.documentElement.dataset.theme
+  themeSelect.addEventListener('change', (e) => applyTheme(e.target.value))
+
   const projectSelect = document.getElementById('project-select')
   const projects = await api('GET', '/api/projects')
   state.projects = projects
@@ -923,7 +1045,7 @@ async function switchProject(project) {
   document.getElementById('base-branch').textContent = project.baseBranch
   document.getElementById('diff-content').style.display = 'none'
   document.getElementById('diff-placeholder').style.display = 'block'
-  document.getElementById('diff-placeholder').textContent = 'Open a file from the margins.'
+  document.getElementById('diff-placeholder').textContent = 'Select a file to review.'
   await loadFiles()
 }
 
@@ -967,7 +1089,7 @@ async function loadFiles() {
   if (!state.currentFile && files.length > 0) {
     await selectFile(files[0].file)
   } else if (files.length === 0) {
-    document.getElementById('diff-placeholder').textContent = 'No diff against this base.'
+    document.getElementById('diff-placeholder').textContent = 'No changes vs base branch.'
   }
 }
 
