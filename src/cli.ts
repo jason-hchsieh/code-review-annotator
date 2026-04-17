@@ -44,12 +44,9 @@ async function resolveBaseBranch(target: string): Promise<string> {
 }
 
 if (mcpMode) {
-  if (!dir) {
-    console.error('[code-review-annotator] --dir is required in --mcp mode.')
-    process.exit(1)
-  }
-  const baseBranch = await resolveBaseBranch(dir)
-  startMcpServer(dir, baseBranch)
+  const target = dir ?? process.cwd()
+  const baseBranch = await resolveBaseBranch(target)
+  startMcpServer(target, baseBranch)
 } else {
   if (dir) {
     const baseBranch = await resolveBaseBranch(dir)

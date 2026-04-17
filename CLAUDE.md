@@ -12,7 +12,8 @@ npx tsx src/cli.ts --port 8080
 npx tsx src/cli.ts --dir /path/to/repo --base main --port 8080
 
 # Start MCP stdio server — registers the project in the shared registry on startup
-npx tsx src/cli.ts --mcp --dir /path/to/repo --base main
+# --dir defaults to process.cwd() and --base auto-detects main → master
+npx tsx src/cli.ts --mcp
 ```
 
 There is no build step, no test suite, and no lint script. The project runs directly via `tsx`.
@@ -92,7 +93,7 @@ An MCP stdio server exposing 5 tools to Claude Code:
 ### CLI flags
 
 - `--port <n>` — HTTP port (default `8080`, HTTP mode only)
-- `--dir <path>` — project root (must be a git repo). **Required** in `--mcp` mode. Optional in HTTP mode — if provided, auto-registers the project into the registry at startup.
+- `--dir <path>` — project root (must be a git repo). Defaults to `process.cwd()` in `--mcp` mode so a single global `claude mcp add` works across projects. Optional in HTTP mode — if provided, auto-registers the project into the registry at startup.
 - `--base <ref>` — base branch; omit to auto-detect `main` then `master`. Used when `--dir` is being registered.
 - `--mcp` — run as MCP stdio server instead of HTTP. MCP mode registers `--dir` into the shared registry on startup so it shows up in the browser UI.
 

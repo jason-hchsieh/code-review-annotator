@@ -49,9 +49,14 @@ npx code-review-annotator --port 8080
 # Or pre-seed the registry with a specific project at startup
 npx code-review-annotator --dir /path/to/project --base main --port 8080
 
-# MCP server — registers the project into the shared registry on startup
+# MCP server — auto-detects cwd and base branch, registers into the shared registry
+claude mcp add review-annotator -- npx code-review-annotator --mcp
+
+# Or pin explicitly when you don't want cwd / auto-detect
 claude mcp add review-annotator -- npx code-review-annotator --mcp --dir /path/to/project --base main
 ```
+
+A single global `claude mcp add review-annotator -- npx code-review-annotator --mcp` works for every project: the MCP server uses `process.cwd()` (the directory Claude Code was invoked in) as its project dir, and auto-detects the base branch (`main` → `master`).
 
 ---
 
