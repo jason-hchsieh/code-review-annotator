@@ -792,6 +792,12 @@ async function loadFiles() {
     el.addEventListener('click', () => selectFile(f.file))
     list.appendChild(el)
   }
+
+  if (!state.currentFile && files.length > 0) {
+    await selectFile(files[0].file)
+  } else if (files.length === 0) {
+    document.getElementById('diff-placeholder').textContent = 'No changes vs base branch.'
+  }
 }
 
 // ─────────────────────────────────────────────
