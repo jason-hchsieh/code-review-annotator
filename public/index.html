@@ -1342,10 +1342,12 @@ function showCommentForm() {
 async function submitComment(body) {
   if (!body || !state.selection || !state.currentFile) return
   const { startLine, endLine, side } = state.selection
-  await api('POST', '/api/comments', { file: state.currentFile, startLine, endLine, side, body })
+  const newComment = await api('POST', '/api/comments', { file: state.currentFile, startLine, endLine, side, body })
   state.selection = null
   state.selectionAnchor = null
-  await refreshCurrentFile()
+  state.comments = [...(state.comments || []), newComment]
+  renderDiff()
+  await loadFiles()
 }
 
 // ─────────────────────────────────────────────
