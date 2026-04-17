@@ -39,6 +39,17 @@ export async function getHeadSha(dir: string): Promise<string> {
   return out.trim()
 }
 
+export async function resolveBaseSha(dir: string, baseBranch: string): Promise<string> {
+  const git = simpleGit(dir)
+  const out = await git.raw(['rev-parse', baseBranch])
+  return out.trim()
+}
+
+export async function getPorcelainStatus(dir: string): Promise<string> {
+  const git = simpleGit(dir)
+  return git.raw(['status', '--porcelain=v1'])
+}
+
 export async function detectDefaultBase(dir: string): Promise<string | null> {
   const git = simpleGit(dir)
   for (const branch of ['main', 'master']) {

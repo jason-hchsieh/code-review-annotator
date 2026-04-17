@@ -5,6 +5,7 @@ import { CommentStore, ReviewComment } from './comments.ts'
 import { getChangedFiles, getFileDiff, parseDiff, getSourceLines, getHeadSha } from './gitDiff.ts'
 import { getFileTree } from './fileTree.ts'
 import { listProjects, RegistryProject } from './registry.ts'
+import { startProjectWatcher, WatcherEvent } from './watcher.ts'
 
 function json(res: http.ServerResponse, status: number, data: unknown) {
   const body = JSON.stringify(data)
@@ -97,6 +98,84 @@ function projectName(dir: string): string {
   return parent ? `${parent}/${base}` : base
 }
 
+interface SseSubscriber {
+  res: http.ServerResponse
+  heartbeat: NodeJS.Timeout
+}
+
+interface ProjectWatcher {
+  subscribers: Set<SseSubscriber>
+  stop: () => void
+}
+
+const watchers = new Map<string, ProjectWatcher>()
+
+function sseWrite(res: http.ServerResponse, event: string, data: unknown) {
+  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+}
+
+function broadcast(project: RegistryProject, event: WatcherEvent) {
+  const entry = watchers.get(project.dir)
+  if (!entry) return
+  for (const sub of entry.subscribers) {
+    try {
+      sseWrite(sub.res, event.type, { dir: project.dir, ts: Date.now() })
+    } catch {
+      // connection closed; cleanup happens on 'close' event
+    }
+  }
+}
+
+function handleSse(req: http.IncomingMessage, res: http.ServerResponse, project: RegistryProject) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'X-Accel-Buffering': 'no',
+  })
+  res.write('\n')
+  sseWrite(res, 'hello', { dir: project.dir, baseBranch: project.baseBranch })
+
+  let entry = watchers.get(project.dir)
+  if (!entry) {
+    const created: ProjectWatcher = {
+      subscribers: new Set(),
+      stop: () => {},
+    }
+    created.stop = startProjectWatcher(project.dir, project.baseBranch, (event) => {
+      broadcast(project, event)
+    })
+    watchers.set(project.dir, created)
+    entry = created
+  }
+
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(': ping\n\n')
+    } catch {
+      // ignore; close handler will clean up
+    }
+  }, 20000)
+
+  const subscriber: SseSubscriber = { res, heartbeat }
+  entry.subscribers.add(subscriber)
+
+  const cleanup = () => {
+    clearInterval(heartbeat)
+    const current = watchers.get(project.dir)
+    if (!current) return
+    current.subscribers.delete(subscriber)
+    if (current.subscribers.size === 0) {
+      current.stop()
+      watchers.delete(project.dir)
+    }
+  }
+
+  req.on('close', cleanup)
+  req.on('error', cleanup)
+}
+
 export function startHttpServer(port: number) {
   function resolveProject(query: URLSearchParams): RegistryProject | null {
     const requested = query.get('project')
@@ -157,6 +236,12 @@ export function startHttpServer(port: number) {
       if (!project) {
         return json(res, 400, { error: 'no project registered or specified' })
       }
+
+      if (method === 'GET' && pathname === '/api/events') {
+        handleSse(req, res, project)
+        return
+      }
+
       const { dir, baseBranch } = project
       const store = new CommentStore(dir, baseBranch)
 

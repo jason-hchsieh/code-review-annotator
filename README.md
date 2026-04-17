@@ -186,6 +186,11 @@ Every project-scoped endpoint takes a `project=<abs-dir>` query parameter identi
 | `PATCH` | `/api/comments/:id/replies/:replyId` | Update a reply's body |
 | `DELETE` | `/api/comments/:id/replies/:replyId` | Delete a reply |
 | `GET` | `/api/export?mode=fix\|report\|both` | Generate prompt string |
+| `GET` | `/api/events` | Server-Sent Events stream. Sends `hello` on connect; then `comments` when `.review-comments.json` changes and `diff` when git state (HEAD / base / working tree) changes. 20 s `: ping` heartbeat. |
+
+### Live updates
+
+The browser UI opens an `EventSource` against `/api/events` and auto-refetches diff / comments when the server pushes an event. The server runs one shared watcher per project (1.5 s tick, cheap signature: `mtime+size` for the comments JSON and `HEAD sha + base sha + git status --porcelain` for the diff). First SSE subscriber starts the watcher; last one disconnects it. If a comment form is open and dirty, a click-to-reload banner appears instead of clobbering the draft.
 
 ---
 

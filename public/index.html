@@ -610,6 +610,22 @@ body > * { position: relative; z-index: 1; }
   .comment-form-wrap { margin-left: 8px; }
   .comment-thread { margin-left: 8px; }
 }
+
+#live-refresh-banner {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding: 8px 14px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-bottom: 1px solid var(--accent);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+  user-select: none;
+}
+#live-refresh-banner:hover { background: var(--accent); color: var(--bg2); }
 </style>
 </head>
 <body>
@@ -1047,6 +1063,7 @@ async function switchProject(project) {
   document.getElementById('diff-placeholder').style.display = 'block'
   document.getElementById('diff-placeholder').textContent = 'Select a file to review.'
   await loadFiles()
+  startLiveStream()
 }
 
 async function loadFiles() {
@@ -1669,6 +1686,71 @@ async function refreshCurrentFile() {
   renderDiff()
   await loadFiles()
 }
+
+// ─────────────────────────────────────────────
+// Live updates (SSE)
+// ─────────────────────────────────────────────
+let liveStream = null
+
+function startLiveStream() {
+  if (liveStream) { liveStream.close(); liveStream = null }
+  if (!state.project) return
+  const url = `/api/events?project=${encodeURIComponent(state.project.dir)}`
+  const es = new EventSource(url)
+  es.addEventListener('comments', onLiveComments)
+  es.addEventListener('diff', onLiveDiff)
+  liveStream = es
+}
+
+function hasDirtyCommentForm() {
+  const form = document.getElementById('comment-form-row')
+  if (!form) return false
+  const ta = form.querySelector('textarea')
+  return !!(ta && ta.value.trim().length > 0)
+}
+
+async function onLiveComments() {
+  if (hasDirtyCommentForm()) { showRefreshBanner('comments'); return }
+  if (state.currentFile) {
+    state.comments = await api('GET', `/api/comments?file=${encodeURIComponent(state.currentFile)}`)
+    renderDiff()
+  }
+  await loadFiles()
+}
+
+async function onLiveDiff() {
+  if (hasDirtyCommentForm()) { showRefreshBanner('diff'); return }
+  await refreshCurrentFile()
+}
+
+function showRefreshBanner(reason) {
+  let banner = document.getElementById('live-refresh-banner')
+  if (banner) {
+    banner.dataset.reason = banner.dataset.reason === reason ? reason : 'both'
+    banner.textContent = banner.dataset.reason === 'both'
+      ? 'External changes detected (diff + comments) — click to reload'
+      : reason === 'diff'
+        ? 'Diff changed externally — click to reload'
+        : 'Comments changed externally — click to reload'
+    return
+  }
+  banner = document.createElement('div')
+  banner.id = 'live-refresh-banner'
+  banner.dataset.reason = reason
+  banner.textContent = reason === 'diff'
+    ? 'Diff changed externally — click to reload'
+    : 'Comments changed externally — click to reload'
+  banner.addEventListener('click', async () => {
+    banner.remove()
+    await refreshCurrentFile()
+  })
+  const area = document.getElementById('diff-area') || document.body
+  area.prepend(banner)
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && liveStream && liveStream.readyState === 2) startLiveStream()
+})
 
 // ─────────────────────────────────────────────
 // Export

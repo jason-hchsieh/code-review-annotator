@@ -61,6 +61,7 @@ Comments anchor to `(file, startLine, endLine, side)` plus a captured `commitSha
 A plain `node:http` server (no framework) serving:
 - `public/index.html` — single-file SPA (vanilla JS, no build step)
 - REST API endpoints under `/api/` (meta, diff, comments, replies, export)
+- `GET /api/events` — Server-Sent Events stream for live UI refresh. One `ProjectWatcher` per project (shared across subscribers) polls a cheap signature every 1.5 s: comments file `mtime+size`, plus `HEAD sha + base sha + git status --porcelain` for diff state. Emits `comments` / `diff` events on change. First subscriber starts the watcher; last one stops it.
 
 ### MCP mode (`startMcpServer` in `src/mcp.ts`)
 An MCP stdio server exposing 5 tools to Claude Code:
@@ -71,9 +72,10 @@ An MCP stdio server exposing 5 tools to Claude Code:
 | File | Responsibility |
 |------|---------------|
 | `src/comments.ts` | `CommentStore` — all state. Reads/writes `.review-comments.json` in the target repo root. Manages comment lifecycle (`open` ↔ `resolved`) and reply threads. Stores `baseBranch` and per-comment `commitSha` + `anchorSnippet`. HTTP server creates a fresh store per request so MCP writes are always visible. |
-| `src/gitDiff.ts` | Git diff computation via `simple-git`. `resolveMergeBase(dir, baseBranch)` runs `git merge-base HEAD <baseBranch>`. `detectDefaultBase` tries `main` then `master` for the CLI auto-detect. |
+| `src/gitDiff.ts` | Git diff computation via `simple-git`. `resolveMergeBase(dir, baseBranch)` runs `git merge-base HEAD <baseBranch>`. `detectDefaultBase` tries `main` then `master` for the CLI auto-detect. Also exports `resolveBaseSha` and `getPorcelainStatus` (used by the watcher signature). |
 | `src/fileTree.ts` | Directory scanner respecting `.gitignore` and `.claudeignore`. Used by `/api/files` but not the sidebar (sidebar uses diff summary). |
 | `src/registry.ts` | Central project registry. Atomic tmp+rename writes. `registerProject(dir, baseBranch)` is idempotent (upserts by abs path). `listProjects()` filters entries whose `dir` no longer exists. |
+| `src/watcher.ts` | `startProjectWatcher(dir, baseBranch, onEvent)` — 1.5 s interval comparing cheap signatures for `.review-comments.json` and git state; invokes `onEvent({ type: 'comments' \| 'diff' })` on change. Returns a stop function. |
 
 ### Data model
 
