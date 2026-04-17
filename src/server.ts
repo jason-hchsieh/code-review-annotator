@@ -1,7 +1,6 @@
 import * as http from 'node:http'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import * as url from 'node:url'
 import { CommentStore, ReviewComment } from './comments.ts'
 import { getChangedFiles, getFileDiff, parseDiff, getSourceLines, getHeadSha } from './gitDiff.ts'
 import { getFileTree } from './fileTree.ts'
@@ -91,8 +90,9 @@ export function startHttpServer(dir: string, port: number, baseBranch: string) {
   const publicDir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'public')
 
   const server = http.createServer(async (req, res) => {
-    const parsed = url.parse(req.url ?? '/', true)
-    const pathname = parsed.pathname ?? '/'
+    const parsed = new URL(req.url ?? '/', 'http://localhost')
+    const pathname = parsed.pathname
+    const query = parsed.searchParams
     const method = req.method ?? 'GET'
 
     if (method === 'OPTIONS') {
@@ -126,7 +126,7 @@ export function startHttpServer(dir: string, port: number, baseBranch: string) {
       }
 
       if (method === 'GET' && pathname === '/api/diff') {
-        const file = parsed.query.file as string
+        const file = query.get('file')
         if (!file) return json(res, 400, { error: 'file param required' })
         const rawDiff = await getFileDiff(dir, file, baseBranch)
         return json(res, 200, parseDiff(rawDiff, file))
@@ -142,8 +142,8 @@ export function startHttpServer(dir: string, port: number, baseBranch: string) {
       }
 
       if (method === 'GET' && pathname === '/api/comments') {
-        const fileFilter = parsed.query.file as string | undefined
-        const statusFilter = parsed.query.status as 'open' | 'resolved' | undefined
+        const fileFilter = query.get('file') ?? undefined
+        const statusFilter = (query.get('status') as 'open' | 'resolved' | null) ?? undefined
         const raw = store.getComments({ file: fileFilter, status: statusFilter })
         const enriched = await enrichComments(raw, dir, baseBranch)
         return json(res, 200, enriched)
@@ -200,8 +200,8 @@ export function startHttpServer(dir: string, port: number, baseBranch: string) {
       }
 
       if (method === 'GET' && pathname === '/api/export') {
-        const fileFilter = parsed.query.file as string | null ?? null
-        const mode = (parsed.query.mode as 'fix' | 'report' | 'both') ?? 'both'
+        const fileFilter = query.get('file')
+        const mode = (query.get('mode') as 'fix' | 'report' | 'both' | null) ?? 'both'
         const comments = store.getComments({ status: 'open', ...(fileFilter ? { file: fileFilter } : {}) })
         const prompt = generateExportPrompt(comments, mode)
         return json(res, 200, { prompt })
