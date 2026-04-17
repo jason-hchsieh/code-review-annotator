@@ -34,8 +34,12 @@ export class CommentStore {
 
   constructor(dir: string, baseBranch: string) {
     this.storePath = path.join(dir, '.review-comments.json')
-    this.store = this.load(baseBranch)
-    this.save()
+    const { store, needsWrite } = this.load(baseBranch)
+    this.store = store
+    // Only write on construction when something actually changed — otherwise
+    // every HTTP request would rewrite the file, bumping mtime and causing
+    // the watcher to fire SSE `comments` events on a loop.
+    if (needsWrite) this.save()
   }
 
   static readStoredBaseBranch(dir: string): string | null {
@@ -49,18 +53,21 @@ export class CommentStore {
     }
   }
 
-  private load(baseBranch: string): ReviewStore {
+  private load(baseBranch: string): { store: ReviewStore; needsWrite: boolean } {
     if (fs.existsSync(this.storePath)) {
       try {
         const raw = fs.readFileSync(this.storePath, 'utf-8')
         const data = JSON.parse(raw) as Record<string, unknown>
         const comments = Array.isArray(data.comments) ? (data.comments as ReviewComment[]) : []
-        return { baseBranch, comments }
+        const storedBase = typeof data.baseBranch === 'string' ? data.baseBranch : null
+        const needsWrite = storedBase !== baseBranch
+        return { store: { baseBranch, comments }, needsWrite }
       } catch {
-        // corrupted file — start fresh
+        // corrupted file — rewrite fresh
+        return { store: { baseBranch, comments: [] }, needsWrite: true }
       }
     }
-    return { baseBranch, comments: [] }
+    return { store: { baseBranch, comments: [] }, needsWrite: true }
   }
 
   private save(): void {

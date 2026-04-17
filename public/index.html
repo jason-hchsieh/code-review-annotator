@@ -423,7 +423,20 @@ body > * { position: relative; z-index: 1; }
   background: var(--bg2); border-bottom: 1px solid var(--border);
   font-size: 11.5px; color: var(--text-muted);
   font-family: var(--font-ui); letter-spacing: 0.01em;
+  cursor: pointer; user-select: none;
+  transition: background 0.12s var(--ease);
 }
+.comment-thread-header:hover { background: var(--bg3); }
+.comment-thread.collapsed .comment-thread-header { border-bottom: none; }
+.comment-collapse-caret {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; color: var(--text-dim);
+  font-family: var(--font-mono); font-size: 10px;
+  transition: transform 0.15s var(--ease), color 0.12s var(--ease);
+  flex-shrink: 0;
+}
+.comment-thread.collapsed .comment-collapse-caret { transform: rotate(-90deg); }
+.comment-thread-header:hover .comment-collapse-caret { color: var(--text); }
 .comment-status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(0,0,0,0.15); }
 .status-open .comment-status-dot { background: var(--comment-open); }
 .status-resolved .comment-status-dot { background: var(--comment-resolved); }
@@ -1360,7 +1373,8 @@ function appendCommentThread(table, comment) {
   td.colSpan = 4
 
   const thread = document.createElement('div')
-  thread.className = `comment-thread status-${comment.status}${comment.outdated ? ' outdated' : ''}`
+  const startsCollapsed = comment.status === 'resolved'
+  thread.className = `comment-thread status-${comment.status}${comment.outdated ? ' outdated' : ''}${startsCollapsed ? ' collapsed' : ''}`
   thread.id = `thread-${comment.id}`
 
   const lineRef = comment.startLine === comment.endLine
@@ -1369,6 +1383,13 @@ function appendCommentThread(table, comment) {
 
   const hdr = document.createElement('div')
   hdr.className = 'comment-thread-header'
+  hdr.title = 'Click to collapse / expand'
+
+  const caret = document.createElement('span')
+  caret.className = 'comment-collapse-caret'
+  caret.textContent = '▾'
+  caret.setAttribute('aria-hidden', 'true')
+  hdr.appendChild(caret)
 
   const dot = document.createElement('span')
   dot.className = 'comment-status-dot'
@@ -1400,31 +1421,27 @@ function appendCommentThread(table, comment) {
     const resolveBtn = document.createElement('button')
     resolveBtn.className = 'comment-action-btn btn-resolve'
     resolveBtn.textContent = 'Resolve'
-    resolveBtn.addEventListener('click', () => updateCommentStatus(comment.id, 'resolved'))
+    resolveBtn.addEventListener('click', (e) => { e.stopPropagation(); updateCommentStatus(comment.id, 'resolved') })
     actions.appendChild(resolveBtn)
   } else {
     const reopenBtn = document.createElement('button')
     reopenBtn.className = 'comment-action-btn btn-reopen'
     reopenBtn.textContent = 'Reopen'
-    reopenBtn.addEventListener('click', () => updateCommentStatus(comment.id, 'open'))
+    reopenBtn.addEventListener('click', (e) => { e.stopPropagation(); updateCommentStatus(comment.id, 'open') })
     actions.appendChild(reopenBtn)
-
-    const toggleBtn = document.createElement('button')
-    toggleBtn.className = 'comment-action-btn'
-    toggleBtn.textContent = 'Show'
-    toggleBtn.addEventListener('click', () => {
-      const collapsible = thread.querySelector('.comment-collapsible')
-      collapsible.classList.toggle('collapsed')
-      toggleBtn.textContent = collapsible.classList.contains('collapsed') ? 'Show' : 'Hide'
-    })
-    actions.appendChild(toggleBtn)
   }
 
   hdr.appendChild(actions)
 
   // Collapsible: primary comment (with its own meta) + replies + reply form
   const collapsible = document.createElement('div')
-  collapsible.className = 'comment-collapsible' + (comment.status === 'resolved' ? ' collapsed' : '')
+  collapsible.className = 'comment-collapsible' + (startsCollapsed ? ' collapsed' : '')
+
+  // Toggle collapse on header click (buttons inside stop propagation)
+  hdr.addEventListener('click', () => {
+    const isCollapsed = thread.classList.toggle('collapsed')
+    collapsible.classList.toggle('collapsed', isCollapsed)
+  })
 
   const primary = document.createElement('div')
   primary.className = 'comment-primary'

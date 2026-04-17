@@ -71,7 +71,7 @@ An MCP stdio server exposing 5 tools to Claude Code:
 
 | File | Responsibility |
 |------|---------------|
-| `src/comments.ts` | `CommentStore` — all state. Reads/writes `.review-comments.json` in the target repo root. Manages comment lifecycle (`open` ↔ `resolved`) and reply threads. Stores `baseBranch` and per-comment `commitSha` + `anchorSnippet`. HTTP server creates a fresh store per request so MCP writes are always visible. |
+| `src/comments.ts` | `CommentStore` — all state. Reads/writes `.review-comments.json` in the target repo root. Manages comment lifecycle (`open` ↔ `resolved`) and reply threads. Stores `baseBranch` and per-comment `commitSha` + `anchorSnippet`. HTTP server creates a fresh store per request so MCP writes are always visible. The constructor must only write when something actually changed (missing/corrupt file, or baseBranch differs) — a blind save on every request would bump `.review-comments.json` mtime and cause `ProjectWatcher` to fire `comments` SSE events on a loop, making the UI flicker. |
 | `src/gitDiff.ts` | Git diff computation via `simple-git`. `resolveMergeBase(dir, baseBranch)` runs `git merge-base HEAD <baseBranch>`. `detectDefaultBase` tries `main` then `master` for the CLI auto-detect. Also exports `resolveBaseSha` and `getPorcelainStatus` (used by the watcher signature). |
 | `src/fileTree.ts` | Directory scanner respecting `.gitignore` and `.claudeignore`. Used by `/api/files` but not the sidebar (sidebar uses diff summary). |
 | `src/registry.ts` | Central project registry. Atomic tmp+rename writes. `registerProject(dir, baseBranch)` is idempotent (upserts by abs path). `listProjects()` filters entries whose `dir` no longer exists. |
