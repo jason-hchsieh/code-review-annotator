@@ -214,25 +214,56 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 .status-open .comment-status-dot { background: var(--comment-open); }
 .status-resolved .comment-status-dot { background: var(--comment-resolved); }
 .comment-line-ref { font-family: var(--font-mono); font-weight: 600; color: var(--text); }
-.comment-thread-actions { margin-left: auto; display: flex; gap: 4px; }
+.comment-thread-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 .comment-action-btn {
   background: transparent; border: 1px solid var(--border); color: var(--text-muted);
   padding: 2px 7px; border-radius: 3px; cursor: pointer; font-size: 11px;
 }
 .comment-action-btn:hover { background: var(--bg3); color: var(--text); }
+.btn-resolve { border-color: var(--comment-open); color: var(--comment-open); }
+.btn-resolve:hover { background: var(--comment-open); color: #000; }
+.btn-reopen { border-color: var(--accent); color: var(--accent); }
+.btn-reopen:hover { background: var(--accent); color: #000; }
 .btn-danger:hover { border-color: var(--danger); color: var(--danger); }
 .comment-collapsible.collapsed { display: none; }
 .comment-body-wrap { padding: 8px 10px; background: var(--bg); font-size: 13px; line-height: 1.5; }
+
+/* ─── Kebab menu ─── */
+.kebab-wrap { position: relative; }
+.kebab-btn {
+  background: transparent; border: 1px solid transparent; color: var(--text-muted);
+  width: 22px; height: 22px; border-radius: 4px; cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+}
+.kebab-btn:hover { background: var(--bg3); color: var(--text); }
+.kebab-btn.open { background: var(--bg3); color: var(--text); border-color: var(--border); }
+.kebab-menu {
+  position: absolute; top: calc(100% + 4px); right: 0; min-width: 140px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4); z-index: 20; padding: 4px; display: none;
+}
+.kebab-menu.open { display: block; }
+.kebab-item {
+  display: block; width: 100%; text-align: left; padding: 5px 10px; border: none;
+  background: transparent; color: var(--text); font-size: 12px; cursor: pointer;
+  border-radius: 3px; font-family: var(--font-ui);
+}
+.kebab-item:hover { background: var(--bg3); }
+.kebab-item.danger { color: var(--danger); }
+.kebab-item.danger:hover { background: var(--danger); color: #fff; }
+.kebab-separator { height: 1px; background: var(--border); margin: 4px 0; }
 
 /* ─── Comment Replies ─── */
 .comment-replies { border-top: 1px solid var(--border); }
 .comment-reply { padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 13px; line-height: 1.5; background: var(--bg); }
 .comment-reply:last-child { border-bottom: none; }
-.comment-reply-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; font-size: 11px; }
+.comment-reply-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 11px; }
 .reply-author { font-weight: 600; }
 .reply-author-claude { color: var(--accent); }
 .reply-author-human { color: var(--text-muted); }
+.reply-sep { color: var(--text-dim); }
 .reply-timestamp { color: var(--text-dim); }
+.reply-actions { margin-left: auto; }
 .comment-reply-form { border-top: 1px solid var(--border); padding: 7px 10px; background: var(--bg2); }
 .comment-reply-form textarea {
   width: 100%; background: var(--bg3); border: 1px solid var(--border);
@@ -345,6 +376,18 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
   </div>
 </div>
 
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="modal" style="max-width: 420px">
+    <h3 id="confirm-title">Confirm</h3>
+    <div id="confirm-message" style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px; line-height: 1.5;"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="confirm-cancel">Cancel</button>
+      <button id="confirm-ok" style="background: var(--danger); color: #fff; border: none; padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600;">Delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- Export Modal -->
 <div class="modal-overlay" id="export-modal">
   <div class="modal">
@@ -383,6 +426,120 @@ const state = {
   selection: null,
   selectionAnchor: null,
   wrapLines: true,
+}
+
+// ─────────────────────────────────────────────
+// Confirm dialog
+// ─────────────────────────────────────────────
+function confirmDialog({ title = 'Confirm', message, confirmText = 'Delete' } = {}) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('confirm-modal')
+    document.getElementById('confirm-title').textContent = title
+    document.getElementById('confirm-message').textContent = message
+    const okBtn = document.getElementById('confirm-ok')
+    okBtn.textContent = confirmText
+    const cancelBtn = document.getElementById('confirm-cancel')
+
+    function cleanup(result) {
+      overlay.classList.remove('open')
+      okBtn.removeEventListener('click', onOk)
+      cancelBtn.removeEventListener('click', onCancel)
+      overlay.removeEventListener('click', onOverlay)
+      document.removeEventListener('keydown', onKey)
+      resolve(result)
+    }
+    function onOk() { cleanup(true) }
+    function onCancel() { cleanup(false) }
+    function onOverlay(e) { if (e.target === overlay) cleanup(false) }
+    function onKey(e) {
+      if (e.key === 'Escape') cleanup(false)
+      if (e.key === 'Enter') cleanup(true)
+    }
+
+    okBtn.addEventListener('click', onOk)
+    cancelBtn.addEventListener('click', onCancel)
+    overlay.addEventListener('click', onOverlay)
+    document.addEventListener('keydown', onKey)
+    overlay.classList.add('open')
+    setTimeout(() => okBtn.focus(), 0)
+  })
+}
+
+// ─────────────────────────────────────────────
+// Kebab menu
+// ─────────────────────────────────────────────
+let openKebab = null
+document.addEventListener('click', (e) => {
+  if (openKebab && !openKebab.wrap.contains(e.target)) {
+    openKebab.menu.classList.remove('open')
+    openKebab.btn.classList.remove('open')
+    openKebab = null
+  }
+})
+function buildKebabMenu(items) {
+  const wrap = document.createElement('span')
+  wrap.className = 'kebab-wrap'
+
+  const btn = document.createElement('button')
+  btn.className = 'kebab-btn'
+  btn.title = 'More actions'
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM1.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm13 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/></svg>'
+
+  const menu = document.createElement('div')
+  menu.className = 'kebab-menu'
+
+  for (const item of items) {
+    if (item.separator) {
+      const sep = document.createElement('div')
+      sep.className = 'kebab-separator'
+      menu.appendChild(sep)
+      continue
+    }
+    const el = document.createElement('button')
+    el.className = 'kebab-item' + (item.danger ? ' danger' : '')
+    el.textContent = item.label
+    el.addEventListener('click', (e) => {
+      e.stopPropagation()
+      menu.classList.remove('open')
+      btn.classList.remove('open')
+      openKebab = null
+      item.onClick()
+    })
+    menu.appendChild(el)
+  }
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation()
+    if (openKebab && openKebab.menu !== menu) {
+      openKebab.menu.classList.remove('open')
+      openKebab.btn.classList.remove('open')
+    }
+    const willOpen = !menu.classList.contains('open')
+    menu.classList.toggle('open', willOpen)
+    btn.classList.toggle('open', willOpen)
+    openKebab = willOpen ? { wrap, btn, menu } : null
+  })
+
+  wrap.appendChild(btn)
+  wrap.appendChild(menu)
+  return wrap
+}
+
+// ─────────────────────────────────────────────
+// Relative time
+// ─────────────────────────────────────────────
+function relativeTime(iso) {
+  const t = new Date(iso).getTime()
+  const diff = Date.now() - t
+  const s = Math.floor(diff / 1000)
+  if (s < 60) return 'just now'
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d < 30) return `${d}d ago`
+  return new Date(iso).toLocaleDateString()
 }
 
 // ─────────────────────────────────────────────
@@ -853,9 +1010,15 @@ function appendCommentThread(table, comment) {
   sideEl.style.color = 'var(--text-dim)'
   sideEl.textContent = `(${comment.side})`
 
+  const ts = document.createElement('span')
+  ts.className = 'reply-timestamp'
+  ts.textContent = relativeTime(comment.createdAt)
+  ts.title = new Date(comment.createdAt).toLocaleString()
+
   hdr.appendChild(dot)
   hdr.appendChild(ref)
   hdr.appendChild(sideEl)
+  hdr.appendChild(ts)
 
   if (comment.outdated) {
     const outdatedBadge = document.createElement('span')
@@ -870,15 +1033,13 @@ function appendCommentThread(table, comment) {
 
   if (comment.status === 'open') {
     const resolveBtn = document.createElement('button')
-    resolveBtn.className = 'comment-action-btn'
+    resolveBtn.className = 'comment-action-btn btn-resolve'
     resolveBtn.textContent = 'Resolve'
     resolveBtn.addEventListener('click', () => updateCommentStatus(comment.id, 'resolved'))
     actions.appendChild(resolveBtn)
-  }
-
-  if (comment.status === 'resolved') {
+  } else {
     const reopenBtn = document.createElement('button')
-    reopenBtn.className = 'comment-action-btn'
+    reopenBtn.className = 'comment-action-btn btn-reopen'
     reopenBtn.textContent = 'Reopen'
     reopenBtn.addEventListener('click', () => updateCommentStatus(comment.id, 'open'))
     actions.appendChild(reopenBtn)
@@ -894,17 +1055,12 @@ function appendCommentThread(table, comment) {
     actions.appendChild(toggleBtn)
   }
 
-  const editBtn = document.createElement('button')
-  editBtn.className = 'comment-action-btn'
-  editBtn.textContent = 'Edit'
-  editBtn.addEventListener('click', () => startEditComment(comment, body))
-  actions.appendChild(editBtn)
-
-  const delBtn = document.createElement('button')
-  delBtn.className = 'comment-action-btn btn-danger'
-  delBtn.textContent = '✕'
-  delBtn.addEventListener('click', () => deleteComment(comment.id))
-  actions.appendChild(delBtn)
+  const kebab = buildKebabMenu([
+    { label: 'Edit', onClick: () => startEditComment(comment, body) },
+    { separator: true },
+    { label: 'Delete comment', danger: true, onClick: () => deleteComment(comment) },
+  ])
+  actions.appendChild(kebab)
 
   hdr.appendChild(actions)
 
@@ -945,33 +1101,29 @@ function appendCommentThread(table, comment) {
       authorEl.className = `reply-author reply-author-${reply.author}`
       authorEl.textContent = reply.author === 'claude' ? 'Claude' : 'Reviewer'
 
+      const sep = document.createElement('span')
+      sep.className = 'reply-sep'
+      sep.textContent = '·'
+
       const tsEl = document.createElement('span')
       tsEl.className = 'reply-timestamp'
-      tsEl.textContent = new Date(reply.createdAt).toLocaleString()
-
-      const replyActions = document.createElement('span')
-      replyActions.style.cssText = 'margin-left:auto;display:flex;gap:4px'
-
-      const replyEditBtn = document.createElement('button')
-      replyEditBtn.className = 'comment-action-btn'
-      replyEditBtn.textContent = 'Edit'
-
-      const replyDelBtn = document.createElement('button')
-      replyDelBtn.className = 'comment-action-btn btn-danger'
-      replyDelBtn.textContent = '✕'
-      replyDelBtn.addEventListener('click', () => deleteReply(comment.id, reply.id))
-
-      replyActions.appendChild(replyEditBtn)
-      replyActions.appendChild(replyDelBtn)
-
-      meta.appendChild(authorEl)
-      meta.appendChild(tsEl)
-      meta.appendChild(replyActions)
+      tsEl.textContent = relativeTime(reply.createdAt)
+      tsEl.title = new Date(reply.createdAt).toLocaleString()
 
       const replyBody = document.createElement('div')
       replyBody.textContent = reply.body
 
-      replyEditBtn.addEventListener('click', () => startEditReply(comment.id, reply, replyBody))
+      const replyKebab = buildKebabMenu([
+        { label: 'Edit', onClick: () => startEditReply(comment.id, reply, replyBody) },
+        { separator: true },
+        { label: 'Delete reply', danger: true, onClick: () => deleteReply(comment.id, reply) },
+      ])
+      replyKebab.classList.add('reply-actions')
+
+      meta.appendChild(authorEl)
+      meta.appendChild(sep)
+      meta.appendChild(tsEl)
+      meta.appendChild(replyKebab)
 
       replyEl.appendChild(meta)
       replyEl.appendChild(replyBody)
@@ -1064,13 +1216,30 @@ function startEditComment(comment, bodyEl) {
   textarea.setSelectionRange(textarea.value.length, textarea.value.length)
 }
 
-async function deleteComment(id) {
-  await api('DELETE', `/api/comments/${id}`)
+async function deleteComment(comment) {
+  const lineRef = comment.startLine === comment.endLine
+    ? `L${comment.startLine}`
+    : `L${comment.startLine}–L${comment.endLine}`
+  const replyCount = (comment.replies ?? []).length
+  const extra = replyCount > 0 ? ` and ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}` : ''
+  const ok = await confirmDialog({
+    title: 'Delete comment?',
+    message: `This will permanently delete the comment on ${lineRef}${extra}. This cannot be undone.`,
+    confirmText: 'Delete',
+  })
+  if (!ok) return
+  await api('DELETE', `/api/comments/${comment.id}`)
   await refreshCurrentFile()
 }
 
-async function deleteReply(commentId, replyId) {
-  await api('DELETE', `/api/comments/${commentId}/replies/${replyId}`)
+async function deleteReply(commentId, reply) {
+  const ok = await confirmDialog({
+    title: 'Delete reply?',
+    message: `This will permanently delete this reply. This cannot be undone.`,
+    confirmText: 'Delete',
+  })
+  if (!ok) return
+  await api('DELETE', `/api/comments/${commentId}/replies/${reply.id}`)
   await refreshCurrentFile()
 }
 

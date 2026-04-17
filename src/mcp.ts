@@ -61,7 +61,7 @@ export function startMcpServer(dir: string, baseBranch: string) {
   }
 
   const server = new Server(
-    { name: 'code-review-annotator', version: '0.7.3' },
+    { name: 'code-review-annotator', version: '0.7.4' },
     { capabilities: { tools: {} } },
   )
 
