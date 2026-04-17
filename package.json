@@ -1,6 +1,6 @@
 {
   "name": "code-review-annotator",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "description": "Inline code review tool with MCP integration for Claude Code",
   "type": "module",
   "bin": {
@@ -11,9 +11,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "ignore": "^5.3.1",
-    "nanoid": "^5.0.7",
-    "simple-git": "^3.27.0"
+    "nanoid": "^5.0.7"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

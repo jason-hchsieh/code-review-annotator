@@ -1,29 +1,27 @@
 # code-review-annotator
 
-Remote code review tool for [Claude Code](https://claude.ai/code) workflows. Browse git diffs in the browser via SSH port forward, leave inline comments on specific lines, then let Claude Code read them through MCP and apply fixes automatically.
+Tool-call review for [Claude Code](https://claude.ai/code). Every `Edit` / `Write` / `MultiEdit` / `NotebookEdit` Claude Code runs is captured as a before→after snapshot, rendered in a browser UI as a timeline of cards. Leave inline comments on specific lines of either side, then let Claude Code read them via MCP and apply fixes.
 
 ```
 ssh -L 8080:localhost:8080 your-server
 npx code-review-annotator --port 8080
 ```
 
-One HTTP server can serve multiple projects / worktrees. MCP servers started via `claude mcp add ... --mcp --dir <path>` register themselves into a central registry; the browser UI lists every registered project in a dropdown.
-
-![UI screenshot showing diff viewer with inline comment threads](https://placeholder)
+One HTTP server can serve multiple projects / worktrees. The plugin's MCP server self-registers into a central registry; the browser UI lists every registered project in a dropdown.
 
 ---
 
 ## Why
 
-When using Claude Code on a remote server, you can't easily review the code it generates before telling it to iterate. This tool closes that loop:
+When Claude Code is making changes on a remote machine, you want to see each edit it made *individually* — not squashed into a single git diff — so you can comment on decisions at the moment they happen. This tool closes that loop:
 
-1. Claude Code generates changes on the remote server
-2. You SSH port-forward and review the diff in a browser UI
-3. You leave inline comments on lines that need fixing
+1. Claude Code runs `Edit` / `Write` / `MultiEdit` / `NotebookEdit` — Pre/PostToolUse hooks capture the before and after snapshot
+2. You SSH port-forward and review the timeline of tool calls in a browser UI
+3. You click a card to see its before→after diff, click lines to leave inline comments
 4. You tell Claude Code `"fix review comments"` — it reads comments via MCP, applies fixes, and replies on each thread
-5. You resolve or push back in the browser, then iterate
+5. Resolve or push back in the browser, then iterate
 
-The diff model mirrors GitHub pull requests: comparison is `merge-base(HEAD, <base-branch>) → HEAD` + working tree. New commits extend the diff, new commits on the base branch shift the merge-base, and comments are marked **outdated** when the line they anchor to no longer matches what the reviewer saw.
+There is no base branch, no merge-base. Each tool call is a standalone, frozen snapshot.
 
 ---
 
@@ -31,32 +29,31 @@ The diff model mirrors GitHub pull requests: comparison is `merge-base(HEAD, <ba
 
 ### As a Claude Code Plugin (recommended)
 
-The plugin ships with a `.claude-plugin/marketplace.json`, so install via Claude Code's plugin commands:
+The plugin ships `.mcp.json` and `hooks/hooks.json`, so install via Claude Code's plugin commands:
 
 ```
 /plugin marketplace add /path/to/code-review-annotator
 /plugin install code-review-annotator@code-review-annotator-local
 ```
 
-The plugin bundles an MCP server that connects automatically when Claude Code starts. No `claude mcp add` needed.
+The plugin bundles:
+- An MCP server that auto-connects — no `claude mcp add` needed
+- Pre/PostToolUse hooks that capture every `Edit` / `Write` / `MultiEdit` / `NotebookEdit` Claude Code runs
 
 ### Standalone (npx)
 
 ```bash
-# HTTP server (multi-project — projects register via MCP)
+# HTTP server (multi-project — projects register via the plugin's MCP)
 npx code-review-annotator --port 8080
 
 # Or pre-seed the registry with a specific project at startup
-npx code-review-annotator --dir /path/to/project --base main --port 8080
+npx code-review-annotator --dir /path/to/project --port 8080
 
-# MCP server — auto-detects cwd and base branch, registers into the shared registry
-claude mcp add review-annotator -- npx code-review-annotator --mcp
-
-# Or pin explicitly when you don't want cwd / auto-detect
-claude mcp add review-annotator -- npx code-review-annotator --mcp --dir /path/to/project --base main
+# MCP server (for projects that aren't using the plugin)
+claude mcp add code-review -- npx code-review-annotator --mcp
 ```
 
-A single global `claude mcp add review-annotator -- npx code-review-annotator --mcp` works for every project: the MCP server uses `process.cwd()` (the directory Claude Code was invoked in) as its project dir, and auto-detects the base branch (`main` → `master`).
+**Note:** standalone MCP mode alone does *not* capture tool calls — you also need the plugin's Pre/PostToolUse hooks (or equivalent hooks wired manually into `.claude/settings.json`) for snapshots to appear in the UI.
 
 ---
 
@@ -71,13 +68,10 @@ npx code-review-annotator --port 8080
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--port` | `8080` | HTTP server port |
-| `--dir` | — | Optional in HTTP mode: if set, auto-registers this project at startup. **Required** in `--mcp` mode. |
-| `--base` | auto-detect `main` → `master` | Base branch to diff against (used when registering `--dir`) |
+| `--dir` | — | Optional in HTTP mode: if set, auto-registers this project at startup. |
 | `--mcp` | — | Run as MCP stdio server instead |
 
-If `--base` is omitted, the tool tries `main` then `master`. If neither exists it errors.
-
-Projects register themselves into `$XDG_CONFIG_HOME/code-review-annotator/projects.json` (default `~/.config/...`). The registry persists across HTTP restarts; stale entries (dir no longer exists) are filtered out of the UI automatically. The registry is safe to hand-edit.
+Projects register themselves into `$XDG_CONFIG_HOME/code-review-annotator/projects.json` (default `~/.config/...`). The HTTP server also writes its current port into every registered project on startup, so the plugin's hook script knows where to POST snapshots. Stale entries (dir no longer exists) are filtered out of the UI automatically. The registry is safe to hand-edit.
 
 ### 2. Open the UI locally
 
@@ -88,11 +82,11 @@ open http://localhost:8080
 
 ### 3. Review and annotate
 
-- **Files Changed** sidebar — lists all files in `git diff <mergeBase>` with `+/-` stats and comment badges
-- **Click** any diff line to add a single-line comment
-- **Shift+Click** a second line to select a range, then add a multi-line comment
-- Comments appear as inline threads anchored to the diff
-- If the code at an anchor later changes, the thread is marked **outdated** and the original snippet is preserved for context
+- **Timeline** sidebar — every captured tool call, newest at top. Each card shows the tool, file, relative time, status (`pending` / `orphan` badges when relevant), and open-comment count.
+- Click a card to open its **before → after** diff in the main panel.
+- **Click** any line to add a single-line comment. Clicking the same line again deselects.
+- **Shift+Click** a second line on the same side to select a range, then add a multi-line comment.
+- Comments appear as inline threads anchored to the snapshot, so they stay put even if the file continues to evolve.
 
 ### 4. Ask Claude Code to fix
 
@@ -100,34 +94,23 @@ open http://localhost:8080
 fix review comments
 ```
 
-Claude Code calls `get_review_comments`, reads the `sourceLines` for context (and `anchorSnippet` if outdated), applies each fix, calls `reply_to_comment` to explain what changed, then calls `mark_resolved`.
+Claude Code calls `get_review_comments`, reads the `sourceLines` for context, applies each fix, calls `reply_to_comment` to explain what changed, then calls `mark_resolved`.
 
 ---
 
-## Diff Model
+## Tool-call lifecycle
 
-The base is a **branch ref**, not a frozen commit — matching GitHub PR semantics:
+| Status | Meaning |
+|--------|---------|
+| `pending` | PreToolUse captured; still waiting for PostToolUse |
+| `complete` | Both hooks fired — full before and after are stored |
+| `orphan` | Post never arrived within 5 min (tool errored or Claude Code was killed) |
 
-```
-diff = git diff $(git merge-base HEAD <base-branch>)
-```
-
-- New commits on the feature branch → diff expands.
-- New commits on `main` → merge-base shifts, diff narrows.
-- Working-tree + unstaged changes are always included (local-tool scope).
-
-### Comment anchoring & outdated detection
-
-Each comment stores:
-
-- `commitSha` — the HEAD when the comment was written
-- `anchorSnippet` — the exact `sourceLines` at the anchor when the comment was written
-
-On every read, the server re-fetches `sourceLines` at the current anchor and compares. If they differ, the comment is flagged `outdated: true`. The original snippet stays visible in the UI so the reviewer (or Claude Code) can see what was originally flagged.
+Tool calls are paired by `tool_use_id` across Pre and Post. The HTTP server marks stale pending calls as `orphan` on every `/api/tool-calls` read.
 
 ---
 
-## Comment Lifecycle
+## Comment lifecycle
 
 | Status | Meaning |
 |--------|---------|
@@ -144,9 +127,9 @@ Claude Code accesses these tools via the `code-review` MCP server:
 
 | Tool | Description |
 |------|-------------|
-| `get_review_comments` | Fetch comments. Defaults to `open` status. Each result includes `sourceLines` (current file content at the anchor), `anchorSnippet` (content when comment was written), `outdated` (boolean), and any existing `replies`. |
-| `get_changed_files` | List all files in the diff with open comment counts. |
-| `get_export_prompt` | Generate a ready-to-use fix/report/both prompt string. |
+| `get_tool_calls` | List captured tool-call snapshots. Filters: `file`, `status`. Returns compact records (id, tool, file, status, timestamps, line counts). |
+| `get_review_comments` | Fetch comments. Defaults to `open`. Each result is enriched with `toolCall` context (tool / file / startedAt / status) and `sourceLines` — the actual lines the reviewer was pointing at. |
+| `get_export_prompt` | Generate a ready-to-use fix/report/both prompt string, optionally scoped to one `toolCallId`. |
 | `mark_resolved` | Mark a comment as resolved by ID. |
 | `reply_to_comment` | Add a reply to a comment thread (authored as `claude`). Use after fixing to explain what changed. |
 
@@ -154,14 +137,14 @@ Claude Code accesses these tools via the `code-review` MCP server:
 
 ```ts
 get_review_comments(
-  file?: string,                 // filter by file path
+  toolCallId?: string,           // filter to a single tool call
   status?: 'open' | 'resolved',  // default: 'open'
 )
 ```
 
-Line numbers are **actual file line numbers** (1-based), not diff positions:
-- `side: "new"` → line in the current file on disk
-- `side: "old"` → line in the file at the merge-base (`git show $(git merge-base HEAD <base>):<file>`)
+Line numbers are **1-based file line numbers inside the captured snapshot** — not diff positions.
+- `side: "after"` → line in the file after the edit ran
+- `side: "before"` → line in the file before the edit ran
 
 ---
 
@@ -173,65 +156,67 @@ Every project-scoped endpoint takes a `project=<abs-dir>` query parameter identi
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/projects` | `[{ id, dir, displayPath, name, baseBranch }]` — the registry |
-| `GET` | `/api/meta` | `{ baseBranch, dir, displayPath, name }` for the resolved project |
-| `GET` | `/api/files` | Directory file tree (respects `.gitignore` / `.claudeignore`) |
-| `GET` | `/api/diff?file=` | Parsed unified diff for a file |
-| `GET` | `/api/diff/summary` | All changed files with `+/-` stats |
-| `GET` | `/api/comments` | Comments (`?file=`, `?status=` filters), enriched with `sourceLines` + `outdated` |
-| `POST` | `/api/comments` | Add a comment (server captures `commitSha` + `anchorSnippet`) |
+| `GET` | `/api/projects` | `[{ id, dir, displayPath, name, httpPort, updatedAt }]` — the registry |
+| `GET` | `/api/meta` | `{ dir, displayPath, name }` for the resolved project |
+| `GET` | `/api/tool-calls` | All captured tool calls (filters: `file`, `status`) |
+| `GET` | `/api/tool-calls/:id` | One tool call including full `before` / `after` text |
+| `POST` | `/api/tool-calls/start` | **Hook endpoint** — PreToolUse: `{ toolUseId, sessionId, tool, file, before, startedAt? }` |
+| `POST` | `/api/tool-calls/complete` | **Hook endpoint** — PostToolUse: `{ toolUseId, after, completedAt? }` |
+| `GET` | `/api/comments` | Comments (`?toolCallId=`, `?status=` filters) |
+| `POST` | `/api/comments` | Add a comment: `{ toolCallId, side, startLine, endLine?, body }` |
 | `PATCH` | `/api/comments/:id` | Update body or status |
 | `DELETE` | `/api/comments/:id` | Delete a comment |
 | `POST` | `/api/comments/:id/replies` | Add a reply to a comment thread |
 | `PATCH` | `/api/comments/:id/replies/:replyId` | Update a reply's body |
 | `DELETE` | `/api/comments/:id/replies/:replyId` | Delete a reply |
-| `GET` | `/api/export?mode=fix\|report\|both` | Generate prompt string |
-| `GET` | `/api/events` | Server-Sent Events stream. Sends `hello` on connect; then `comments` when `.review-comments.json` changes and `diff` when git state (HEAD / base / working tree) changes. 20 s `: ping` heartbeat. |
+| `GET` | `/api/export?mode=fix\|report\|both&toolCallId=?` | Generate prompt string |
+| `GET` | `/api/events` | Server-Sent Events stream. Sends `hello` on connect; then `log` when `.review-log.json` changes. 20 s `: ping` heartbeat. |
 
 ### Live updates
 
-The browser UI opens an `EventSource` against `/api/events` and auto-refetches diff / comments when the server pushes an event. The server runs one shared watcher per project (1.5 s tick, cheap signature: `mtime+size` for the comments JSON and `HEAD sha + base sha + git status --porcelain` for the diff). First SSE subscriber starts the watcher; last one disconnects it. If a comment form is open and dirty, a click-to-reload banner appears instead of clobbering the draft.
+The browser UI opens an `EventSource` against `/api/events` and auto-refetches the timeline when the server pushes a `log` event. The server runs one shared watcher per project (1.5 s tick, cheap signature: `.review-log.json` `mtime+size`). First SSE subscriber starts the watcher; last one disconnects it.
 
 ---
 
 ## Data
 
-Comments are persisted to `.review-comments.json` in the project root. Add it to `.gitignore`.
+State is persisted to `.review-log.json` in the project root. Add it to `.gitignore`.
 
 ```jsonc
 {
-  "baseBranch": "main",
-  "comments": [
+  "toolCalls": [
     {
       "id": "abc",
+      "toolUseId": "toolu_01...",
+      "sessionId": "sess_...",
+      "tool": "Edit",
       "file": "src/parser.ts",
+      "before": "...full file contents before...",
+      "after":  "...full file contents after...",
+      "status": "complete",
+      "startedAt":   "2026-04-17T09:00:00.000Z",
+      "completedAt": "2026-04-17T09:00:00.240Z"
+    }
+  ],
+  "comments": [
+    {
+      "id": "c1",
+      "toolCallId": "abc",
+      "side": "after",
       "startLine": 42,
       "endLine": 45,
-      "side": "new",
       "body": "This match block can be extracted into a helper",
       "status": "open",
-      "createdAt": "...",
-      "commitSha": "abc123...",
-      "anchorSnippet": ["  match x {", "    A => ...", "    B => ...", "  }"],
+      "createdAt": "2026-04-17T09:01:00.000Z",
       "replies": [
-        { "id": "r1", "author": "claude", "body": "Extracted into `parseMatch()`.", "createdAt": "..." }
+        { "id": "r1", "author": "claude", "body": "Extracted into `parseMatch()`.", "createdAt": "2026-04-17T09:05:00.000Z" }
       ]
     }
   ]
 }
 ```
 
-The HTTP server and MCP server are separate processes that both read/write this file. Run the HTTP server for the browser UI and install the plugin (or `claude mcp add`) for the MCP server — they share state through the JSON file.
-
----
-
-## Ignore Rules
-
-`fileTree.ts` filters the file tree and diff summary using, in order:
-
-1. Hard-coded: `node_modules/`, `.git/`, `dist/`, `*.lock`, `.review-comments.json`
-2. `.gitignore` (if present)
-3. `.claudeignore` (if present, higher priority)
+The HTTP server, MCP server, and hook scripts all read/write this file. Install the plugin so all three land together — they share state through the JSON file.
 
 ---
 
@@ -240,9 +225,9 @@ The HTTP server and MCP server are separate processes that both read/write this 
 When installed as a Claude Code plugin:
 
 - `.mcp.json` at the plugin root is auto-discovered — no manual `claude mcp add` required
-- `scripts/run-mcp.sh` is spawned by Claude Code at session start
-- On first run, the script copies `package.json` to `${CLAUDE_PLUGIN_DATA}` and runs `npm ci` there — keeps `node_modules` out of the plugin cache and survives plugin updates
-- The script re-installs automatically when `package.json` changes between plugin versions
+- `hooks/hooks.json` registers the Pre/PostToolUse capture hooks
+- `scripts/run-mcp.sh` is spawned by Claude Code at session start. On first run it copies `package.json` to `${CLAUDE_PLUGIN_DATA}` and runs `npm ci` there — keeps `node_modules` out of the plugin cache and survives plugin updates. It re-installs automatically when `package.json` changes between plugin versions.
+- `scripts/hook.js` is spawned by the Pre/PostToolUse hooks. It reads the hook JSON from stdin, looks up the HTTP server's port in the shared registry, and POSTs the snapshot. Silent exit 0 on any failure (server down, no matching project) so Claude Code is never blocked.
 - The `review-workflow` skill teaches Claude Code the fix loop: `get_review_comments` → apply edits → `reply_to_comment` → `mark_resolved`
 
 ---
@@ -254,10 +239,9 @@ When installed as a Claude Code plugin:
 | Runtime | `tsx` (TypeScript, no build step) |
 | HTTP server | Node.js built-in `http` |
 | MCP transport | `@modelcontextprotocol/sdk` stdio |
-| Git | `simple-git` |
-| Ignore filtering | `ignore` package |
-| Comment IDs | `nanoid` |
-| UI | Vanilla JS, single HTML file, dark theme |
+| IDs | `nanoid` |
+| UI diffs | `diff@5.2.0` (CDN) for client-side unified diff |
+| UI | Vanilla JS, single HTML file, four themes |
 
 ---
 

@@ -1,62 +1,33 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { getHeadSha, resolveBaseSha, getPorcelainStatus } from './gitDiff.ts'
 
-export type WatcherEvent = { type: 'comments' } | { type: 'diff' }
+export type WatcherEvent = { type: 'log' }
 
 const INTERVAL_MS = 1500
+const LOG_FILE = '.review-log.json'
 
-function commentsSignature(dir: string): string {
+function logSignature(dir: string): string {
   try {
-    const st = fs.statSync(path.join(dir, '.review-comments.json'))
+    const st = fs.statSync(path.join(dir, LOG_FILE))
     return `${st.mtimeMs}:${st.size}`
   } catch {
     return 'missing'
   }
 }
 
-async function diffSignature(dir: string, baseBranch: string): Promise<string> {
-  try {
-    const [headSha, baseSha, porcelain] = await Promise.all([
-      getHeadSha(dir),
-      resolveBaseSha(dir, baseBranch),
-      getPorcelainStatus(dir),
-    ])
-    return `${headSha}:${baseSha}:${porcelain}`
-  } catch (err) {
-    return `error:${String(err)}`
-  }
-}
-
 export function startProjectWatcher(
   dir: string,
-  baseBranch: string,
   onEvent: (event: WatcherEvent) => void,
 ): () => void {
-  let lastComments = commentsSignature(dir)
-  let lastDiff: string | null = null
+  let last = logSignature(dir)
   let running = true
-  let ticking = false
 
-  diffSignature(dir, baseBranch).then(sig => { lastDiff = sig })
-
-  const timer = setInterval(async () => {
-    if (!running || ticking) return
-    ticking = true
-    try {
-      const comments = commentsSignature(dir)
-      if (comments !== lastComments) {
-        lastComments = comments
-        onEvent({ type: 'comments' })
-      }
-
-      const diff = await diffSignature(dir, baseBranch)
-      if (lastDiff !== null && diff !== lastDiff) {
-        onEvent({ type: 'diff' })
-      }
-      lastDiff = diff
-    } finally {
-      ticking = false
+  const timer = setInterval(() => {
+    if (!running) return
+    const sig = logSignature(dir)
+    if (sig !== last) {
+      last = sig
+      onEvent({ type: 'log' })
     }
   }, INTERVAL_MS)
 

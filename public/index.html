@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,400&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" id="hljs-theme" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github-dark.min.css">
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -16,12 +17,11 @@
   --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   --font-ui: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-display: 'Fraunces', Georgia, serif;
-  --sidebar-width: 260px;
+  --sidebar-width: 320px;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --btn-ink: #1a1611;
 }
 
-/* ─── Theme: Editorial (default) — warm charcoal + amber ─── */
 :root, [data-theme="editorial"] {
   --bg: #13120f;
   --bg2: #1b1a15;
@@ -41,98 +41,39 @@
   --accent-soft: rgba(233, 165, 62, 0.12);
   --comment-open: #e9a53e;
   --comment-resolved: #70695d;
-  --comment-outdated: #b08cd9;
   --danger: #d28570;
   --overlay-a: rgba(233, 165, 62, 0.04);
   --overlay-b: rgba(176, 140, 217, 0.025);
   --btn-ink: #1a1611;
 }
-
-/* ─── Theme: Classic (GitHub-dark-like, cool blue accent) ─── */
 [data-theme="classic"] {
-  --bg: #0d1117;
-  --bg2: #161b22;
-  --bg3: #21262d;
-  --border: #30363d;
-  --border-strong: #454d56;
-  --text: #c9d1d9;
-  --text-muted: #8b949e;
-  --text-dim: #6e7681;
-  --added-bg: #1f3d2a;
-  --added-fg: #3fb950;
-  --deleted-bg: #3d1f1f;
-  --deleted-fg: #f85149;
-  --selected-bg: #1a3a5c;
-  --accent: #58a6ff;
-  --accent-hover: #79b8ff;
-  --accent-soft: rgba(88, 166, 255, 0.14);
-  --comment-open: #e3a44a;
-  --comment-resolved: #6e7681;
-  --comment-outdated: #8b5cf6;
-  --danger: #f85149;
-  --overlay-a: rgba(88, 166, 255, 0.03);
-  --overlay-b: rgba(139, 92, 246, 0.02);
-  --btn-ink: #ffffff;
+  --bg: #0d1117; --bg2: #161b22; --bg3: #21262d; --border: #30363d; --border-strong: #454d56;
+  --text: #c9d1d9; --text-muted: #8b949e; --text-dim: #6e7681;
+  --added-bg: #1f3d2a; --added-fg: #3fb950; --deleted-bg: #3d1f1f; --deleted-fg: #f85149;
+  --selected-bg: #1a3a5c; --accent: #58a6ff; --accent-hover: #79b8ff; --accent-soft: rgba(88,166,255,0.14);
+  --comment-open: #e3a44a; --comment-resolved: #6e7681; --danger: #f85149;
+  --overlay-a: rgba(88,166,255,0.03); --overlay-b: rgba(139,92,246,0.02); --btn-ink: #fff;
 }
-
-/* ─── Theme: Solarized Dark ─── */
 [data-theme="solarized"] {
-  --bg: #002b36;
-  --bg2: #073642;
-  --bg3: #0e4857;
-  --border: #15586a;
-  --border-strong: #2a6e7f;
-  --text: #eee8d5;
-  --text-muted: #93a1a1;
-  --text-dim: #657b83;
-  --added-bg: #0f3a20;
-  --added-fg: #859900;
-  --deleted-bg: #3a1f1f;
-  --deleted-fg: #dc322f;
-  --selected-bg: #1a4d57;
-  --accent: #b58900;
-  --accent-hover: #d4a117;
-  --accent-soft: rgba(181, 137, 0, 0.16);
-  --comment-open: #b58900;
-  --comment-resolved: #657b83;
-  --comment-outdated: #d33682;
-  --danger: #dc322f;
-  --overlay-a: rgba(181, 137, 0, 0.05);
-  --overlay-b: rgba(42, 161, 152, 0.03);
-  --btn-ink: #002b36;
+  --bg: #002b36; --bg2: #073642; --bg3: #0e4857; --border: #15586a; --border-strong: #2a6e7f;
+  --text: #eee8d5; --text-muted: #93a1a1; --text-dim: #657b83;
+  --added-bg: #0f3a20; --added-fg: #859900; --deleted-bg: #3a1f1f; --deleted-fg: #dc322f;
+  --selected-bg: #1a4d57; --accent: #b58900; --accent-hover: #d4a117; --accent-soft: rgba(181,137,0,0.16);
+  --comment-open: #b58900; --comment-resolved: #657b83; --danger: #dc322f;
+  --overlay-a: rgba(181,137,0,0.05); --overlay-b: rgba(42,161,152,0.03); --btn-ink: #002b36;
 }
-
-/* ─── Theme: Paper (light) ─── */
 [data-theme="paper"] {
-  --bg: #f7f2e7;
-  --bg2: #efe9dc;
-  --bg3: #e6ddc8;
-  --border: #d6cbaf;
-  --border-strong: #b8ac8c;
-  --text: #2d2820;
-  --text-muted: #6b6455;
-  --text-dim: #958e7c;
-  --added-bg: #dce6ce;
-  --added-fg: #4f7c3d;
-  --deleted-bg: #eed4cb;
-  --deleted-fg: #b04a3a;
-  --selected-bg: #eadba1;
-  --accent: #b17d1f;
-  --accent-hover: #c68f28;
-  --accent-soft: rgba(177, 125, 31, 0.14);
-  --comment-open: #b17d1f;
-  --comment-resolved: #958e7c;
-  --comment-outdated: #7a5dbf;
-  --danger: #b04a3a;
-  --overlay-a: rgba(177, 125, 31, 0.05);
-  --overlay-b: rgba(120, 90, 180, 0.04);
-  --btn-ink: #f7f2e7;
+  --bg: #f7f2e7; --bg2: #efe9dc; --bg3: #e6ddc8; --border: #d6cbaf; --border-strong: #b8ac8c;
+  --text: #2d2820; --text-muted: #6b6455; --text-dim: #958e7c;
+  --added-bg: #dce6ce; --added-fg: #4f7c3d; --deleted-bg: #eed4cb; --deleted-fg: #b04a3a;
+  --selected-bg: #eadba1; --accent: #b17d1f; --accent-hover: #c68f28; --accent-soft: rgba(177,125,31,0.14);
+  --comment-open: #b17d1f; --comment-resolved: #958e7c; --danger: #b04a3a;
+  --overlay-a: rgba(177,125,31,0.05); --overlay-b: rgba(120,90,180,0.04); --btn-ink: #f7f2e7;
 }
 
 body {
   background: var(--bg); color: var(--text); font-family: var(--font-ui);
   height: 100vh; display: flex; flex-direction: column; overflow: hidden;
-  font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
 }
 body::before {
@@ -144,287 +85,202 @@ body::before {
 }
 body > * { position: relative; z-index: 1; }
 
-/* ─── Sidebar Overlay (mobile) ─── */
-#sidebar-overlay {
-  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 55;
-}
-#sidebar-overlay.open { display: block; }
-
-/* ─── Header ─── */
 #header {
   display: flex; align-items: center; gap: 10px; padding: 11px 18px;
   background: linear-gradient(180deg, var(--bg2), var(--bg));
-  border-bottom: 1px solid var(--border); flex-shrink: 0; min-width: 0;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
 }
-#btn-sidebar-toggle {
-  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
-  padding: 5px 7px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; flex-shrink: 0;
-  transition: all 0.15s var(--ease);
+#app-title {
+  font-family: var(--font-display); font-size: 16px; font-weight: 600;
+  font-style: italic; color: var(--text); letter-spacing: -0.01em; flex-shrink: 0;
 }
-#btn-sidebar-toggle:hover { background: var(--bg3); color: var(--text); border-color: var(--border-strong); }
+#app-title-mark {
+  color: var(--accent); font-family: var(--font-display); font-style: italic;
+  margin-right: 4px;
+}
 #project-select {
   background: transparent; border: 1px solid transparent; color: var(--text);
-  padding: 4px 8px; border-radius: 6px;
-  font-family: var(--font-ui); font-size: 13px; font-weight: 600;
-  letter-spacing: -0.005em;
-  max-width: 360px; outline: none; cursor: pointer; min-width: 0;
+  padding: 4px 8px; border-radius: 6px; font-size: 13px; font-weight: 500;
+  max-width: 360px; cursor: pointer; outline: none;
   transition: all 0.15s var(--ease);
 }
-#project-select:focus { border-color: var(--accent); }
 #project-select:hover { background: var(--bg3); }
-#project-select option { font-family: var(--font-ui); font-size: 13px; background: var(--bg2); }
-#changed-count {
-  color: var(--text-muted); font-size: 12px; white-space: nowrap; flex-shrink: 0;
-  font-family: var(--font-ui); letter-spacing: 0.01em;
-}
-#base-branch {
-  color: var(--text-muted); font-size: 11px; white-space: nowrap; flex-shrink: 0;
+#project-select:focus { border-color: var(--accent); }
+#project-select option { background: var(--bg2); color: var(--text); }
+#session-pill {
+  color: var(--text-muted); font-size: 11px; white-space: nowrap;
   padding: 3px 9px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
   font-family: var(--font-mono); letter-spacing: 0.02em;
 }
-#base-branch::before { content: "↳ "; color: var(--accent); font-family: var(--font-ui); }
 .spacer { flex: 1; min-width: 4px; }
 #btn-export {
   background: var(--accent); border: none; color: var(--btn-ink);
   padding: 6px 14px; border-radius: 6px; cursor: pointer;
-  font-family: var(--font-ui); font-size: 12px; font-weight: 600;
-  letter-spacing: 0.02em; white-space: nowrap; flex-shrink: 0;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
   transition: all 0.15s var(--ease);
   box-shadow: 0 1px 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15);
 }
-#btn-export:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 3px 8px var(--accent-soft), inset 0 1px 0 rgba(255,255,255,0.15); }
-#btn-export:active { transform: translateY(0); }
+#btn-export:hover { background: var(--accent-hover); }
+#btn-export:disabled { opacity: 0.4; cursor: not-allowed; }
 #theme-select {
   background: var(--bg2); border: 1px solid var(--border); color: var(--text-muted);
-  padding: 4px 24px 4px 10px; border-radius: 6px;
-  font-family: var(--font-ui); font-size: 12px; letter-spacing: 0.01em;
-  outline: none; cursor: pointer; flex-shrink: 0;
-  transition: all 0.15s var(--ease);
-  appearance: none; -webkit-appearance: none;
+  padding: 4px 24px 4px 10px; border-radius: 6px; font-size: 12px;
+  outline: none; cursor: pointer; appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23a8a294' d='M2 4l3 3 3-3z'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 7px center;
+  transition: all 0.15s var(--ease);
 }
 #theme-select:hover { color: var(--text); border-color: var(--border-strong); }
-#theme-select:focus { border-color: var(--accent); }
-#theme-select option { background: var(--bg2); color: var(--text); }
 
-/* ─── Main Layout ─── */
 #main { display: flex; flex: 1; overflow: hidden; }
 
-/* ─── Files Sidebar ─── */
 #sidebar {
   width: var(--sidebar-width); flex-shrink: 0;
   background: linear-gradient(180deg, var(--bg2), var(--bg));
   border-right: 1px solid var(--border);
-  display: flex; flex-direction: column;
-  transition: width 0.2s var(--ease); overflow: hidden;
+  display: flex; flex-direction: column; overflow: hidden;
 }
-#sidebar.collapsed { width: 0; }
-
-/* ─── Sidebar Resizer ─── */
-#sidebar-resizer {
-  width: 3px; flex-shrink: 0; cursor: col-resize;
-  background: transparent; transition: background 0.15s var(--ease); position: relative;
-}
-#sidebar-resizer:hover, #sidebar-resizer.dragging { background: var(--accent); }
-#sidebar-inner { display: flex; flex-direction: column; width: var(--sidebar-width); height: 100%; overflow: hidden; }
-
-.sidebar-header { padding: 14px 16px 8px; flex-shrink: 0; }
+.sidebar-header { padding: 14px 16px 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .sidebar-title {
-  font-family: var(--font-ui); font-weight: 600; text-transform: uppercase;
+  font-weight: 600; text-transform: uppercase;
   font-size: 11px; color: var(--text-muted); letter-spacing: 0.08em;
 }
-
+.sidebar-count { color: var(--text-dim); font-size: 11px; font-family: var(--font-mono); }
 .sidebar-search { padding: 4px 12px 8px; flex-shrink: 0; }
 .sidebar-search input {
   width: 100%; background: var(--bg); border: 1px solid var(--border);
   color: var(--text); border-radius: 4px; padding: 6px 10px; font-size: 12px;
-  outline: none; font-family: var(--font-ui);
-  transition: border-color 0.15s var(--ease);
+  outline: none; transition: border-color 0.15s var(--ease);
 }
-.sidebar-search input:focus { border-color: var(--accent); background: var(--bg2); }
+.sidebar-search input:focus { border-color: var(--accent); }
 .sidebar-search input::placeholder { color: var(--text-dim); font-style: italic; }
 
-#file-list { overflow-y: auto; flex: 1; padding: 2px 0 8px; }
-
-.file-item {
-  padding: 7px 14px 7px 12px; cursor: pointer; border-left: 2px solid transparent;
-  display: flex; flex-direction: column; gap: 4px;
+#timeline { overflow-y: auto; flex: 1; padding: 2px 0 8px; }
+.timeline-empty {
+  padding: 30px 20px; color: var(--text-dim); font-style: italic;
+  font-family: var(--font-display); font-size: 13px; text-align: center; line-height: 1.5;
+}
+.timeline-item {
+  padding: 9px 14px 9px 12px; cursor: pointer;
+  border-left: 2px solid transparent;
+  display: flex; flex-direction: column; gap: 3px;
   transition: background 0.12s var(--ease), border-left-color 0.12s var(--ease);
 }
-.file-item:hover { background: var(--bg3); }
-.file-item.active {
-  background: var(--accent-soft);
-  border-left-color: var(--accent);
+.timeline-item:hover { background: var(--bg3); }
+.timeline-item.active { background: var(--accent-soft); border-left-color: var(--accent); }
+.timeline-item-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tool-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  background: var(--bg3); color: var(--text-muted);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 500; letter-spacing: 0.03em;
+  flex-shrink: 0;
 }
-.file-item.active .file-item-name { color: var(--text); }
-.file-item-name {
-  font-size: 12.5px; font-family: var(--font-mono); font-weight: 400;
-  color: var(--text-muted);
+.tool-badge.Write { color: var(--accent); background: var(--accent-soft); }
+.tool-badge.Edit { color: var(--added-fg); background: rgba(139, 179, 111, 0.12); }
+.tool-badge.MultiEdit { color: var(--added-fg); background: rgba(139, 179, 111, 0.12); }
+.tool-badge.NotebookEdit { color: var(--comment-open); background: rgba(233, 165, 62, 0.1); }
+.timeline-file {
+  font-family: var(--font-mono); font-size: 12px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--text); flex: 1; min-width: 0;
 }
-.file-item-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; }
-.stat-added { color: var(--added-fg); font-family: var(--font-mono); }
-.stat-deleted { color: var(--deleted-fg); font-family: var(--font-mono); }
-.badge-open {
-  color: var(--accent); font-family: var(--font-mono); font-weight: 500;
-  padding: 0 5px; border-radius: 8px; background: var(--accent-soft);
+.timeline-item-meta {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 10.5px; color: var(--text-dim);
+}
+.timeline-time { font-family: var(--font-mono); }
+.timeline-badges { display: flex; gap: 4px; }
+.status-badge {
+  padding: 0 5px; border-radius: 8px;
+  font-size: 9.5px; font-family: var(--font-ui); letter-spacing: 0.05em;
+  text-transform: uppercase; font-weight: 600;
+}
+.status-badge.pending { background: var(--bg3); color: var(--text-dim); border: 1px dashed var(--border-strong); padding: 0 4px; }
+.status-badge.complete { background: rgba(139, 179, 111, 0.12); color: var(--added-fg); }
+.status-badge.orphan { background: var(--deleted-bg); color: var(--deleted-fg); }
+.comment-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--comment-open); flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.15);
+}
+.comment-count {
+  color: var(--comment-open); font-family: var(--font-mono); font-size: 10.5px;
 }
 
-/* GitHub-style 5-block stat visualization */
-.stat-blocks { display: flex; gap: 2px; align-items: center; }
-.stat-block { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-.stat-block.added { background: var(--added-fg); }
-.stat-block.deleted { background: var(--deleted-fg); }
-
-/* ─── Diff Viewer ─── */
-#diff-area { flex: 1; overflow-y: auto; overflow-x: auto; background: var(--bg); min-width: 0; }
-#diff-placeholder {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  height: 100%; color: var(--text-muted); padding: 40px;
-  font-family: var(--font-ui); font-weight: 400;
-  font-size: 14px; letter-spacing: 0.01em; text-align: center; line-height: 1.5;
+#content {
+  flex: 1; overflow: auto; background: var(--bg);
+  display: flex; flex-direction: column;
+}
+.empty-state {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 60px 20px; color: var(--text-dim);
+  font-family: var(--font-display); font-style: italic; font-size: 15px;
+  text-align: center; line-height: 1.6;
 }
 
-.diff-file-header {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 10px 18px; background: var(--bg2); border-bottom: 1px solid var(--border);
-  position: sticky; top: 0; z-index: 10; min-width: 0;
-  backdrop-filter: blur(6px);
+#call-header {
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  background: var(--bg2); display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 5;
 }
-.diff-file-path {
-  font-family: var(--font-mono); font-size: 13px; font-weight: 500;
-  color: var(--text);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+.call-header-file {
+  font-family: var(--font-mono); font-size: 13px; color: var(--text);
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.diff-file-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.btn-file-action {
-  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
-  padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 11px;
-  font-family: var(--font-ui); letter-spacing: 0.02em;
-  transition: all 0.12s var(--ease);
+.call-header-meta {
+  color: var(--text-dim); font-size: 11px; font-family: var(--font-mono);
 }
-.btn-file-action:hover { background: var(--bg3); color: var(--text); border-color: var(--border-strong); }
-.btn-file-action.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
-.diff-hunk-header {
-  background: var(--bg2); color: var(--text-muted);
-  font-family: var(--font-mono); font-size: 11.5px; padding: 4px 12px;
+.diff-table {
+  width: 100%; border-collapse: collapse;
+  font-family: var(--font-mono); font-size: 13px; line-height: 1.55;
+}
+.diff-table td { padding: 0; vertical-align: top; }
+.diff-row { transition: background 0.1s var(--ease); }
+.diff-row:hover { background: var(--accent-soft); }
+.diff-row.selectable:hover { cursor: crosshair; }
+.diff-row.selected { background: var(--selected-bg) !important; }
+.td-line-num {
+  width: 50px; padding: 0 8px; text-align: right;
+  color: var(--text-dim); user-select: none;
+  font-size: 11.5px; border-right: 1px solid var(--border);
+}
+.td-sign {
+  width: 22px; padding: 0 6px; text-align: center;
+  user-select: none; font-weight: 500;
+}
+.td-code {
+  padding: 0 12px; white-space: pre-wrap; word-break: break-word;
+  font-family: var(--font-mono);
+}
+.diff-row.added { background: var(--added-bg); }
+.diff-row.added .td-sign { color: var(--added-fg); }
+.diff-row.deleted { background: var(--deleted-bg); }
+.diff-row.deleted .td-sign { color: var(--deleted-fg); }
+.diff-row.context .td-sign { color: var(--text-dim); }
+.diff-row.hunk-sep {
+  background: var(--bg2); color: var(--text-dim);
+  font-size: 11px; text-align: center; padding: 4px 0;
   border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
-  user-select: none;
 }
+.diff-row.hunk-sep td { padding: 4px 12px; }
 
-.diff-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 13px; line-height: 1.55; }
-.diff-table td { padding: 1px 4px; vertical-align: top; white-space: pre; }
-.diff-table .td-old-ln, .diff-table .td-new-ln {
-  width: 48px; min-width: 48px; text-align: right; color: var(--text-dim);
-  user-select: none; padding-right: 10px; padding-left: 4px;
-  font-variant-numeric: tabular-nums; font-size: 11.5px;
-}
-.diff-table .td-sign { width: 14px; text-align: center; user-select: none; font-weight: 500; }
-.diff-table .td-code { width: 100%; }
-
-/* Wrap mode */
-#diff-area.wrap-mode .diff-table td { white-space: pre-wrap; word-break: break-all; }
-
-.diff-line { cursor: pointer; transition: background 0.1s var(--ease); }
-.diff-line:hover .td-code { background: rgba(255,255,255,0.025); }
-.diff-line.selected .td-code, .diff-line.selected .td-old-ln, .diff-line.selected .td-new-ln, .diff-line.selected .td-sign { background: var(--selected-bg) !important; }
-.diff-line.type-added td { background: var(--added-bg); }
-.diff-line.type-added .td-sign { color: var(--added-fg); }
-.diff-line.type-deleted td { background: var(--deleted-bg); }
-.diff-line.type-deleted .td-sign { color: var(--deleted-fg); }
-
-/* hljs tokens inside diff cells — keep diff-row backgrounds, only inherit token colors */
-.td-code .hljs, .anchor-snippet .hljs { background: transparent; padding: 0; }
-
-/* ─── Add comment button ─── */
-.add-comment-btn-row td { padding: 0; }
-.add-comment-btn-wrap { padding: 2px 0 2px 64px; }
-.add-comment-btn {
-  font-family: var(--font-ui); font-size: 11px; letter-spacing: 0.02em;
-  padding: 3px 10px; background: var(--bg2);
-  border: 1px solid var(--border); color: var(--accent); border-radius: 4px; cursor: pointer;
-  transition: all 0.12s var(--ease);
-}
-.add-comment-btn:hover { background: var(--accent-soft); border-color: var(--accent); }
-
-/* ─── Inline comment form ─── */
-.comment-form-row td { padding: 0; }
-.comment-form-wrap {
-  margin: 6px 10px 6px 64px; background: var(--bg2); border: 1px solid var(--border);
-  border-radius: 6px; padding: 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-}
-.comment-form-wrap textarea {
-  width: 100%; background: var(--bg); border: 1px solid var(--border);
-  color: var(--text); border-radius: 4px; padding: 8px 10px;
-  font-family: var(--font-ui); font-size: 13px; line-height: 1.55;
-  resize: vertical; min-height: 78px; outline: none;
-  transition: border-color 0.12s var(--ease);
-}
-.comment-form-wrap textarea:focus { border-color: var(--accent); }
-.comment-form-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
-.btn-primary {
-  background: var(--accent); border: none; color: var(--btn-ink);
-  padding: 5px 14px; border-radius: 4px; cursor: pointer;
-  font-family: var(--font-ui); font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
-  transition: all 0.12s var(--ease);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);
-}
-.btn-primary:hover { background: var(--accent-hover); }
-.btn-cancel {
-  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
-  padding: 5px 14px; border-radius: 4px; cursor: pointer;
-  font-family: var(--font-ui); font-size: 12px; letter-spacing: 0.02em;
-  transition: all 0.12s var(--ease);
-}
-.btn-cancel:hover { background: var(--bg3); color: var(--text); }
-.comment-form-hint {
-  font-size: 11px; color: var(--text-dim); margin-top: 6px;
-  font-family: var(--font-display); font-style: italic;
-}
-
-/* ─── Comment threads ─── */
+/* Comment threads */
 .comment-thread-row td { padding: 0; }
 .comment-thread {
-  margin: 4px 10px 6px 64px; border-radius: 6px; overflow: hidden;
+  margin: 4px 10px 6px 60px; border-radius: 6px; overflow: hidden;
   border: 1px solid var(--border); border-left: 3px solid var(--border);
   background: var(--bg);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-  animation: thread-appear 0.25s var(--ease);
-}
-@keyframes thread-appear {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 .comment-thread.status-open { border-left-color: var(--accent); }
-.comment-thread.status-resolved { border-left-color: var(--comment-resolved); opacity: 0.55; }
-.comment-thread.outdated { border-left-color: var(--comment-outdated); }
-.comment-thread.outdated .comment-status-dot { background: var(--comment-outdated); }
-.comment-outdated-badge {
-  font-size: 10px; padding: 1px 7px; border-radius: 10px;
-  background: rgba(176, 140, 217, 0.16); color: var(--comment-outdated);
-  font-family: var(--font-ui); font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
-}
-.anchor-snippet {
-  margin: 6px 10px; padding: 8px 10px; background: var(--bg2);
-  border-left: 2px solid var(--comment-outdated);
-  font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);
-  white-space: pre-wrap; border-radius: 2px; line-height: 1.55;
-}
-.anchor-snippet-label {
-  font-family: var(--font-display); font-style: italic; font-weight: 400;
-  font-size: 11px; color: var(--text-dim);
-  letter-spacing: 0.01em; margin-bottom: 3px;
-}
+.comment-thread.status-resolved { border-left-color: var(--comment-resolved); opacity: 0.6; }
+.comment-thread.collapsed .comment-collapsible { display: none; }
 .comment-thread-header {
   display: flex; align-items: center; gap: 8px; padding: 7px 12px;
   background: var(--bg2); border-bottom: 1px solid var(--border);
   font-size: 11.5px; color: var(--text-muted);
-  font-family: var(--font-ui); letter-spacing: 0.01em;
-  cursor: pointer; user-select: none;
-  transition: background 0.12s var(--ease);
+  cursor: pointer; user-select: none; transition: background 0.12s var(--ease);
 }
 .comment-thread-header:hover { background: var(--bg3); }
 .comment-thread.collapsed .comment-thread-header { border-bottom: none; }
@@ -432,954 +288,602 @@ body > * { position: relative; z-index: 1; }
   display: inline-flex; align-items: center; justify-content: center;
   width: 14px; height: 14px; color: var(--text-dim);
   font-family: var(--font-mono); font-size: 10px;
-  transition: transform 0.15s var(--ease), color 0.12s var(--ease);
+  transition: transform 0.15s var(--ease);
   flex-shrink: 0;
 }
 .comment-thread.collapsed .comment-collapse-caret { transform: rotate(-90deg); }
-.comment-thread-header:hover .comment-collapse-caret { color: var(--text); }
-.comment-status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(0,0,0,0.15); }
+.comment-status-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.15);
+}
 .status-open .comment-status-dot { background: var(--comment-open); }
 .status-resolved .comment-status-dot { background: var(--comment-resolved); }
 .comment-line-ref {
   font-family: var(--font-mono); font-weight: 500; color: var(--text);
   font-size: 11.5px;
 }
+.comment-side-ref {
+  color: var(--text-dim); font-size: 11px; font-family: var(--font-mono);
+}
 .comment-thread-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 .comment-action-btn {
   background: transparent; border: 1px solid var(--border); color: var(--text-muted);
-  padding: 2px 9px; border-radius: 3px; cursor: pointer;
-  font-family: var(--font-ui); font-size: 11px; letter-spacing: 0.02em;
+  padding: 2px 9px; border-radius: 3px; cursor: pointer; font-size: 11px;
   transition: all 0.12s var(--ease);
 }
 .comment-action-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--border-strong); }
-.btn-resolve { border-color: var(--accent); color: var(--accent); }
-.btn-resolve:hover { background: var(--accent); color: var(--btn-ink); }
-.btn-reopen { border-color: var(--accent); color: var(--accent); }
-.btn-reopen:hover { background: var(--accent); color: var(--btn-ink); }
-.btn-danger:hover { border-color: var(--danger); color: var(--danger); background: transparent; }
-.comment-collapsible.collapsed { display: none; }
+.btn-resolve, .btn-reopen { border-color: var(--accent); color: var(--accent); }
+.btn-resolve:hover, .btn-reopen:hover { background: var(--accent); color: var(--btn-ink); }
+
 .comment-primary {
   padding: 10px 14px; background: var(--bg);
   font-size: 13px; line-height: 1.6; border-bottom: 1px solid var(--border);
 }
-.comment-primary:last-child { border-bottom: none; }
-.comment-body-text { font-size: 13px; line-height: 1.6; color: var(--text); }
+.comment-body-text { font-size: 13px; line-height: 1.6; color: var(--text); white-space: pre-wrap; }
+.comment-reply-meta {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--text-muted); margin-bottom: 5px;
+}
+.reply-author { font-weight: 600; }
+.reply-author-human { color: var(--accent); }
+.reply-author-claude { color: var(--comment-open); }
+.reply-sep { color: var(--text-dim); }
+.reply-timestamp { color: var(--text-dim); font-family: var(--font-mono); font-size: 10.5px; }
+.comment-replies { background: var(--bg2); }
+.comment-reply {
+  padding: 9px 14px; border-bottom: 1px solid var(--border);
+  font-size: 13px; line-height: 1.6;
+}
+.comment-reply:last-child { border-bottom: none; }
+.comment-reply-form {
+  padding: 9px 12px; background: var(--bg2); border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.comment-reply-form textarea {
+  width: 100%; min-height: 44px; resize: vertical;
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  border-radius: 4px; padding: 6px 10px; font-family: var(--font-ui); font-size: 12.5px;
+  outline: none; transition: border-color 0.15s var(--ease);
+}
+.comment-reply-form textarea:focus { border-color: var(--accent); }
+.comment-reply-form-actions { display: flex; justify-content: flex-end; gap: 6px; }
 
-/* ─── Kebab menu ─── */
-.kebab-wrap { position: relative; }
-.kebab-btn {
-  background: transparent; border: 1px solid transparent; color: var(--text-muted);
-  width: 24px; height: 24px; border-radius: 4px; cursor: pointer; font-size: 15px;
-  display: flex; align-items: center; justify-content: center; padding: 0;
+.btn-primary {
+  background: var(--accent); color: var(--btn-ink); border: none;
+  padding: 4px 12px; border-radius: 4px; cursor: pointer;
+  font-size: 12px; font-weight: 600;
+  transition: background 0.12s var(--ease);
+}
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-cancel {
+  background: transparent; color: var(--text-muted); border: 1px solid var(--border);
+  padding: 3px 11px; border-radius: 4px; cursor: pointer; font-size: 12px;
   transition: all 0.12s var(--ease);
 }
-.kebab-btn:hover { background: var(--bg3); color: var(--text); }
-.kebab-btn.open { background: var(--bg3); color: var(--text); border-color: var(--border); }
-.kebab-menu {
-  position: absolute; top: calc(100% + 4px); right: 0; min-width: 150px;
-  background: var(--bg2); border: 1px solid var(--border-strong); border-radius: 6px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
-  z-index: 20; padding: 4px;
-  opacity: 0; visibility: hidden; transform: translateY(-4px) scale(0.98);
-  transform-origin: top right;
-  transition: opacity 0.12s var(--ease), transform 0.12s var(--ease), visibility 0.12s;
+.btn-cancel:hover { background: var(--bg3); color: var(--text); border-color: var(--border-strong); }
+
+/* New-comment form row */
+#comment-form-row td { padding: 0; }
+.comment-form {
+  margin: 4px 10px 6px 60px; border: 1px solid var(--accent); border-radius: 6px;
+  background: var(--bg2); overflow: hidden;
 }
-.kebab-menu.open { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+.comment-form-header {
+  padding: 7px 12px; background: var(--bg2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-muted);
+}
+.comment-form-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.comment-form-body textarea {
+  width: 100%; min-height: 60px; resize: vertical;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  border-radius: 4px; padding: 6px 10px; font-family: var(--font-ui); font-size: 13px;
+  outline: none;
+}
+.comment-form-body textarea:focus { border-color: var(--accent); }
+.comment-form-actions { display: flex; justify-content: flex-end; gap: 6px; }
+
+/* Kebab menu */
+.kebab-wrap { position: relative; display: inline-block; margin-left: auto; }
+.kebab-btn {
+  background: transparent; border: none; color: var(--text-dim); cursor: pointer;
+  padding: 2px 4px; border-radius: 3px; display: flex; align-items: center;
+  transition: all 0.12s var(--ease);
+}
+.kebab-btn:hover { color: var(--text); background: var(--bg3); }
+.kebab-menu {
+  position: absolute; right: 0; top: 100%; margin-top: 4px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 5px;
+  min-width: 130px; z-index: 20; display: none;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+.kebab-menu.open { display: block; }
 .kebab-item {
-  display: block; width: 100%; text-align: left; padding: 6px 12px; border: none;
-  background: transparent; color: var(--text);
-  font-family: var(--font-ui); font-size: 12px; letter-spacing: 0.01em;
-  cursor: pointer; border-radius: 3px;
-  transition: background 0.1s var(--ease);
+  display: block; width: 100%; text-align: left; background: transparent; border: none;
+  color: var(--text); padding: 6px 12px; cursor: pointer; font-size: 12px;
+  font-family: var(--font-ui);
 }
 .kebab-item:hover { background: var(--bg3); }
 .kebab-item.danger { color: var(--danger); }
-.kebab-item.danger:hover { background: var(--danger); color: #fff; }
-.kebab-separator { height: 1px; background: var(--border); margin: 4px 2px; }
+.kebab-separator { height: 1px; background: var(--border); margin: 2px 0; }
 
-/* ─── Comment Replies ─── */
-.comment-replies { border-top: 1px solid var(--border); }
-.comment-reply {
-  padding: 10px 14px; border-bottom: 1px solid var(--border);
-  font-size: 13px; line-height: 1.6; background: var(--bg);
-}
-.comment-reply:last-child { border-bottom: none; }
-.comment-reply-meta {
-  display: flex; align-items: center; gap: 7px; margin-bottom: 5px;
-  font-size: 11.5px; font-family: var(--font-ui);
-}
-.reply-author {
-  font-family: var(--font-display); font-weight: 500;
-  letter-spacing: 0; font-size: 13px;
-}
-.reply-author-claude { color: var(--accent); }
-.reply-author-human { color: var(--text); }
-.reply-sep { color: var(--text-dim); font-family: var(--font-ui); }
-.reply-timestamp {
-  color: var(--text-dim); font-family: var(--font-display); font-style: italic;
-  font-size: 12px;
-}
-.reply-actions { margin-left: auto; }
-.comment-reply-form { border-top: 1px solid var(--border); padding: 10px 12px; background: var(--bg2); }
-.comment-reply-form textarea {
-  width: 100%; background: var(--bg); border: 1px solid var(--border);
-  color: var(--text); border-radius: 4px; padding: 7px 10px;
-  font-family: var(--font-ui); font-size: 12.5px; line-height: 1.55;
-  resize: vertical; min-height: 58px; outline: none;
-  transition: border-color 0.12s var(--ease);
-}
-.comment-reply-form textarea:focus { border-color: var(--accent); }
-.comment-reply-form-actions { display: flex; justify-content: flex-end; margin-top: 6px; }
-
-/* ─── Export Modal ─── */
+/* Modal */
 .modal-overlay {
-  display: none; position: fixed; inset: 0; background: rgba(10,9,7,0.7);
-  backdrop-filter: blur(4px);
-  z-index: 100; align-items: center; justify-content: center; padding: 16px;
+  display: none; position: fixed; inset: 0; z-index: 60;
+  background: rgba(0,0,0,0.5); align-items: center; justify-content: center;
 }
-.modal-overlay.open { display: flex; animation: overlay-in 0.18s var(--ease); }
-@keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
+.modal-overlay.open { display: flex; }
 .modal {
-  background: var(--bg2); border: 1px solid var(--border-strong); border-radius: 8px;
-  padding: 24px; max-width: 720px; width: 100%;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(233,165,62,0.04);
-  animation: modal-in 0.2s var(--ease);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 20px; max-width: 620px; width: 92%; max-height: 80vh; overflow: auto;
 }
-@keyframes modal-in {
-  from { opacity: 0; transform: translateY(8px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+.modal-title {
+  font-family: var(--font-display); font-style: italic; font-size: 18px;
+  color: var(--text); margin-bottom: 12px;
 }
-.modal h3 {
-  margin-bottom: 14px;
-  font-family: var(--font-display); font-weight: 500; font-size: 22px;
-  letter-spacing: -0.01em; color: var(--text);
+.modal-textarea {
+  width: 100%; min-height: 220px; resize: vertical;
+  background: var(--bg2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 4px; padding: 10px; font-family: var(--font-mono); font-size: 12px;
+  outline: none;
 }
-.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.export-controls { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
-.export-controls select {
-  background: var(--bg); border: 1px solid var(--border); color: var(--text);
-  padding: 5px 10px; border-radius: 4px; font-size: 12.5px;
-  font-family: var(--font-ui);
-}
-.export-controls #btn-regen {
-  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
-  padding: 5px 12px; border-radius: 4px; cursor: pointer;
-  font-family: var(--font-ui); font-size: 12.5px; letter-spacing: 0.02em;
-  transition: all 0.12s var(--ease);
-}
-.export-controls #btn-regen:hover { background: var(--border); border-color: var(--border-strong); }
-#export-output {
-  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
-  padding: 14px; font-family: var(--font-mono); font-size: 12px; line-height: 1.7;
-  white-space: pre-wrap; max-height: 360px; overflow-y: auto; cursor: pointer;
-  color: var(--text); user-select: all;
-  transition: border-color 0.12s var(--ease);
-}
-#export-output:hover { border-color: var(--accent); }
-.export-hint {
-  font-family: var(--font-display); font-style: italic;
-  font-size: 12px; color: var(--text-dim); margin-top: 6px;
-}
-#btn-copy {
-  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
-  padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 12.5px;
-  font-family: var(--font-ui); letter-spacing: 0.02em;
-  transition: all 0.12s var(--ease);
-}
-#btn-copy:hover { background: var(--border); border-color: var(--border-strong); }
-#btn-copy.copied { background: var(--added-bg); border-color: var(--added-fg); color: var(--added-fg); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 
-/* scrollbar */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
-::-webkit-scrollbar-thumb:hover { background: var(--border-strong); background-clip: padding-box; border: 2px solid transparent; }
-
-/* ─── Responsive: Tablet ─── */
-@media (min-width: 768px) and (max-width: 1011px) {
-  :root { --sidebar-width: 220px; }
+#toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--bg2); color: var(--text); padding: 10px 18px;
+  border-radius: 6px; border: 1px solid var(--border);
+  font-size: 13px; z-index: 100; opacity: 0;
+  transition: opacity 0.2s var(--ease);
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
 }
-
-/* ─── Responsive: Mobile ─── */
-@media (max-width: 767px) {
-  #header { padding: 8px 10px; gap: 6px; }
-  #project-select { font-size: 12px; max-width: 160px; padding: 3px 6px; }
-  #changed-count { display: none; }
-  #btn-export { padding: 5px 8px; font-size: 12px; }
-  #sidebar-resizer { display: none; }
-  #sidebar {
-    position: fixed; top: 0; left: 0; height: 100vh; z-index: 60;
-    width: 280px !important; border-right: 1px solid var(--border) !important;
-    overflow: hidden !important;
-    transform: translateX(-100%);
-    transition: transform 0.25s ease;
-  }
-  #sidebar.mobile-open { transform: translateX(0); }
-  #sidebar-inner { width: 280px; }
-  #diff-area { overflow-x: auto; }
-  .diff-table { font-size: 12px; }
-  .diff-table .td-old-ln, .diff-table .td-new-ln { width: 36px; min-width: 36px; }
-  .add-comment-btn-wrap { padding-left: 8px; }
-  .comment-form-wrap { margin-left: 8px; }
-  .comment-thread { margin-left: 8px; }
-}
-
-#live-refresh-banner {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  padding: 8px 14px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  border-bottom: 1px solid var(--accent);
-  font-family: var(--font-ui);
-  font-size: 12px;
-  cursor: pointer;
-  text-align: center;
-  user-select: none;
-}
-#live-refresh-banner:hover { background: var(--accent); color: var(--bg2); }
+#toast.visible { opacity: 1; }
 </style>
 </head>
 <body>
 
-<div id="sidebar-overlay"></div>
-
-<!-- Header -->
 <div id="header">
-  <button id="btn-sidebar-toggle" title="Toggle file sidebar" aria-label="Toggle sidebar">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
-      <path d="M2.75 1h10.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 15H2.75A1.75 1.75 0 0 1 1 13.25V2.75C1 1.784 1.784 1 2.75 1ZM2.5 2.5v11h5.75v-11Zm7.25 0v11h3.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25Z"/>
-    </svg>
-  </button>
-  <select id="project-select" title="Switch project"></select>
-  <span id="changed-count"></span>
-  <span id="base-branch" title="Base branch — diff computed from merge-base(HEAD, base)"></span>
+  <div id="app-title"><span id="app-title-mark">❧</span>Code Review Annotator</div>
+  <select id="project-select" aria-label="Project"></select>
+  <span id="session-pill">tool-call view</span>
   <div class="spacer"></div>
-  <select id="theme-select" title="Switch theme" aria-label="Theme">
+  <button id="btn-export" disabled>Export</button>
+  <select id="theme-select" aria-label="Theme">
     <option value="editorial">Editorial</option>
     <option value="classic">Classic</option>
     <option value="solarized">Solarized</option>
     <option value="paper">Paper</option>
   </select>
-  <button id="btn-export">Export ▼</button>
 </div>
 
-<!-- Main -->
 <div id="main">
-  <div id="sidebar">
-    <div id="sidebar-inner">
-      <div class="sidebar-header">
-        <span class="sidebar-title">Files Changed</span>
-      </div>
-      <div class="sidebar-search">
-        <input type="search" id="sidebar-search-input" placeholder="Filter files…" autocomplete="off" spellcheck="false">
-      </div>
-      <div id="file-list"></div>
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Tool calls</span>
+      <span class="sidebar-count" id="tl-count">0</span>
     </div>
-  </div>
-  <div id="sidebar-resizer"></div>
-  <div id="diff-area">
-    <div id="diff-placeholder">Select a file to review.</div>
-    <div id="diff-content" style="display:none"></div>
-  </div>
+    <div class="sidebar-search"><input id="tl-search" type="text" placeholder="filter by file…" /></div>
+    <div id="timeline"><div class="timeline-empty">No tool calls captured yet.<br>Run Claude Code with the plugin installed — each Edit / Write will show up here.</div></div>
+  </aside>
+
+  <section id="content">
+    <div class="empty-state" id="empty-state">
+      Pick a tool call from the timeline to review its before→after diff.
+    </div>
+    <div id="call-header" style="display:none">
+      <span class="tool-badge" id="ch-tool"></span>
+      <span class="call-header-file" id="ch-file"></span>
+      <span class="call-header-meta" id="ch-meta"></span>
+    </div>
+    <table class="diff-table" id="diff-table" style="display:none"><tbody></tbody></table>
+  </section>
 </div>
 
-<!-- Confirm Modal -->
-<div class="modal-overlay" id="confirm-modal">
-  <div class="modal" style="max-width: 420px">
-    <h3 id="confirm-title">Confirm</h3>
-    <div id="confirm-message" style="color: var(--text-muted); font-family: var(--font-display); font-size: 15px; line-height: 1.5; margin-bottom: 18px; letter-spacing: 0;"></div>
-    <div class="modal-actions">
-      <button class="btn-cancel" id="confirm-cancel">Cancel</button>
-      <button id="confirm-ok" style="background: var(--danger); color: var(--btn-ink); border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-family: var(--font-ui); font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em; box-shadow: inset 0 1px 0 rgba(255,255,255,0.15);">Delete</button>
-    </div>
-  </div>
-</div>
-
-<!-- Export Modal -->
+<!-- Export modal -->
 <div class="modal-overlay" id="export-modal">
   <div class="modal">
-    <h3>Export Review Prompt</h3>
-    <div class="export-controls">
-      <select id="export-file-select">
-        <option value="">All files with open comments</option>
-      </select>
-      <select id="export-mode-select">
-        <option value="fix">fix</option>
-        <option value="report">report</option>
-        <option value="both" selected>both</option>
-      </select>
-      <button id="btn-regen">Regenerate</button>
-    </div>
-    <div id="export-output" title="Click to select all"></div>
-    <div class="export-hint">Click the box to select all, then copy.</div>
-    <div class="modal-actions" style="margin-top:12px">
-      <button class="btn-cancel" id="btn-export-close">Close</button>
-      <button id="btn-copy">Copy</button>
+    <div class="modal-title">Export review prompt</div>
+    <textarea class="modal-textarea" id="export-textarea" readonly></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="export-close">Close</button>
+      <button class="btn-primary" id="export-copy">Copy</button>
     </div>
   </div>
 </div>
 
+<div id="toast"></div>
+
 <script>
-// ─────────────────────────────────────────────
-// State
-// ─────────────────────────────────────────────
 const state = {
   project: null,
-  projects: [],
-  files: [],
-  currentFile: null,
-  diff: null,
+  toolCalls: [],
   comments: [],
-  selection: null,
-  selectionAnchor: null,
-  wrapLines: true,
+  selectedCallId: null,
+  selection: null, // { side: 'before'|'after', startLine, endLine }
+  liveStream: null,
 }
 
-// ─────────────────────────────────────────────
-// Theme
-// ─────────────────────────────────────────────
-const THEMES = ['editorial', 'classic', 'solarized', 'paper']
-const HLJS_DARK = 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github-dark.min.css'
-const HLJS_LIGHT = 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github.min.css'
-function applyTheme(name) {
-  if (!THEMES.includes(name)) name = 'editorial'
-  document.documentElement.dataset.theme = name
-  const hljsLink = document.getElementById('hljs-theme')
-  hljsLink.href = name === 'paper' ? HLJS_LIGHT : HLJS_DARK
-  localStorage.setItem('ui-theme', name)
-}
-// Apply saved theme immediately (before render) to avoid flash.
-applyTheme(localStorage.getItem('ui-theme') ?? 'editorial')
+const $ = (sel) => document.querySelector(sel)
 
-// ─────────────────────────────────────────────
-// Syntax highlighting
-// ─────────────────────────────────────────────
-const EXT_LANG = {
-  ts: 'typescript', tsx: 'typescript', mts: 'typescript', cts: 'typescript',
-  js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',
-  py: 'python', pyi: 'python',
-  rb: 'ruby', go: 'go', rs: 'rust',
-  java: 'java', kt: 'kotlin', kts: 'kotlin', swift: 'swift', scala: 'scala',
-  c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp', hxx: 'cpp',
-  cs: 'csharp', php: 'php',
-  sh: 'bash', bash: 'bash', zsh: 'bash', fish: 'bash',
-  html: 'xml', htm: 'xml', xml: 'xml', svg: 'xml', vue: 'xml',
-  css: 'css', scss: 'scss', sass: 'scss', less: 'less',
-  json: 'json', jsonc: 'json',
-  yaml: 'yaml', yml: 'yaml',
-  toml: 'ini', ini: 'ini', conf: 'ini',
-  md: 'markdown', markdown: 'markdown',
-  sql: 'sql', lua: 'lua', r: 'r', dart: 'dart',
-  pl: 'perl', pm: 'perl',
-  dockerfile: 'dockerfile', makefile: 'makefile', mk: 'makefile',
-  graphql: 'graphql', gql: 'graphql',
-  diff: 'diff', patch: 'diff',
-}
-function detectLang(filename) {
-  if (!filename || !window.hljs) return null
-  const base = filename.split('/').pop().toLowerCase()
-  if (base === 'dockerfile' || base.endsWith('.dockerfile')) return 'dockerfile'
-  if (base === 'makefile' || base === 'gnumakefile') return 'makefile'
-  const ext = base.includes('.') ? base.split('.').pop() : base
-  const lang = EXT_LANG[ext]
-  if (lang && hljs.getLanguage(lang)) return lang
-  return null
-}
-function highlightInto(el, text, lang) {
-  if (lang && window.hljs) {
-    try {
-      el.innerHTML = hljs.highlight(text, { language: lang, ignoreIllegals: true }).value
-      return
-    } catch { /* fall through */ }
-  }
-  el.textContent = text
-}
-
-// ─────────────────────────────────────────────
-// Confirm dialog
-// ─────────────────────────────────────────────
-function confirmDialog({ title = 'Confirm', message, confirmText = 'Delete' } = {}) {
-  return new Promise(resolve => {
-    const overlay = document.getElementById('confirm-modal')
-    document.getElementById('confirm-title').textContent = title
-    document.getElementById('confirm-message').textContent = message
-    const okBtn = document.getElementById('confirm-ok')
-    okBtn.textContent = confirmText
-    const cancelBtn = document.getElementById('confirm-cancel')
-
-    function cleanup(result) {
-      overlay.classList.remove('open')
-      okBtn.removeEventListener('click', onOk)
-      cancelBtn.removeEventListener('click', onCancel)
-      overlay.removeEventListener('click', onOverlay)
-      document.removeEventListener('keydown', onKey)
-      resolve(result)
-    }
-    function onOk() { cleanup(true) }
-    function onCancel() { cleanup(false) }
-    function onOverlay(e) { if (e.target === overlay) cleanup(false) }
-    function onKey(e) {
-      if (e.key === 'Escape') cleanup(false)
-      if (e.key === 'Enter') cleanup(true)
-    }
-
-    okBtn.addEventListener('click', onOk)
-    cancelBtn.addEventListener('click', onCancel)
-    overlay.addEventListener('click', onOverlay)
-    document.addEventListener('keydown', onKey)
-    overlay.classList.add('open')
-    setTimeout(() => okBtn.focus(), 0)
-  })
-}
-
-// ─────────────────────────────────────────────
-// Kebab menu
-// ─────────────────────────────────────────────
-let openKebab = null
-document.addEventListener('click', (e) => {
-  if (openKebab && !openKebab.wrap.contains(e.target)) {
-    openKebab.menu.classList.remove('open')
-    openKebab.btn.classList.remove('open')
-    openKebab = null
-  }
-})
-function buildKebabMenu(items) {
-  const wrap = document.createElement('span')
-  wrap.className = 'kebab-wrap'
-
-  const btn = document.createElement('button')
-  btn.className = 'kebab-btn'
-  btn.title = 'More actions'
-  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM1.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm13 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/></svg>'
-
-  const menu = document.createElement('div')
-  menu.className = 'kebab-menu'
-
-  for (const item of items) {
-    if (item.separator) {
-      const sep = document.createElement('div')
-      sep.className = 'kebab-separator'
-      menu.appendChild(sep)
-      continue
-    }
-    const el = document.createElement('button')
-    el.className = 'kebab-item' + (item.danger ? ' danger' : '')
-    el.textContent = item.label
-    el.addEventListener('click', (e) => {
-      e.stopPropagation()
-      menu.classList.remove('open')
-      btn.classList.remove('open')
-      openKebab = null
-      item.onClick()
-    })
-    menu.appendChild(el)
-  }
-
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation()
-    if (openKebab && openKebab.menu !== menu) {
-      openKebab.menu.classList.remove('open')
-      openKebab.btn.classList.remove('open')
-    }
-    const willOpen = !menu.classList.contains('open')
-    menu.classList.toggle('open', willOpen)
-    btn.classList.toggle('open', willOpen)
-    openKebab = willOpen ? { wrap, btn, menu } : null
-  })
-
-  wrap.appendChild(btn)
-  wrap.appendChild(menu)
-  return wrap
-}
-
-// ─────────────────────────────────────────────
-// Relative time
-// ─────────────────────────────────────────────
-function relativeTime(iso) {
-  const t = new Date(iso).getTime()
-  const diff = Date.now() - t
-  const s = Math.floor(diff / 1000)
-  if (s < 60) return 'just now'
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  const d = Math.floor(h / 24)
-  if (d < 30) return `${d}d ago`
-  return new Date(iso).toLocaleDateString()
-}
-
-// ─────────────────────────────────────────────
-// API helpers
-// ─────────────────────────────────────────────
-function withProject(urlStr) {
-  if (!state.project) return urlStr
-  const [p, q] = urlStr.split('?')
-  const sp = new URLSearchParams(q ?? '')
-  sp.set('project', state.project.id)
-  return `${p}?${sp.toString()}`
-}
 async function api(method, path, body) {
-  const opts = { method, headers: { 'Content-Type': 'application/json' } }
-  if (body) opts.body = JSON.stringify(body)
-  const url = path.startsWith('/api/projects') ? path : withProject(path)
-  const r = await fetch(url, opts)
-  if (!r.ok) throw new Error(await r.text())
-  return r.json()
+  const url = state.project ? `${path}${path.includes('?') ? '&' : '?'}project=${encodeURIComponent(state.project.dir)}` : path
+  const opts = { method, headers: {} }
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json'
+    opts.body = JSON.stringify(body)
+  }
+  const res = await fetch(url, opts)
+  if (!res.ok) throw new Error(`${method} ${path} → ${res.status}`)
+  if (res.status === 204) return null
+  return res.json()
 }
 
-// ─────────────────────────────────────────────
-// Sidebar toggle
-// ─────────────────────────────────────────────
-const sidebar = document.getElementById('sidebar')
-const sidebarOverlay = document.getElementById('sidebar-overlay')
-
-function isMobile() { return window.innerWidth < 768 }
-
-document.getElementById('btn-sidebar-toggle').addEventListener('click', () => {
-  if (isMobile()) {
-    const open = sidebar.classList.toggle('mobile-open')
-    sidebarOverlay.classList.toggle('open', open)
-  } else {
-    sidebar.classList.toggle('collapsed')
-  }
-})
-
-sidebarOverlay.addEventListener('click', () => {
-  sidebar.classList.remove('mobile-open')
-  sidebarOverlay.classList.remove('open')
-})
-
-window.addEventListener('resize', () => {
-  if (window.innerWidth >= 768) {
-    sidebar.classList.remove('mobile-open')
-    sidebarOverlay.classList.remove('open')
-  }
-})
-
-// ─────────────────────────────────────────────
-// Sidebar resizer
-// ─────────────────────────────────────────────
-const sidebarResizer = document.getElementById('sidebar-resizer')
-let isResizing = false
-let resizeStartX = 0
-let resizeStartWidth = 0
-
-sidebarResizer.addEventListener('mousedown', (e) => {
-  if (isMobile()) return
-  isResizing = true
-  resizeStartX = e.clientX
-  resizeStartWidth = sidebar.offsetWidth
-  sidebarResizer.classList.add('dragging')
-  sidebar.style.transition = 'none'
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
-  e.preventDefault()
-})
-
-document.addEventListener('mousemove', (e) => {
-  if (!isResizing) return
-  const newWidth = Math.max(140, Math.min(600, resizeStartWidth + (e.clientX - resizeStartX)))
-  sidebar.style.width = `${newWidth}px`
-  document.documentElement.style.setProperty('--sidebar-width', `${newWidth}px`)
-})
-
-document.addEventListener('mouseup', () => {
-  if (!isResizing) return
-  isResizing = false
-  sidebarResizer.classList.remove('dragging')
-  sidebar.style.transition = ''
-  document.body.style.cursor = ''
-  document.body.style.userSelect = ''
-  localStorage.setItem('sidebar-width', sidebar.style.width)
-})
-
-const savedSidebarWidth = localStorage.getItem('sidebar-width')
-if (savedSidebarWidth) {
-  sidebar.style.width = savedSidebarWidth
-  document.documentElement.style.setProperty('--sidebar-width', savedSidebarWidth)
+function toast(msg, ms = 2400) {
+  const el = $('#toast'); el.textContent = msg; el.classList.add('visible')
+  clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('visible'), ms)
 }
 
-// ─────────────────────────────────────────────
-// File filter
-// ─────────────────────────────────────────────
-document.getElementById('sidebar-search-input').addEventListener('input', (e) => {
-  const q = e.target.value.toLowerCase()
-  document.querySelectorAll('.file-item').forEach(el => {
-    el.style.display = el.dataset.file.toLowerCase().includes(q) ? '' : 'none'
-  })
-})
-
-// ─────────────────────────────────────────────
-// GitHub-style 5-block stat helper
-// ─────────────────────────────────────────────
-function buildStatBlocks(added, deleted) {
-  const total = added + deleted
-  if (total === 0) return ''
-  const addedBlocks = Math.round((added / total) * 5)
-  const blocks = []
-  for (let i = 0; i < 5; i++) {
-    blocks.push(`<span class="stat-block ${i < addedBlocks ? 'added' : 'deleted'}"></span>`)
-  }
-  return `<span class="stat-blocks">${blocks.join('')}</span>`
+function relativeTime(iso) {
+  const d = new Date(iso), now = Date.now(), diff = Math.floor((now - d.getTime()) / 1000)
+  if (diff < 60) return `${diff}s ago`
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  return d.toLocaleDateString()
 }
 
-// ─────────────────────────────────────────────
-// Init & load files
-// ─────────────────────────────────────────────
-async function init() {
-  const themeSelect = document.getElementById('theme-select')
-  themeSelect.value = document.documentElement.dataset.theme
-  themeSelect.addEventListener('change', (e) => applyTheme(e.target.value))
+function detectLang(file) {
+  const ext = (file.split('.').pop() ?? '').toLowerCase()
+  const map = { js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',
+                ts: 'typescript', tsx: 'typescript',
+                py: 'python', rb: 'ruby', go: 'go', rs: 'rust',
+                java: 'java', kt: 'kotlin', c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', hpp: 'cpp',
+                cs: 'csharp', php: 'php', sh: 'bash', bash: 'bash', zsh: 'bash',
+                json: 'json', yml: 'yaml', yaml: 'yaml', toml: 'toml',
+                html: 'xml', xml: 'xml', css: 'css', scss: 'scss',
+                md: 'markdown', sql: 'sql' }
+  return map[ext] ?? 'plaintext'
+}
 
-  const projectSelect = document.getElementById('project-select')
-  const projects = await api('GET', '/api/projects')
-  state.projects = projects
-  if (projects.length === 0) {
-    projectSelect.innerHTML = '<option>— no projects registered —</option>'
-    projectSelect.disabled = true
-    document.getElementById('diff-placeholder').textContent =
-      'No projects registered. Run: claude mcp add review-annotator -- npx code-review-annotator --mcp --dir <path>'
-    return
+function highlightInto(el, text, lang) {
+  try {
+    const out = hljs.highlight(text, { language: lang, ignoreIllegals: true })
+    el.innerHTML = out.value
+  } catch {
+    el.textContent = text
   }
-  projectSelect.innerHTML = ''
+}
+
+// ─── Projects ───
+async function loadProjects() {
+  const projects = await (await fetch('/api/projects')).json()
+  const sel = $('#project-select')
+  sel.innerHTML = ''
   for (const p of projects) {
     const opt = document.createElement('option')
-    opt.value = p.id
-    opt.textContent = p.displayPath
-    projectSelect.appendChild(opt)
+    opt.value = p.dir; opt.textContent = p.displayPath
+    sel.appendChild(opt)
   }
-  const stored = localStorage.getItem('current-project')
-  const startProject = projects.find(p => p.id === stored) ?? projects[0]
-  projectSelect.value = startProject.id
-  await switchProject(startProject)
-
-  projectSelect.addEventListener('change', async (e) => {
-    const next = projects.find(p => p.id === e.target.value)
-    if (next) await switchProject(next)
-  })
+  if (projects.length === 0) {
+    $('#empty-state').textContent = 'No project registered. Run the MCP server or start with --dir.'
+    return
+  }
+  const saved = localStorage.getItem('cra-project')
+  const pick = projects.find(p => p.dir === saved) ?? projects[0]
+  sel.value = pick.dir
+  state.project = pick
 }
 
-async function switchProject(project) {
-  state.project = project
-  localStorage.setItem('current-project', project.id)
-  state.currentFile = null
-  state.diff = null
-  state.comments = []
-  state.files = []
-  state.selection = null
-  state.selectionAnchor = null
-  document.getElementById('base-branch').textContent = project.baseBranch
-  document.getElementById('diff-content').style.display = 'none'
-  document.getElementById('diff-placeholder').style.display = 'block'
-  document.getElementById('diff-placeholder').textContent = 'Select a file to review.'
-  await loadFiles()
-  startLiveStream()
+// ─── Timeline ───
+async function refreshTimeline() {
+  if (!state.project) return
+  const calls = await api('GET', '/api/tool-calls')
+  calls.sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+  state.toolCalls = calls
+  state.comments = await api('GET', '/api/comments')
+  renderTimeline()
+  if (state.selectedCallId && !calls.find(c => c.id === state.selectedCallId)) {
+    state.selectedCallId = null
+    renderContent()
+  } else if (state.selectedCallId) {
+    renderContent()
+  }
+  $('#btn-export').disabled = state.comments.filter(c => c.status === 'open').length === 0
 }
 
-async function loadFiles() {
-  const [files, allComments] = await Promise.all([
-    api('GET', '/api/diff/summary'),
-    api('GET', '/api/comments'),
-  ])
-  state.files = files
-
-  document.getElementById('changed-count').textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`
-
-  const list = document.getElementById('file-list')
-  list.innerHTML = ''
-
-  for (const f of files) {
-    const fileComments = allComments.filter(c => c.file === f.file)
-    const openCount = fileComments.filter(c => c.status === 'open').length
-
-    const el = document.createElement('div')
-    el.className = 'file-item' + (state.currentFile === f.file ? ' active' : '')
-    el.dataset.file = f.file
-
-    const nameEl = document.createElement('div')
-    nameEl.className = 'file-item-name'
-    nameEl.textContent = f.file
-    nameEl.title = f.file
-
-    const metaEl = document.createElement('div')
-    metaEl.className = 'file-item-meta'
-    metaEl.innerHTML = buildStatBlocks(f.added, f.deleted)
-      + `<span class="stat-added">+${f.added}</span><span class="stat-deleted">-${f.deleted}</span>`
-    if (openCount > 0) metaEl.innerHTML += ` <span class="badge-open">● ${openCount}</span>`
-
-    el.appendChild(nameEl)
-    el.appendChild(metaEl)
-    el.addEventListener('click', () => selectFile(f.file))
-    list.appendChild(el)
-  }
-
-  if (!state.currentFile && files.length > 0) {
-    await selectFile(files[0].file)
-  } else if (files.length === 0) {
-    document.getElementById('diff-placeholder').textContent = 'No changes vs base branch.'
-  }
+function commentsForCall(callId) {
+  return state.comments.filter(c => c.toolCallId === callId)
 }
 
-// ─────────────────────────────────────────────
-// File / Diff
-// ─────────────────────────────────────────────
-async function selectFile(file) {
-  state.currentFile = file
-  state.selection = null
-  state.selectionAnchor = null
+function renderTimeline() {
+  const tl = $('#timeline')
+  const filter = $('#tl-search').value.trim().toLowerCase()
+  const items = filter
+    ? state.toolCalls.filter(c => c.file.toLowerCase().includes(filter))
+    : state.toolCalls
 
-  if (isMobile()) {
-    sidebar.classList.remove('mobile-open')
-    sidebarOverlay.classList.remove('open')
-  }
-
-  document.querySelectorAll('.file-item').forEach(el => {
-    el.classList.toggle('active', el.dataset.file === file)
-  })
-
-  const [diffData, comments] = await Promise.all([
-    api('GET', `/api/diff?file=${encodeURIComponent(file)}`),
-    api('GET', `/api/comments?file=${encodeURIComponent(file)}`),
-  ])
-
-  state.diff = diffData
-  state.comments = comments
-
-  renderDiff()
-}
-
-function renderDiff() {
-  const container = document.getElementById('diff-content')
-  const placeholder = document.getElementById('diff-placeholder')
-  placeholder.style.display = 'none'
-  container.style.display = 'block'
-  container.innerHTML = ''
-
-  document.getElementById('diff-area').classList.toggle('wrap-mode', state.wrapLines)
-
-  const diff = state.diff
-  if (!diff || !diff.hunks || diff.hunks.length === 0) {
-    container.innerHTML = '<div style="padding:24px;color:var(--text-muted)">No changes in this file.</div>'
+  $('#tl-count').textContent = items.length
+  tl.innerHTML = ''
+  if (items.length === 0) {
+    const empty = document.createElement('div')
+    empty.className = 'timeline-empty'
+    empty.innerHTML = state.toolCalls.length === 0
+      ? 'No tool calls captured yet.<br>Run Claude Code with the plugin installed — each Edit / Write will show up here.'
+      : 'No tool calls match that filter.'
+    tl.appendChild(empty)
     return
   }
 
-  const header = document.createElement('div')
-  header.className = 'diff-file-header'
+  for (const call of items) {
+    const row = document.createElement('div')
+    row.className = 'timeline-item' + (state.selectedCallId === call.id ? ' active' : '')
+    row.addEventListener('click', () => selectCall(call.id))
 
-  const filePath = document.createElement('span')
-  filePath.className = 'diff-file-path'
-  filePath.textContent = diff.file
-  filePath.title = diff.file
+    const top = document.createElement('div')
+    top.className = 'timeline-item-top'
+    const badge = document.createElement('span')
+    badge.className = `tool-badge ${call.tool}`
+    badge.textContent = call.tool
+    const file = document.createElement('span')
+    file.className = 'timeline-file'
+    file.textContent = call.file
+    top.appendChild(badge); top.appendChild(file)
 
-  const fileActions = document.createElement('div')
-  fileActions.className = 'diff-file-actions'
+    const meta = document.createElement('div')
+    meta.className = 'timeline-item-meta'
+    const time = document.createElement('span')
+    time.className = 'timeline-time'
+    time.textContent = relativeTime(call.startedAt)
+    time.title = new Date(call.startedAt).toLocaleString()
+    meta.appendChild(time)
 
-  const wrapBtn = document.createElement('button')
-  wrapBtn.className = 'btn-file-action' + (state.wrapLines ? ' active' : '')
-  wrapBtn.textContent = 'Wrap'
-  wrapBtn.title = 'Toggle line wrap'
-  wrapBtn.addEventListener('click', () => {
-    state.wrapLines = !state.wrapLines
-    wrapBtn.classList.toggle('active', state.wrapLines)
-    document.getElementById('diff-area').classList.toggle('wrap-mode', state.wrapLines)
-  })
+    const badges = document.createElement('div')
+    badges.className = 'timeline-badges'
+    if (call.status !== 'complete') {
+      const sb = document.createElement('span')
+      sb.className = `status-badge ${call.status}`
+      sb.textContent = call.status
+      badges.appendChild(sb)
+    }
+    const openComments = commentsForCall(call.id).filter(c => c.status === 'open').length
+    if (openComments > 0) {
+      const dot = document.createElement('span'); dot.className = 'comment-dot'
+      const cc = document.createElement('span'); cc.className = 'comment-count'; cc.textContent = openComments
+      badges.appendChild(dot); badges.appendChild(cc)
+    }
+    meta.appendChild(badges)
 
-  fileActions.appendChild(wrapBtn)
-  header.appendChild(filePath)
-  header.appendChild(fileActions)
-  container.appendChild(header)
+    row.appendChild(top); row.appendChild(meta)
+    tl.appendChild(row)
+  }
+}
 
-  const table = document.createElement('table')
-  table.className = 'diff-table'
-  container.appendChild(table)
+// ─── Content / diff view ───
+function selectCall(id) {
+  state.selectedCallId = id
+  state.selection = null
+  renderContent()
+  renderTimeline()
+}
 
-  const lang = detectLang(diff.file)
+function renderContent() {
+  const call = state.toolCalls.find(c => c.id === state.selectedCallId)
+  const emptyEl = $('#empty-state')
+  const hdr = $('#call-header')
+  const table = $('#diff-table')
+  if (!call) {
+    emptyEl.style.display = 'flex'
+    hdr.style.display = 'none'
+    table.style.display = 'none'
+    return
+  }
+  emptyEl.style.display = 'none'
+  hdr.style.display = 'flex'
+  table.style.display = 'table'
 
-  for (const hunk of diff.hunks) {
-    const hunkHeaderRow = table.insertRow()
-    const hunkCell = hunkHeaderRow.insertCell()
-    hunkCell.colSpan = 4
-    hunkCell.className = 'diff-hunk-header'
-    hunkCell.textContent = `@@ -${hunk.oldStart},${hunk.oldCount} +${hunk.newStart},${hunk.newCount} @@`
+  $('#ch-tool').textContent = call.tool
+  $('#ch-tool').className = `tool-badge ${call.tool}`
+  $('#ch-file').textContent = call.file
+  const metaParts = [new Date(call.startedAt).toLocaleTimeString()]
+  if (call.status === 'pending') metaParts.push('(pending)')
+  else if (call.status === 'orphan') metaParts.push('(orphaned — post-hook never ran)')
+  $('#ch-meta').textContent = metaParts.join(' · ')
 
-    const hunkNewEnd = hunk.newStart + hunk.newCount - 1
-    const hunkOldEnd = hunk.oldStart + hunk.oldCount - 1
+  renderDiff(call)
+}
 
-    const hunkComments = state.comments.filter(c => {
-      if (c.side === 'new') return c.endLine >= hunk.newStart && c.startLine <= hunkNewEnd
-      else return c.endLine >= hunk.oldStart && c.startLine <= hunkOldEnd
-    })
-
-    for (const line of hunk.lines) {
-      const lineNum = line.type === 'deleted' ? line.oldLine : line.newLine
-      const side = line.type === 'deleted' ? 'old' : 'new'
-
-      const row = table.insertRow()
-      row.className = `diff-line type-${line.type}`
-      row.dataset.line = lineNum
-      row.dataset.side = side
-
-      const tdOld = row.insertCell(); tdOld.className = 'td-old-ln'
-      const tdNew = row.insertCell(); tdNew.className = 'td-new-ln'
-      const tdSign = row.insertCell(); tdSign.className = 'td-sign'
-      const tdCode = row.insertCell(); tdCode.className = 'td-code'
-
-      if (line.type === 'deleted') { tdOld.textContent = line.oldLine }
-      else if (line.type === 'added') { tdNew.textContent = line.newLine }
-      else { tdOld.textContent = line.oldLine; tdNew.textContent = line.newLine }
-
-      tdSign.textContent = line.type === 'added' ? '+' : line.type === 'deleted' ? '-' : ' '
-      highlightInto(tdCode, line.content, lang)
-
-      if (state.selection) {
-        const s = state.selection
-        if (side === s.side && lineNum >= s.startLine && lineNum <= s.endLine) {
-          row.classList.add('selected')
-        }
-      }
-
-      row.addEventListener('click', (e) => handleLineClick(e, lineNum, side))
-
-      for (const comment of hunkComments) {
-        const anchorSide = comment.side === 'old' ? 'old' : 'new'
-        const lineMatches = line.type === 'context'
-          ? (comment.side === 'new' ? line.newLine === comment.endLine : line.oldLine === comment.endLine)
-          : (anchorSide === side && lineNum === comment.endLine)
-        if (lineMatches) appendCommentThread(table, comment)
+function buildHunks(before, after) {
+  const parts = Diff.diffLines(before, after)
+  const rows = []
+  let beforeLine = 1, afterLine = 1
+  for (const part of parts) {
+    const text = part.value.endsWith('\n') ? part.value.slice(0, -1) : part.value
+    const lines = text === '' && part.count === 0 ? [] : text.split('\n')
+    const type = part.added ? 'added' : part.removed ? 'deleted' : 'context'
+    for (const line of lines) {
+      if (type === 'added') {
+        rows.push({ type, afterLine: afterLine++, beforeLine: null, content: line })
+      } else if (type === 'deleted') {
+        rows.push({ type, beforeLine: beforeLine++, afterLine: null, content: line })
+      } else {
+        rows.push({ type, beforeLine: beforeLine++, afterLine: afterLine++, content: line })
       }
     }
   }
-}
-
-// ─────────────────────────────────────────────
-// Selection & Add Comment
-// ─────────────────────────────────────────────
-function handleLineClick(e, line, side) {
-  if (e.shiftKey && state.selectionAnchor && state.selectionAnchor.side === side) {
-    const anchor = state.selectionAnchor.line
-    state.selection = { startLine: Math.min(anchor, line), endLine: Math.max(anchor, line), side }
-  } else {
-    state.selectionAnchor = { line, side }
-    state.selection = { startLine: line, endLine: line, side }
+  // Collapse long context runs to ±3 around changes.
+  const CONTEXT = 3
+  const changedIdx = rows.map((r, i) => r.type !== 'context' ? i : -1).filter(i => i >= 0)
+  if (changedIdx.length === 0) return rows
+  const keep = new Set()
+  for (const i of changedIdx) {
+    for (let j = Math.max(0, i - CONTEXT); j <= Math.min(rows.length - 1, i + CONTEXT); j++) keep.add(j)
   }
-  renderDiff()
-  showAddCommentButton()
+  const out = []
+  let lastKept = -2
+  for (let i = 0; i < rows.length; i++) {
+    if (keep.has(i)) {
+      if (lastKept >= 0 && i - lastKept > 1) {
+        const gap = i - lastKept - 1
+        out.push({ type: 'hunk-sep', content: `… ${gap} unchanged line${gap === 1 ? '' : 's'} …` })
+      }
+      out.push(rows[i])
+      lastKept = i
+    }
+  }
+  return out
 }
 
-function showAddCommentButton() {
-  if (!state.selection) return
-  const rows = document.querySelectorAll('.diff-line.selected')
-  if (rows.length === 0) return
-  const lastRow = rows[rows.length - 1]
+function renderDiff(call) {
+  const tbody = $('#diff-table tbody')
+  tbody.innerHTML = ''
+  const after = call.after ?? ''
+  const rows = buildHunks(call.before, after)
+  const lang = detectLang(call.file)
 
-  removeAddCommentUI()
+  const callComments = commentsForCall(call.id)
 
-  const btnRow = document.createElement('tr')
-  btnRow.className = 'add-comment-btn-row'
-  btnRow.id = 'add-comment-btn-row'
-  const td = btnRow.insertCell()
+  // Index comments by (side, endLine) for quick lookup
+  const commentsByAnchor = new Map()
+  for (const c of callComments) {
+    const key = `${c.side}:${c.endLine}`
+    if (!commentsByAnchor.has(key)) commentsByAnchor.set(key, [])
+    commentsByAnchor.get(key).push(c)
+  }
+
+  for (const row of rows) {
+    if (row.type === 'hunk-sep') {
+      const tr = tbody.insertRow()
+      tr.className = 'diff-row hunk-sep'
+      const td = tr.insertCell()
+      td.colSpan = 4; td.textContent = row.content
+      continue
+    }
+    const tr = tbody.insertRow()
+    const side = row.type === 'added' ? 'after' : row.type === 'deleted' ? 'before' : 'context'
+    tr.className = `diff-row ${row.type}` + (side !== 'context' ? ' selectable' : '')
+    tr.dataset.side = side
+    if (side === 'before') tr.dataset.line = row.beforeLine
+    if (side === 'after') tr.dataset.line = row.afterLine
+
+    const tdBefore = tr.insertCell(); tdBefore.className = 'td-line-num'
+    tdBefore.textContent = row.beforeLine ?? ''
+    const tdAfter = tr.insertCell(); tdAfter.className = 'td-line-num'
+    tdAfter.textContent = row.afterLine ?? ''
+    const tdSign = tr.insertCell(); tdSign.className = 'td-sign'
+    tdSign.textContent = row.type === 'added' ? '+' : row.type === 'deleted' ? '-' : ' '
+    const tdCode = tr.insertCell(); tdCode.className = 'td-code'
+    highlightInto(tdCode, row.content, lang)
+
+    if (state.selection && state.selection.side === side) {
+      const n = side === 'before' ? row.beforeLine : row.afterLine
+      if (n >= state.selection.startLine && n <= state.selection.endLine) {
+        tr.classList.add('selected')
+      }
+    }
+
+    tr.addEventListener('click', (e) => handleLineClick(e, row, side))
+
+    // Attach comment threads that anchor to this line end
+    if (row.beforeLine !== null) {
+      const list = commentsByAnchor.get(`before:${row.beforeLine}`)
+      if (list) for (const c of list) appendCommentThread(tbody, c)
+    }
+    if (row.afterLine !== null) {
+      const list = commentsByAnchor.get(`after:${row.afterLine}`)
+      if (list) for (const c of list) appendCommentThread(tbody, c)
+    }
+  }
+
+  // If a selection exists, append form row after last selected row
+  if (state.selection) appendCommentForm(tbody, call)
+}
+
+function handleLineClick(e, row, side) {
+  if (side === 'context') return
+  const lineNum = side === 'before' ? row.beforeLine : row.afterLine
+  if (!state.selection || state.selection.side !== side) {
+    state.selection = { side, startLine: lineNum, endLine: lineNum }
+  } else if (e.shiftKey) {
+    state.selection.endLine = lineNum
+    if (state.selection.endLine < state.selection.startLine) {
+      const t = state.selection.startLine; state.selection.startLine = state.selection.endLine; state.selection.endLine = t
+    }
+  } else {
+    // Toggle: clicking the same single line cancels
+    if (state.selection.startLine === lineNum && state.selection.endLine === lineNum) {
+      state.selection = null
+    } else {
+      state.selection = { side, startLine: lineNum, endLine: lineNum }
+    }
+  }
+  const call = state.toolCalls.find(c => c.id === state.selectedCallId)
+  if (call) renderDiff(call)
+}
+
+function appendCommentForm(tbody, call) {
+  const tr = tbody.insertRow()
+  tr.id = 'comment-form-row'
+  const td = tr.insertCell()
   td.colSpan = 4
-  const wrap = document.createElement('div')
-  wrap.className = 'add-comment-btn-wrap'
-  const btn = document.createElement('button')
-  btn.className = 'add-comment-btn'
-  btn.textContent = '+ Add review comment'
-  btn.addEventListener('click', (e) => { e.stopPropagation(); showCommentForm() })
-  wrap.appendChild(btn)
-  td.appendChild(wrap)
-  lastRow.insertAdjacentElement('afterend', btnRow)
-}
-
-function removeAddCommentUI() {
-  document.getElementById('add-comment-btn-row')?.remove()
-  document.getElementById('comment-form-row')?.remove()
-}
-
-function showCommentForm() {
-  removeAddCommentUI()
-  if (!state.selection) return
-  const { startLine, endLine, side } = state.selection
-
-  const rows = document.querySelectorAll('.diff-line.selected')
-  if (rows.length === 0) return
-  const lastRow = rows[rows.length - 1]
-
-  const formRow = document.createElement('tr')
-  formRow.className = 'comment-form-row'
-  formRow.id = 'comment-form-row'
-  const td = formRow.insertCell()
-  td.colSpan = 4
 
   const wrap = document.createElement('div')
-  wrap.className = 'comment-form-wrap'
+  wrap.className = 'comment-form'
 
-  const lineRef = startLine === endLine ? `L${startLine}` : `L${startLine}–L${endLine}`
-  const hint = document.createElement('div')
-  hint.className = 'comment-form-hint'
-  hint.textContent = `Comment on ${lineRef} (${side} side) — Enter to submit, Escape to cancel`
+  const hdr = document.createElement('div')
+  hdr.className = 'comment-form-header'
+  const sel = state.selection
+  const lineRef = sel.startLine === sel.endLine ? `L${sel.startLine}` : `L${sel.startLine}–L${sel.endLine}`
+  hdr.textContent = `New comment on ${sel.side} ${lineRef}`
 
-  const textarea = document.createElement('textarea')
-  textarea.placeholder = 'Leave a review comment...'
+  const body = document.createElement('div')
+  body.className = 'comment-form-body'
+  const ta = document.createElement('textarea')
+  ta.placeholder = 'Leave a comment…'
+  ta.focus()
 
   const actions = document.createElement('div')
   actions.className = 'comment-form-actions'
-
-  const cancelBtn = document.createElement('button')
-  cancelBtn.className = 'btn-cancel'
-  cancelBtn.textContent = 'Cancel'
-  cancelBtn.addEventListener('click', () => { removeAddCommentUI(); state.selection = null; renderDiff() })
-
-  const submitBtn = document.createElement('button')
-  submitBtn.className = 'btn-primary'
-  submitBtn.textContent = 'Add Comment'
-  submitBtn.addEventListener('click', () => submitComment(textarea.value.trim()))
-
-  textarea.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(textarea.value.trim()) }
-    if (e.key === 'Escape') { removeAddCommentUI(); state.selection = null; renderDiff() }
+  const cancel = document.createElement('button')
+  cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
+  cancel.addEventListener('click', () => { state.selection = null; renderDiff(call) })
+  const submit = document.createElement('button')
+  submit.className = 'btn-primary'; submit.textContent = 'Add comment'
+  submit.addEventListener('click', async () => {
+    const text = ta.value.trim()
+    if (!text) return
+    const created = await api('POST', '/api/comments', {
+      toolCallId: call.id,
+      side: sel.side,
+      startLine: sel.startLine,
+      endLine: sel.endLine,
+      body: text,
+    })
+    state.selection = null
+    state.comments.push(created)
+    renderDiff(call)
+    renderTimeline()
+    $('#btn-export').disabled = false
   })
-
-  actions.appendChild(cancelBtn)
-  actions.appendChild(submitBtn)
-  wrap.appendChild(hint)
-  wrap.appendChild(textarea)
-  wrap.appendChild(actions)
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit.click() }
+    if (e.key === 'Escape') cancel.click()
+  })
+  actions.appendChild(cancel); actions.appendChild(submit)
+  body.appendChild(ta); body.appendChild(actions)
+  wrap.appendChild(hdr); wrap.appendChild(body)
   td.appendChild(wrap)
-  lastRow.insertAdjacentElement('afterend', formRow)
-  textarea.focus()
 }
 
-async function submitComment(body) {
-  if (!body || !state.selection || !state.currentFile) return
-  const { startLine, endLine, side } = state.selection
-  const newComment = await api('POST', '/api/comments', { file: state.currentFile, startLine, endLine, side, body })
-  state.selection = null
-  state.selectionAnchor = null
-  state.comments = [...(state.comments || []), newComment]
-  renderDiff()
-  await loadFiles()
-}
-
-// ─────────────────────────────────────────────
-// Comment Threads
-// ─────────────────────────────────────────────
-function appendCommentThread(table, comment) {
-  const row = table.insertRow()
+// ─── Comment threads ───
+function appendCommentThread(tbody, comment) {
+  const row = tbody.insertRow()
   row.className = 'comment-thread-row'
   const td = row.insertCell()
   td.colSpan = 4
 
-  const thread = document.createElement('div')
   const startsCollapsed = comment.status === 'resolved'
-  thread.className = `comment-thread status-${comment.status}${comment.outdated ? ' outdated' : ''}${startsCollapsed ? ' collapsed' : ''}`
-  thread.id = `thread-${comment.id}`
-
-  const lineRef = comment.startLine === comment.endLine
-    ? `L${comment.startLine}`
-    : `L${comment.startLine}–L${comment.endLine}`
+  const thread = document.createElement('div')
+  thread.className = `comment-thread status-${comment.status}${startsCollapsed ? ' collapsed' : ''}`
 
   const hdr = document.createElement('div')
   hdr.className = 'comment-thread-header'
@@ -1388,453 +892,246 @@ function appendCommentThread(table, comment) {
   const caret = document.createElement('span')
   caret.className = 'comment-collapse-caret'
   caret.textContent = '▾'
-  caret.setAttribute('aria-hidden', 'true')
   hdr.appendChild(caret)
 
-  const dot = document.createElement('span')
-  dot.className = 'comment-status-dot'
-
-  const ref = document.createElement('span')
-  ref.className = 'comment-line-ref'
-  ref.textContent = lineRef
-
-  const sideEl = document.createElement('span')
-  sideEl.style.color = 'var(--text-dim)'
-  sideEl.textContent = `(${comment.side})`
-
+  const dot = document.createElement('span'); dot.className = 'comment-status-dot'
   hdr.appendChild(dot)
-  hdr.appendChild(ref)
-  hdr.appendChild(sideEl)
 
-  if (comment.outdated) {
-    const outdatedBadge = document.createElement('span')
-    outdatedBadge.className = 'comment-outdated-badge'
-    outdatedBadge.textContent = 'outdated'
-    outdatedBadge.title = 'The line at this anchor no longer matches the snippet captured when the comment was written.'
-    hdr.appendChild(outdatedBadge)
-  }
+  const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
+  const ref = document.createElement('span'); ref.className = 'comment-line-ref'; ref.textContent = lineRef
+  const sideEl = document.createElement('span'); sideEl.className = 'comment-side-ref'; sideEl.textContent = `(${comment.side})`
+  hdr.appendChild(ref); hdr.appendChild(sideEl)
 
-  const actions = document.createElement('div')
-  actions.className = 'comment-thread-actions'
-
+  const actions = document.createElement('div'); actions.className = 'comment-thread-actions'
   if (comment.status === 'open') {
-    const resolveBtn = document.createElement('button')
-    resolveBtn.className = 'comment-action-btn btn-resolve'
-    resolveBtn.textContent = 'Resolve'
-    resolveBtn.addEventListener('click', (e) => { e.stopPropagation(); updateCommentStatus(comment.id, 'resolved') })
-    actions.appendChild(resolveBtn)
+    const btn = document.createElement('button')
+    btn.className = 'comment-action-btn btn-resolve'; btn.textContent = 'Resolve'
+    btn.addEventListener('click', async (e) => { e.stopPropagation(); await updateStatus(comment.id, 'resolved') })
+    actions.appendChild(btn)
   } else {
-    const reopenBtn = document.createElement('button')
-    reopenBtn.className = 'comment-action-btn btn-reopen'
-    reopenBtn.textContent = 'Reopen'
-    reopenBtn.addEventListener('click', (e) => { e.stopPropagation(); updateCommentStatus(comment.id, 'open') })
-    actions.appendChild(reopenBtn)
+    const btn = document.createElement('button')
+    btn.className = 'comment-action-btn btn-reopen'; btn.textContent = 'Reopen'
+    btn.addEventListener('click', async (e) => { e.stopPropagation(); await updateStatus(comment.id, 'open') })
+    actions.appendChild(btn)
   }
-
   hdr.appendChild(actions)
 
-  // Collapsible: primary comment (with its own meta) + replies + reply form
   const collapsible = document.createElement('div')
-  collapsible.className = 'comment-collapsible' + (startsCollapsed ? ' collapsed' : '')
+  collapsible.className = 'comment-collapsible'
 
-  // Toggle collapse on header click (buttons inside stop propagation)
-  hdr.addEventListener('click', () => {
-    const isCollapsed = thread.classList.toggle('collapsed')
-    collapsible.classList.toggle('collapsed', isCollapsed)
-  })
+  hdr.addEventListener('click', () => { thread.classList.toggle('collapsed') })
 
-  const primary = document.createElement('div')
-  primary.className = 'comment-primary'
+  const primary = document.createElement('div'); primary.className = 'comment-primary'
+  const primaryMeta = document.createElement('div'); primaryMeta.className = 'comment-reply-meta'
+  const primaryAuthor = document.createElement('span'); primaryAuthor.className = 'reply-author reply-author-human'; primaryAuthor.textContent = 'Reviewer'
+  const primarySep = document.createElement('span'); primarySep.className = 'reply-sep'; primarySep.textContent = '·'
+  const primaryTs = document.createElement('span'); primaryTs.className = 'reply-timestamp'
+  primaryTs.textContent = relativeTime(comment.createdAt); primaryTs.title = new Date(comment.createdAt).toLocaleString()
+  const bodyEl = document.createElement('div'); bodyEl.className = 'comment-body-text'; bodyEl.textContent = comment.body
 
-  const primaryMeta = document.createElement('div')
-  primaryMeta.className = 'comment-reply-meta'
-
-  const primaryAuthor = document.createElement('span')
-  primaryAuthor.className = 'reply-author reply-author-human'
-  primaryAuthor.textContent = 'Reviewer'
-
-  const primarySep = document.createElement('span')
-  primarySep.className = 'reply-sep'
-  primarySep.textContent = '·'
-
-  const primaryTs = document.createElement('span')
-  primaryTs.className = 'reply-timestamp'
-  primaryTs.textContent = relativeTime(comment.createdAt)
-  primaryTs.title = new Date(comment.createdAt).toLocaleString()
-
-  const body = document.createElement('div')
-  body.className = 'comment-body-text'
-  body.textContent = comment.body
-
-  const primaryKebab = buildKebabMenu([
-    { label: 'Edit', onClick: () => startEditComment(comment, body) },
+  const kebab = buildKebabMenu([
+    { label: 'Edit', onClick: () => startEditComment(comment, bodyEl) },
     { separator: true },
     { label: 'Delete comment', danger: true, onClick: () => deleteComment(comment) },
   ])
-  primaryKebab.classList.add('reply-actions')
+  kebab.classList.add('reply-actions')
+  primaryMeta.appendChild(primaryAuthor); primaryMeta.appendChild(primarySep)
+  primaryMeta.appendChild(primaryTs); primaryMeta.appendChild(kebab)
 
-  primaryMeta.appendChild(primaryAuthor)
-  primaryMeta.appendChild(primarySep)
-  primaryMeta.appendChild(primaryTs)
-  primaryMeta.appendChild(primaryKebab)
-
-  primary.appendChild(primaryMeta)
-  primary.appendChild(body)
+  primary.appendChild(primaryMeta); primary.appendChild(bodyEl)
   collapsible.appendChild(primary)
 
-  if (comment.outdated && comment.anchorSnippet && comment.anchorSnippet.length > 0) {
-    const snippetLabel = document.createElement('div')
-    snippetLabel.className = 'anchor-snippet-label'
-    snippetLabel.style.cssText = 'padding: 4px 10px 0 10px; background: var(--bg);'
-    snippetLabel.textContent = 'Original anchor (when comment was written):'
-    collapsible.appendChild(snippetLabel)
-
-    const snippet = document.createElement('div')
-    snippet.className = 'anchor-snippet'
-    highlightInto(snippet, comment.anchorSnippet.join('\n'), detectLang(comment.file))
-    collapsible.appendChild(snippet)
-  }
-
-  const replies = comment.replies ?? []
-  if (replies.length > 0) {
-    const repliesEl = document.createElement('div')
-    repliesEl.className = 'comment-replies'
-    for (const reply of replies) {
-      const replyEl = document.createElement('div')
-      replyEl.className = 'comment-reply'
-
-      const meta = document.createElement('div')
-      meta.className = 'comment-reply-meta'
-
-      const authorEl = document.createElement('span')
-      authorEl.className = `reply-author reply-author-${reply.author}`
-      authorEl.textContent = reply.author === 'claude' ? 'Claude' : 'Reviewer'
-
-      const sep = document.createElement('span')
-      sep.className = 'reply-sep'
-      sep.textContent = '·'
-
-      const tsEl = document.createElement('span')
-      tsEl.className = 'reply-timestamp'
-      tsEl.textContent = relativeTime(reply.createdAt)
-      tsEl.title = new Date(reply.createdAt).toLocaleString()
-
-      const replyBody = document.createElement('div')
-      replyBody.textContent = reply.body
-
-      const replyKebab = buildKebabMenu([
-        { label: 'Edit', onClick: () => startEditReply(comment.id, reply, replyBody) },
+  if (comment.replies && comment.replies.length > 0) {
+    const repliesEl = document.createElement('div'); repliesEl.className = 'comment-replies'
+    for (const r of comment.replies) {
+      const rEl = document.createElement('div'); rEl.className = 'comment-reply'
+      const rMeta = document.createElement('div'); rMeta.className = 'comment-reply-meta'
+      const ra = document.createElement('span'); ra.className = `reply-author reply-author-${r.author}`
+      ra.textContent = r.author === 'claude' ? 'Claude' : 'Reviewer'
+      const rSep = document.createElement('span'); rSep.className = 'reply-sep'; rSep.textContent = '·'
+      const rTs = document.createElement('span'); rTs.className = 'reply-timestamp'
+      rTs.textContent = relativeTime(r.createdAt); rTs.title = new Date(r.createdAt).toLocaleString()
+      const rBody = document.createElement('div'); rBody.textContent = r.body
+      const rKebab = buildKebabMenu([
+        { label: 'Edit', onClick: () => startEditReply(comment.id, r, rBody) },
         { separator: true },
-        { label: 'Delete reply', danger: true, onClick: () => deleteReply(comment.id, reply) },
+        { label: 'Delete reply', danger: true, onClick: () => deleteReply(comment.id, r) },
       ])
-      replyKebab.classList.add('reply-actions')
-
-      meta.appendChild(authorEl)
-      meta.appendChild(sep)
-      meta.appendChild(tsEl)
-      meta.appendChild(replyKebab)
-
-      replyEl.appendChild(meta)
-      replyEl.appendChild(replyBody)
-      repliesEl.appendChild(replyEl)
+      rKebab.classList.add('reply-actions')
+      rMeta.appendChild(ra); rMeta.appendChild(rSep); rMeta.appendChild(rTs); rMeta.appendChild(rKebab)
+      rEl.appendChild(rMeta); rEl.appendChild(rBody)
+      repliesEl.appendChild(rEl)
     }
     collapsible.appendChild(repliesEl)
   }
 
-  const replyForm = document.createElement('div')
-  replyForm.className = 'comment-reply-form'
-
-  const replyTextarea = document.createElement('textarea')
-  replyTextarea.placeholder = 'Reply to this comment…'
-
-  const replyActions = document.createElement('div')
-  replyActions.className = 'comment-reply-form-actions'
-
-  const replySubmitBtn = document.createElement('button')
-  replySubmitBtn.className = 'btn-primary'
-  replySubmitBtn.style.cssText = 'font-size:12px;padding:3px 10px'
-  replySubmitBtn.textContent = 'Reply'
-  replySubmitBtn.addEventListener('click', async () => {
-    const text = replyTextarea.value.trim()
-    if (!text) return
+  const form = document.createElement('div'); form.className = 'comment-reply-form'
+  const ta = document.createElement('textarea'); ta.placeholder = 'Reply to this comment…'
+  const fa = document.createElement('div'); fa.className = 'comment-reply-form-actions'
+  const submit = document.createElement('button')
+  submit.className = 'btn-primary'; submit.style.fontSize = '12px'; submit.textContent = 'Reply'
+  submit.addEventListener('click', async () => {
+    const text = ta.value.trim(); if (!text) return
     await api('POST', `/api/comments/${comment.id}/replies`, { body: text, author: 'human' })
-    replyTextarea.value = ''
-    await refreshCurrentFile()
+    ta.value = ''
+    await refreshTimeline()
   })
+  ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit.click() } })
+  fa.appendChild(submit); form.appendChild(ta); form.appendChild(fa)
+  collapsible.appendChild(form)
 
-  replyTextarea.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); replySubmitBtn.click() }
-  })
-
-  replyActions.appendChild(replySubmitBtn)
-  replyForm.appendChild(replyTextarea)
-  replyForm.appendChild(replyActions)
-  collapsible.appendChild(replyForm)
-
-  thread.appendChild(hdr)
-  thread.appendChild(collapsible)
+  thread.appendChild(hdr); thread.appendChild(collapsible)
   td.appendChild(thread)
 }
 
-async function updateCommentStatus(id, status) {
+async function updateStatus(id, status) {
   await api('PATCH', `/api/comments/${id}`, { status })
-  await refreshCurrentFile()
+  await refreshTimeline()
+}
+
+async function deleteComment(comment) {
+  if (!confirm('Delete this comment and all its replies?')) return
+  await api('DELETE', `/api/comments/${comment.id}`)
+  await refreshTimeline()
+}
+
+async function deleteReply(commentId, reply) {
+  if (!confirm('Delete this reply?')) return
+  await api('DELETE', `/api/comments/${commentId}/replies/${reply.id}`)
+  await refreshTimeline()
 }
 
 function startEditComment(comment, bodyEl) {
   if (bodyEl.querySelector('textarea')) return
   const original = comment.body
   bodyEl.innerHTML = ''
-
-  const textarea = document.createElement('textarea')
-  textarea.value = original
-  textarea.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-family:var(--font-ui);font-size:13px;resize:vertical;min-height:60px;outline:none;'
-  textarea.addEventListener('focus', () => { textarea.style.borderColor = 'var(--accent)' })
-  textarea.addEventListener('blur', () => { textarea.style.borderColor = 'var(--border)' })
-
+  const ta = document.createElement('textarea')
+  ta.value = original
+  ta.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-size:13px;resize:vertical;min-height:60px;outline:none;'
   const actions = document.createElement('div')
   actions.style.cssText = 'display:flex;gap:6px;justify-content:flex-end;margin-top:6px'
-
-  const cancelBtn = document.createElement('button')
-  cancelBtn.className = 'btn-cancel'
-  cancelBtn.textContent = 'Cancel'
-  cancelBtn.addEventListener('click', () => { refreshCurrentFile() })
-
-  const saveBtn = document.createElement('button')
-  saveBtn.className = 'btn-primary'
-  saveBtn.style.cssText = 'font-size:12px;padding:3px 10px'
-  saveBtn.textContent = 'Save'
-  saveBtn.addEventListener('click', async () => {
-    const next = textarea.value.trim()
-    if (!next || next === original) { await refreshCurrentFile(); return }
+  const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
+  cancel.addEventListener('click', () => refreshTimeline())
+  const save = document.createElement('button'); save.className = 'btn-primary'; save.style.fontSize = '12px'; save.textContent = 'Save'
+  save.addEventListener('click', async () => {
+    const next = ta.value.trim()
+    if (!next || next === original) return refreshTimeline()
     await api('PATCH', `/api/comments/${comment.id}`, { body: next })
-    await refreshCurrentFile()
+    await refreshTimeline()
   })
-
-  textarea.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveBtn.click() }
-    if (e.key === 'Escape') { e.preventDefault(); cancelBtn.click() }
-  })
-
-  actions.appendChild(cancelBtn)
-  actions.appendChild(saveBtn)
-  bodyEl.appendChild(textarea)
-  bodyEl.appendChild(actions)
-  textarea.focus()
-  textarea.setSelectionRange(textarea.value.length, textarea.value.length)
-}
-
-async function deleteComment(comment) {
-  const lineRef = comment.startLine === comment.endLine
-    ? `L${comment.startLine}`
-    : `L${comment.startLine}–L${comment.endLine}`
-  const replyCount = (comment.replies ?? []).length
-  const extra = replyCount > 0 ? ` and ${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}` : ''
-  const ok = await confirmDialog({
-    title: 'Delete comment?',
-    message: `This will permanently delete the comment on ${lineRef}${extra}. This cannot be undone.`,
-    confirmText: 'Delete',
-  })
-  if (!ok) return
-  await api('DELETE', `/api/comments/${comment.id}`)
-  await refreshCurrentFile()
-}
-
-async function deleteReply(commentId, reply) {
-  const ok = await confirmDialog({
-    title: 'Delete reply?',
-    message: `This will permanently delete this reply. This cannot be undone.`,
-    confirmText: 'Delete',
-  })
-  if (!ok) return
-  await api('DELETE', `/api/comments/${commentId}/replies/${reply.id}`)
-  await refreshCurrentFile()
+  actions.appendChild(cancel); actions.appendChild(save)
+  bodyEl.appendChild(ta); bodyEl.appendChild(actions)
+  ta.focus()
 }
 
 function startEditReply(commentId, reply, bodyEl) {
   if (bodyEl.querySelector('textarea')) return
   const original = reply.body
   bodyEl.innerHTML = ''
-
-  const textarea = document.createElement('textarea')
-  textarea.value = original
-  textarea.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font-family:var(--font-ui);font-size:13px;resize:vertical;min-height:52px;outline:none;'
-  textarea.addEventListener('focus', () => { textarea.style.borderColor = 'var(--accent)' })
-  textarea.addEventListener('blur', () => { textarea.style.borderColor = 'var(--border)' })
-
+  const ta = document.createElement('textarea')
+  ta.value = original
+  ta.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-size:13px;resize:vertical;min-height:40px;outline:none;'
   const actions = document.createElement('div')
-  actions.style.cssText = 'display:flex;gap:6px;justify-content:flex-end;margin-top:4px'
-
-  const cancelBtn = document.createElement('button')
-  cancelBtn.className = 'btn-cancel'
-  cancelBtn.textContent = 'Cancel'
-  cancelBtn.addEventListener('click', () => { refreshCurrentFile() })
-
-  const saveBtn = document.createElement('button')
-  saveBtn.className = 'btn-primary'
-  saveBtn.style.cssText = 'font-size:12px;padding:3px 10px'
-  saveBtn.textContent = 'Save'
-  saveBtn.addEventListener('click', async () => {
-    const next = textarea.value.trim()
-    if (!next || next === original) { await refreshCurrentFile(); return }
+  actions.style.cssText = 'display:flex;gap:6px;justify-content:flex-end;margin-top:6px'
+  const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
+  cancel.addEventListener('click', () => refreshTimeline())
+  const save = document.createElement('button'); save.className = 'btn-primary'; save.style.fontSize = '12px'; save.textContent = 'Save'
+  save.addEventListener('click', async () => {
+    const next = ta.value.trim()
+    if (!next || next === original) return refreshTimeline()
     await api('PATCH', `/api/comments/${commentId}/replies/${reply.id}`, { body: next })
-    await refreshCurrentFile()
+    await refreshTimeline()
   })
-
-  textarea.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveBtn.click() }
-    if (e.key === 'Escape') { e.preventDefault(); cancelBtn.click() }
-  })
-
-  actions.appendChild(cancelBtn)
-  actions.appendChild(saveBtn)
-  bodyEl.appendChild(textarea)
-  bodyEl.appendChild(actions)
-  textarea.focus()
-  textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+  actions.appendChild(cancel); actions.appendChild(save)
+  bodyEl.appendChild(ta); bodyEl.appendChild(actions)
+  ta.focus()
 }
 
-async function refreshCurrentFile() {
-  if (!state.currentFile) return
-  const [diffData, comments] = await Promise.all([
-    api('GET', `/api/diff?file=${encodeURIComponent(state.currentFile)}`),
-    api('GET', `/api/comments?file=${encodeURIComponent(state.currentFile)}`),
-  ])
-  state.diff = diffData
-  state.comments = comments
-  renderDiff()
-  await loadFiles()
+// ─── Kebab ───
+let openKebab = null
+function buildKebabMenu(items) {
+  const wrap = document.createElement('span'); wrap.className = 'kebab-wrap'
+  const btn = document.createElement('button'); btn.className = 'kebab-btn'
+  btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM1.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm13 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/></svg>'
+  const menu = document.createElement('div'); menu.className = 'kebab-menu'
+  for (const item of items) {
+    if (item.separator) { const s = document.createElement('div'); s.className = 'kebab-separator'; menu.appendChild(s); continue }
+    const el = document.createElement('button')
+    el.className = 'kebab-item' + (item.danger ? ' danger' : '')
+    el.textContent = item.label
+    el.addEventListener('click', (e) => { e.stopPropagation(); menu.classList.remove('open'); openKebab = null; item.onClick() })
+    menu.appendChild(el)
+  }
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation()
+    if (openKebab && openKebab !== menu) openKebab.classList.remove('open')
+    const willOpen = !menu.classList.contains('open')
+    menu.classList.toggle('open', willOpen)
+    openKebab = willOpen ? menu : null
+  })
+  wrap.appendChild(btn); wrap.appendChild(menu)
+  return wrap
 }
+document.addEventListener('click', () => { if (openKebab) { openKebab.classList.remove('open'); openKebab = null } })
 
-// ─────────────────────────────────────────────
-// Live updates (SSE)
-// ─────────────────────────────────────────────
-let liveStream = null
+// ─── Export ───
+$('#btn-export').addEventListener('click', async () => {
+  const { prompt } = await api('GET', '/api/export?mode=both')
+  $('#export-textarea').value = prompt
+  $('#export-modal').classList.add('open')
+})
+$('#export-close').addEventListener('click', () => $('#export-modal').classList.remove('open'))
+$('#export-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('#export-textarea').value)
+    toast('Copied to clipboard')
+  } catch { toast('Copy failed; select and copy manually') }
+})
 
+// ─── SSE ───
 function startLiveStream() {
-  if (liveStream) { liveStream.close(); liveStream = null }
+  if (state.liveStream) { state.liveStream.close(); state.liveStream = null }
   if (!state.project) return
-  const url = `/api/events?project=${encodeURIComponent(state.project.dir)}`
-  const es = new EventSource(url)
-  es.addEventListener('comments', onLiveComments)
-  es.addEventListener('diff', onLiveDiff)
-  liveStream = es
+  const es = new EventSource(`/api/events?project=${encodeURIComponent(state.project.dir)}`)
+  es.addEventListener('log', async () => { await refreshTimeline() })
+  state.liveStream = es
 }
 
-function hasDirtyCommentForm() {
-  const form = document.getElementById('comment-form-row')
-  if (!form) return false
-  const ta = form.querySelector('textarea')
-  return !!(ta && ta.value.trim().length > 0)
-}
+// ─── Theme ───
+const savedTheme = localStorage.getItem('cra-theme') ?? 'editorial'
+document.documentElement.setAttribute('data-theme', savedTheme)
+$('#theme-select').value = savedTheme
+$('#theme-select').addEventListener('change', (e) => {
+  const t = e.target.value
+  document.documentElement.setAttribute('data-theme', t)
+  localStorage.setItem('cra-theme', t)
+  // Re-pick hljs theme for light/dark
+  const hljs = $('#hljs-theme')
+  hljs.href = t === 'paper'
+    ? 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github.min.css'
+    : 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github-dark.min.css'
+})
 
-async function onLiveComments() {
-  if (hasDirtyCommentForm()) { showRefreshBanner('comments'); return }
-  if (state.currentFile) {
-    state.comments = await api('GET', `/api/comments?file=${encodeURIComponent(state.currentFile)}`)
-    renderDiff()
+// ─── Events ───
+$('#project-select').addEventListener('change', async (e) => {
+  const dir = e.target.value
+  localStorage.setItem('cra-project', dir)
+  const projects = await (await fetch('/api/projects')).json()
+  state.project = projects.find(p => p.dir === dir)
+  state.selectedCallId = null
+  await refreshTimeline()
+  startLiveStream()
+})
+$('#tl-search').addEventListener('input', () => renderTimeline())
+
+// ─── Boot ───
+;(async function main() {
+  await loadProjects()
+  if (state.project) {
+    await refreshTimeline()
+    startLiveStream()
   }
-  await loadFiles()
-}
-
-async function onLiveDiff() {
-  if (hasDirtyCommentForm()) { showRefreshBanner('diff'); return }
-  await refreshCurrentFile()
-}
-
-function showRefreshBanner(reason) {
-  let banner = document.getElementById('live-refresh-banner')
-  if (banner) {
-    banner.dataset.reason = banner.dataset.reason === reason ? reason : 'both'
-    banner.textContent = banner.dataset.reason === 'both'
-      ? 'External changes detected (diff + comments) — click to reload'
-      : reason === 'diff'
-        ? 'Diff changed externally — click to reload'
-        : 'Comments changed externally — click to reload'
-    return
-  }
-  banner = document.createElement('div')
-  banner.id = 'live-refresh-banner'
-  banner.dataset.reason = reason
-  banner.textContent = reason === 'diff'
-    ? 'Diff changed externally — click to reload'
-    : 'Comments changed externally — click to reload'
-  banner.addEventListener('click', async () => {
-    banner.remove()
-    await refreshCurrentFile()
-  })
-  const area = document.getElementById('diff-area') || document.body
-  area.prepend(banner)
-}
-
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && liveStream && liveStream.readyState === 2) startLiveStream()
-})
-
-// ─────────────────────────────────────────────
-// Export
-// ─────────────────────────────────────────────
-document.getElementById('btn-export').addEventListener('click', async () => {
-  const allComments = await api('GET', '/api/comments?status=open')
-  const filesWithComments = [...new Set(allComments.map(c => c.file))]
-
-  const sel = document.getElementById('export-file-select')
-  sel.innerHTML = '<option value="">All files with open comments</option>'
-  for (const f of filesWithComments) {
-    const opt = document.createElement('option')
-    opt.value = f
-    opt.textContent = f
-    sel.appendChild(opt)
-  }
-
-  await refreshExport()
-  document.getElementById('export-modal').classList.add('open')
-})
-
-async function refreshExport() {
-  const file = document.getElementById('export-file-select').value
-  const mode = document.getElementById('export-mode-select').value
-  const params = new URLSearchParams({ mode })
-  if (file) params.set('file', file)
-  const data = await api('GET', `/api/export?${params}`)
-  document.getElementById('export-output').textContent = data.prompt
-}
-
-document.getElementById('btn-regen').addEventListener('click', refreshExport)
-document.getElementById('export-file-select').addEventListener('change', refreshExport)
-document.getElementById('export-mode-select').addEventListener('change', refreshExport)
-
-document.getElementById('btn-export-close').addEventListener('click', () => {
-  document.getElementById('export-modal').classList.remove('open')
-})
-
-document.getElementById('btn-copy').addEventListener('click', async () => {
-  const text = document.getElementById('export-output').textContent
-  await navigator.clipboard.writeText(text)
-  const btn = document.getElementById('btn-copy')
-  btn.textContent = 'Copied!'
-  btn.classList.add('copied')
-  setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied') }, 2000)
-})
-
-document.getElementById('export-output').addEventListener('click', function() {
-  const range = document.createRange()
-  range.selectNodeContents(this)
-  const sel = window.getSelection()
-  sel.removeAllRanges()
-  sel.addRange(range)
-})
-
-document.querySelectorAll('.modal-overlay').forEach(overlay => {
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.classList.remove('open')
-  })
-})
-
-// ─────────────────────────────────────────────
-// Boot
-// ─────────────────────────────────────────────
-init()
+})()
 </script>
 </body>
 </html>

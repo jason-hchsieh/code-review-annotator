@@ -1,11 +1,11 @@
 import * as http from 'node:http'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { CommentStore, ReviewComment } from './comments.ts'
-import { getChangedFiles, getFileDiff, parseDiff, getSourceLines, getHeadSha } from './gitDiff.ts'
-import { getFileTree } from './fileTree.ts'
-import { listProjects, RegistryProject } from './registry.ts'
+import { LogStore, ReviewComment, ToolCall, ToolKind } from './log.ts'
+import { listProjects, setHttpPort, clearHttpPort, RegistryProject } from './registry.ts'
 import { startProjectWatcher, WatcherEvent } from './watcher.ts'
+
+const TOOL_KINDS: ReadonlyArray<ToolKind> = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
 
 function json(res: http.ServerResponse, status: number, data: unknown) {
   const body = JSON.stringify(data)
@@ -22,70 +22,6 @@ function readBody(req: http.IncomingMessage): Promise<string> {
   })
 }
 
-function arraysEqual(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
-  return true
-}
-
-async function enrichComments(
-  comments: ReviewComment[],
-  dir: string,
-  baseBranch: string,
-): Promise<Array<ReviewComment & { sourceLines: string[]; outdated: boolean }>> {
-  return Promise.all(
-    comments.map(async (c) => {
-      const sourceLines = await getSourceLines(dir, c.file, c.startLine, c.endLine, c.side, baseBranch)
-      const outdated = c.anchorSnippet && c.anchorSnippet.length > 0
-        ? !arraysEqual(sourceLines, c.anchorSnippet)
-        : false
-      return { ...c, sourceLines, outdated }
-    }),
-  )
-}
-
-function generateExportPrompt(
-  comments: ReviewComment[],
-  mode: 'fix' | 'report' | 'both',
-): string {
-  if (comments.length === 0) return '// No open comments found.'
-
-  const byFile: Record<string, ReviewComment[]> = {}
-  for (const c of comments) {
-    if (!byFile[c.file]) byFile[c.file] = []
-    byFile[c.file].push(c)
-  }
-
-  const lines: string[] = []
-
-  if (mode === 'fix' || mode === 'both') {
-    lines.push('Please fix the following issues:\n')
-    for (const [file, fileComments] of Object.entries(byFile)) {
-      lines.push(`### ${file}`)
-      for (const c of fileComments) {
-        const lineRef = c.startLine === c.endLine ? `L${c.startLine}` : `L${c.startLine}–L${c.endLine}`
-        lines.push(`- ${lineRef}: ${c.body}`)
-      }
-      lines.push('')
-    }
-  }
-
-  if (mode === 'report' || mode === 'both') {
-    if (mode === 'both') lines.push('---\n')
-    lines.push('## Review Summary\n')
-    for (const [file, fileComments] of Object.entries(byFile)) {
-      lines.push(`### ${file}`)
-      for (const c of fileComments) {
-        const lineRef = c.startLine === c.endLine ? `L${c.startLine}` : `L${c.startLine}–L${c.endLine}`
-        lines.push(`- **${lineRef}**: ${c.body}`)
-      }
-      lines.push('')
-    }
-  }
-
-  return lines.join('\n')
-}
-
 function homeRelative(dir: string): string {
   const home = process.env.HOME ?? ''
   if (home && dir.startsWith(home + '/')) return '~/' + dir.slice(home.length + 1)
@@ -96,6 +32,54 @@ function projectName(dir: string): string {
   const base = path.basename(dir)
   const parent = path.basename(path.dirname(dir))
   return parent ? `${parent}/${base}` : base
+}
+
+function exportPrompt(
+  calls: ToolCall[],
+  comments: ReviewComment[],
+  mode: 'fix' | 'report' | 'both',
+): string {
+  if (comments.length === 0) return '// No open comments found.'
+
+  const byCall = new Map<string, ToolCall>()
+  for (const c of calls) byCall.set(c.id, c)
+
+  const byFile = new Map<string, Array<{ call: ToolCall; comment: ReviewComment }>>()
+  for (const cm of comments) {
+    const call = byCall.get(cm.toolCallId)
+    if (!call) continue
+    if (!byFile.has(call.file)) byFile.set(call.file, [])
+    byFile.get(call.file)!.push({ call, comment: cm })
+  }
+
+  const lines: string[] = []
+
+  if (mode === 'fix' || mode === 'both') {
+    lines.push('Please address the following review comments:\n')
+    for (const [file, entries] of byFile.entries()) {
+      lines.push(`### ${file}`)
+      for (const { call, comment } of entries) {
+        const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
+        lines.push(`- [${call.tool}, ${comment.side}, ${lineRef}] ${comment.body}`)
+      }
+      lines.push('')
+    }
+  }
+
+  if (mode === 'report' || mode === 'both') {
+    if (mode === 'both') lines.push('---\n')
+    lines.push('## Review Summary\n')
+    for (const [file, entries] of byFile.entries()) {
+      lines.push(`### ${file}`)
+      for (const { call, comment } of entries) {
+        const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
+        lines.push(`- **[${call.tool} ${lineRef} ${comment.side}]**: ${comment.body}`)
+      }
+      lines.push('')
+    }
+  }
+
+  return lines.join('\n')
 }
 
 interface SseSubscriber {
@@ -135,7 +119,7 @@ function handleSse(req: http.IncomingMessage, res: http.ServerResponse, project:
     'X-Accel-Buffering': 'no',
   })
   res.write('\n')
-  sseWrite(res, 'hello', { dir: project.dir, baseBranch: project.baseBranch })
+  sseWrite(res, 'hello', { dir: project.dir })
 
   let entry = watchers.get(project.dir)
   if (!entry) {
@@ -143,7 +127,7 @@ function handleSse(req: http.IncomingMessage, res: http.ServerResponse, project:
       subscribers: new Set(),
       stop: () => {},
     }
-    created.stop = startProjectWatcher(project.dir, project.baseBranch, (event) => {
+    created.stop = startProjectWatcher(project.dir, (event) => {
       broadcast(project, event)
     })
     watchers.set(project.dir, created)
@@ -226,8 +210,8 @@ export function startHttpServer(port: number) {
           dir: p.dir,
           displayPath: homeRelative(p.dir),
           name: projectName(p.dir),
-          baseBranch: p.baseBranch,
-          registeredAt: p.registeredAt,
+          httpPort: p.httpPort,
+          updatedAt: p.updatedAt,
         }))
         return json(res, 200, projects)
       }
@@ -242,63 +226,101 @@ export function startHttpServer(port: number) {
         return
       }
 
-      const { dir, baseBranch } = project
-      const store = new CommentStore(dir, baseBranch)
-
-      if (method === 'GET' && pathname === '/api/files') {
-        const tree = getFileTree(dir)
-        return json(res, 200, tree)
-      }
-
-      if (method === 'GET' && pathname === '/api/diff') {
-        const file = query.get('file')
-        if (!file) return json(res, 400, { error: 'file param required' })
-        const rawDiff = await getFileDiff(dir, file, baseBranch)
-        return json(res, 200, parseDiff(rawDiff, file))
-      }
-
-      if (method === 'GET' && pathname === '/api/diff/summary') {
-        const files = await getChangedFiles(dir, baseBranch)
-        return json(res, 200, files)
-      }
+      const { dir } = project
+      const store = new LogStore(dir)
 
       if (method === 'GET' && pathname === '/api/meta') {
         return json(res, 200, {
-          baseBranch,
           dir,
           displayPath: homeRelative(dir),
           name: projectName(dir),
         })
       }
 
+      // ─── Tool calls ───
+
+      if (method === 'GET' && pathname === '/api/tool-calls') {
+        store.markOrphans()
+        const file = query.get('file') ?? undefined
+        const status = (query.get('status') as ToolCall['status'] | null) ?? undefined
+        const calls = store.getToolCalls({ file, status })
+        return json(res, 200, calls)
+      }
+
+      const toolCallMatch = pathname.match(/^\/api\/tool-calls\/([^/]+)$/)
+      if (method === 'GET' && toolCallMatch && toolCallMatch[1] !== 'start' && toolCallMatch[1] !== 'complete') {
+        const call = store.getToolCall(toolCallMatch[1])
+        if (!call) return json(res, 404, { error: 'not found' })
+        return json(res, 200, call)
+      }
+
+      if (method === 'POST' && pathname === '/api/tool-calls/start') {
+        const body = JSON.parse(await readBody(req)) as {
+          toolUseId?: string
+          sessionId?: string
+          tool?: string
+          file?: string
+          before?: string
+          startedAt?: string
+        }
+        if (!body.toolUseId || !body.sessionId || !body.tool || !body.file) {
+          return json(res, 400, { error: 'toolUseId, sessionId, tool, file required' })
+        }
+        if (!TOOL_KINDS.includes(body.tool as ToolKind)) {
+          return json(res, 400, { error: `tool must be one of ${TOOL_KINDS.join('|')}` })
+        }
+        const call = store.startToolCall({
+          toolUseId: body.toolUseId,
+          sessionId: body.sessionId,
+          tool: body.tool as ToolKind,
+          file: body.file,
+          before: body.before ?? '',
+          startedAt: body.startedAt,
+        })
+        return json(res, 201, call)
+      }
+
+      if (method === 'POST' && pathname === '/api/tool-calls/complete') {
+        const body = JSON.parse(await readBody(req)) as {
+          toolUseId?: string
+          after?: string
+          completedAt?: string
+        }
+        if (!body.toolUseId) return json(res, 400, { error: 'toolUseId required' })
+        const call = store.completeToolCall(body.toolUseId, body.after ?? '', body.completedAt)
+        if (!call) return json(res, 404, { error: 'toolUseId not found (maybe Pre hook missed)' })
+        return json(res, 200, call)
+      }
+
+      // ─── Comments ───
+
       if (method === 'GET' && pathname === '/api/comments') {
-        const fileFilter = query.get('file') ?? undefined
-        const statusFilter = (query.get('status') as 'open' | 'resolved' | null) ?? undefined
-        const raw = store.getComments({ file: fileFilter, status: statusFilter })
-        const enriched = await enrichComments(raw, dir, baseBranch)
-        return json(res, 200, enriched)
+        const toolCallId = query.get('toolCallId') ?? undefined
+        const status = (query.get('status') as ReviewComment['status'] | null) ?? undefined
+        return json(res, 200, store.getComments({ toolCallId, status }))
       }
 
       if (method === 'POST' && pathname === '/api/comments') {
-        const body = JSON.parse(await readBody(req))
-        const { file, startLine, endLine, side, body: commentBody } = body
-        if (!file || !startLine || !side || !commentBody) {
-          return json(res, 400, { error: 'file, startLine, side, body required' })
+        const body = JSON.parse(await readBody(req)) as {
+          toolCallId?: string
+          side?: 'before' | 'after'
+          startLine?: number
+          endLine?: number
+          body?: string
         }
-        const sLine = Number(startLine)
-        const eLine = Number(endLine ?? startLine)
-        const [commitSha, anchorSnippet] = await Promise.all([
-          getHeadSha(dir),
-          getSourceLines(dir, file, sLine, eLine, side, baseBranch),
-        ])
+        if (!body.toolCallId || !body.side || !body.startLine || !body.body) {
+          return json(res, 400, { error: 'toolCallId, side, startLine, body required' })
+        }
+        const call = store.getToolCall(body.toolCallId)
+        if (!call) return json(res, 404, { error: 'toolCallId not found' })
+        const sLine = Number(body.startLine)
+        const eLine = Number(body.endLine ?? sLine)
         const comment = store.addComment({
-          file,
+          toolCallId: body.toolCallId,
+          side: body.side,
           startLine: sLine,
           endLine: eLine,
-          side,
-          body: commentBody,
-          commitSha,
-          anchorSnippet,
+          body: body.body,
         })
         return json(res, 201, comment)
       }
@@ -306,7 +328,7 @@ export function startHttpServer(port: number) {
       const commentMatch = pathname.match(/^\/api\/comments\/([^/]+)$/)
       if (method === 'PATCH' && commentMatch) {
         const id = commentMatch[1]
-        const body = JSON.parse(await readBody(req))
+        const body = JSON.parse(await readBody(req)) as { body?: string; status?: ReviewComment['status'] }
         const updated = store.updateComment(id, { body: body.body, status: body.status })
         if (!updated) return json(res, 404, { error: 'not found' })
         return json(res, 200, updated)
@@ -314,17 +336,17 @@ export function startHttpServer(port: number) {
 
       if (method === 'DELETE' && commentMatch) {
         const id = commentMatch[1]
-        const deleted = store.deleteComment(id)
-        if (!deleted) return json(res, 404, { error: 'not found' })
+        const ok = store.deleteComment(id)
+        if (!ok) return json(res, 404, { error: 'not found' })
         return json(res, 200, { ok: true })
       }
 
       const replyMatch = pathname.match(/^\/api\/comments\/([^/]+)\/replies$/)
       if (method === 'POST' && replyMatch) {
         const id = replyMatch[1]
-        const body = JSON.parse(await readBody(req))
+        const body = JSON.parse(await readBody(req)) as { body?: string; author?: 'claude' | 'human' }
         if (!body.body) return json(res, 400, { error: 'body required' })
-        const reply = store.addReply(id, body.author ?? 'human', body.body)
+        const reply = store.addReply(id, { body: body.body, author: body.author ?? 'human' })
         if (!reply) return json(res, 404, { error: 'not found' })
         return json(res, 201, reply)
       }
@@ -332,7 +354,7 @@ export function startHttpServer(port: number) {
       const replyItemMatch = pathname.match(/^\/api\/comments\/([^/]+)\/replies\/([^/]+)$/)
       if (method === 'PATCH' && replyItemMatch) {
         const [, commentId, replyId] = replyItemMatch
-        const body = JSON.parse(await readBody(req))
+        const body = JSON.parse(await readBody(req)) as { body?: string }
         if (!body.body) return json(res, 400, { error: 'body required' })
         const reply = store.updateReply(commentId, replyId, body.body)
         if (!reply) return json(res, 404, { error: 'not found' })
@@ -347,10 +369,11 @@ export function startHttpServer(port: number) {
       }
 
       if (method === 'GET' && pathname === '/api/export') {
-        const fileFilter = query.get('file')
         const mode = (query.get('mode') as 'fix' | 'report' | 'both' | null) ?? 'both'
-        const comments = store.getComments({ status: 'open', ...(fileFilter ? { file: fileFilter } : {}) })
-        const prompt = generateExportPrompt(comments, mode)
+        const toolCallId = query.get('toolCallId') ?? undefined
+        const comments = store.getComments({ status: 'open', toolCallId })
+        const calls = store.getToolCalls()
+        const prompt = exportPrompt(calls, comments, mode)
         return json(res, 200, { prompt })
       }
 
@@ -362,4 +385,20 @@ export function startHttpServer(port: number) {
   })
 
   server.listen(port)
+
+  // Advertise port to the registry for hook scripts to discover.
+  const advertised: string[] = []
+  for (const p of listProjects()) {
+    setHttpPort(p.dir, port)
+    advertised.push(p.dir)
+  }
+  const release = () => {
+    for (const dir of advertised) clearHttpPort(dir)
+    process.exit(0)
+  }
+  process.on('SIGINT', release)
+  process.on('SIGTERM', release)
+  process.on('beforeExit', () => {
+    for (const dir of advertised) clearHttpPort(dir)
+  })
 }

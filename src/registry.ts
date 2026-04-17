@@ -4,8 +4,8 @@ import * as os from 'node:os'
 
 export interface RegistryProject {
   dir: string
-  baseBranch: string
-  registeredAt: string
+  httpPort?: number
+  updatedAt: string
 }
 
 interface RegistryFile {
@@ -41,17 +41,40 @@ function write(data: RegistryFile): void {
   fs.renameSync(tmp, p)
 }
 
-export function registerProject(dir: string, baseBranch: string): void {
+export function registerProject(dir: string): void {
   const abs = path.resolve(dir)
   const data = read()
   const existing = data.projects.find(p => p.dir === abs)
   const now = new Date().toISOString()
   if (existing) {
-    existing.baseBranch = baseBranch
-    existing.registeredAt = now
+    existing.updatedAt = now
   } else {
-    data.projects.push({ dir: abs, baseBranch, registeredAt: now })
+    data.projects.push({ dir: abs, updatedAt: now })
   }
+  write(data)
+}
+
+export function setHttpPort(dir: string, port: number): void {
+  const abs = path.resolve(dir)
+  const data = read()
+  const existing = data.projects.find(p => p.dir === abs)
+  const now = new Date().toISOString()
+  if (existing) {
+    existing.httpPort = port
+    existing.updatedAt = now
+  } else {
+    data.projects.push({ dir: abs, httpPort: port, updatedAt: now })
+  }
+  write(data)
+}
+
+export function clearHttpPort(dir: string): void {
+  const abs = path.resolve(dir)
+  const data = read()
+  const existing = data.projects.find(p => p.dir === abs)
+  if (!existing) return
+  delete existing.httpPort
+  existing.updatedAt = new Date().toISOString()
   write(data)
 }
 
