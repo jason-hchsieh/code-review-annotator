@@ -4,6 +4,7 @@ import * as path from 'node:path'
 import { CommentStore, ReviewComment } from './comments.ts'
 import { getChangedFiles, getFileDiff, parseDiff, getSourceLines, getHeadSha } from './gitDiff.ts'
 import { getFileTree } from './fileTree.ts'
+import { listProjects, RegistryProject } from './registry.ts'
 
 function json(res: http.ServerResponse, status: number, data: unknown) {
   const body = JSON.stringify(data)
@@ -84,8 +85,28 @@ function generateExportPrompt(
   return lines.join('\n')
 }
 
-export function startHttpServer(dir: string, port: number, baseBranch: string) {
-  const store = new CommentStore(dir, baseBranch)
+function homeRelative(dir: string): string {
+  const home = process.env.HOME ?? ''
+  if (home && dir.startsWith(home + '/')) return '~/' + dir.slice(home.length + 1)
+  return dir
+}
+
+function projectName(dir: string): string {
+  const base = path.basename(dir)
+  const parent = path.basename(path.dirname(dir))
+  return parent ? `${parent}/${base}` : base
+}
+
+export function startHttpServer(port: number) {
+  function resolveProject(query: URLSearchParams): RegistryProject | null {
+    const requested = query.get('project')
+    const projects = listProjects()
+    if (requested) {
+      const resolved = path.resolve(requested)
+      return projects.find(p => p.dir === resolved) ?? null
+    }
+    return projects[0] ?? null
+  }
 
   const publicDir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'public')
 
@@ -120,6 +141,25 @@ export function startHttpServer(dir: string, port: number, baseBranch: string) {
     }
 
     try {
+      if (method === 'GET' && pathname === '/api/projects') {
+        const projects = listProjects().map(p => ({
+          id: p.dir,
+          dir: p.dir,
+          displayPath: homeRelative(p.dir),
+          name: projectName(p.dir),
+          baseBranch: p.baseBranch,
+          registeredAt: p.registeredAt,
+        }))
+        return json(res, 200, projects)
+      }
+
+      const project = resolveProject(query)
+      if (!project) {
+        return json(res, 400, { error: 'no project registered or specified' })
+      }
+      const { dir, baseBranch } = project
+      const store = new CommentStore(dir, baseBranch)
+
       if (method === 'GET' && pathname === '/api/files') {
         const tree = getFileTree(dir)
         return json(res, 200, tree)
@@ -138,7 +178,12 @@ export function startHttpServer(dir: string, port: number, baseBranch: string) {
       }
 
       if (method === 'GET' && pathname === '/api/meta') {
-        return json(res, 200, { baseBranch })
+        return json(res, 200, {
+          baseBranch,
+          dir,
+          displayPath: homeRelative(dir),
+          name: projectName(dir),
+        })
       }
 
       if (method === 'GET' && pathname === '/api/comments') {

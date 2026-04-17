@@ -3,12 +3,13 @@ import { startHttpServer } from './server.ts'
 import { startMcpServer } from './mcp.ts'
 import { detectDefaultBase } from './gitDiff.ts'
 import { CommentStore } from './comments.ts'
+import { registerProject, listProjects } from './registry.ts'
 import * as path from 'node:path'
 
 const args = process.argv.slice(2)
 
 function parseArgs(args: string[]) {
-  let dir = process.cwd()
+  let dir: string | null = null
   let port = 8080
   let mcpMode = false
   let base: string | null = null
@@ -30,11 +31,11 @@ function parseArgs(args: string[]) {
 
 const { dir, port, mcpMode, base } = parseArgs(args)
 
-async function resolveBaseBranch(): Promise<string> {
+async function resolveBaseBranch(target: string): Promise<string> {
   if (base) return base
-  const stored = CommentStore.readStoredBaseBranch(dir)
+  const stored = CommentStore.readStoredBaseBranch(target)
   if (stored) return stored
-  const detected = await detectDefaultBase(dir)
+  const detected = await detectDefaultBase(target)
   if (!detected) {
     console.error('[code-review-annotator] No --base specified and neither main nor master exists. Pass --base <branch>.')
     process.exit(1)
@@ -42,13 +43,25 @@ async function resolveBaseBranch(): Promise<string> {
   return detected
 }
 
-const baseBranch = await resolveBaseBranch()
-
 if (mcpMode) {
+  if (!dir) {
+    console.error('[code-review-annotator] --dir is required in --mcp mode.')
+    process.exit(1)
+  }
+  const baseBranch = await resolveBaseBranch(dir)
   startMcpServer(dir, baseBranch)
 } else {
-  startHttpServer(dir, port, baseBranch)
+  if (dir) {
+    const baseBranch = await resolveBaseBranch(dir)
+    registerProject(dir, baseBranch)
+    console.log(`[code-review-annotator] Registered → ${dir} (base: ${baseBranch})`)
+  }
+  startHttpServer(port)
+  const projects = listProjects()
   console.log(`[code-review-annotator] Web UI  → http://localhost:${port}`)
-  console.log(`[code-review-annotator] Base    → ${baseBranch}`)
-  console.log(`[code-review-annotator] MCP     → run: claude mcp add review-annotator -- npx code-review-annotator --mcp --dir ${dir} --base ${baseBranch}`)
+  console.log(`[code-review-annotator] Projects (${projects.length}):`)
+  for (const p of projects) {
+    console.log(`  - ${p.dir} (base: ${p.baseBranch})`)
+  }
+  console.log(`[code-review-annotator] Register more via: claude mcp add review-annotator -- npx code-review-annotator --mcp --dir <path> --base <branch>`)
 }

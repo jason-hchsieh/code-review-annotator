@@ -48,7 +48,14 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
   padding: 5px 7px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; flex-shrink: 0;
 }
 #btn-sidebar-toggle:hover { background: var(--bg3); color: var(--text); }
-#project-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#project-select {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  padding: 4px 8px; border-radius: 6px; font-size: 13px; font-weight: 600;
+  font-family: var(--font-ui); max-width: 320px; outline: none; cursor: pointer;
+  min-width: 0;
+}
+#project-select:focus { border-color: var(--accent); }
+#project-select:hover { background: var(--border); }
 #changed-count { color: var(--text-muted); font-size: 13px; white-space: nowrap; flex-shrink: 0; }
 #base-branch {
   color: var(--text-muted); font-size: 12px; white-space: nowrap; flex-shrink: 0;
@@ -278,7 +285,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 /* ─── Responsive: Mobile ─── */
 @media (max-width: 767px) {
   #header { padding: 8px 10px; gap: 6px; }
-  #project-name { font-size: 13px; max-width: 120px; }
+  #project-select { font-size: 12px; max-width: 160px; padding: 3px 6px; }
   #changed-count { display: none; }
   #btn-export { padding: 5px 8px; font-size: 12px; }
   #sidebar-resizer { display: none; }
@@ -311,7 +318,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
       <path d="M2.75 1h10.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 13.25 15H2.75A1.75 1.75 0 0 1 1 13.25V2.75C1 1.784 1.784 1 2.75 1ZM2.5 2.5v11h5.75v-11Zm7.25 0v11h3.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25Z"/>
     </svg>
   </button>
-  <span id="project-name">Code Review</span>
+  <select id="project-select" title="Switch project"></select>
   <span id="changed-count"></span>
   <span id="base-branch" title="Base branch — diff computed from merge-base(HEAD, base)"></span>
   <div class="spacer"></div>
@@ -367,6 +374,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-ui); h
 // State
 // ─────────────────────────────────────────────
 const state = {
+  project: null,
+  projects: [],
   files: [],
   currentFile: null,
   diff: null,
@@ -379,10 +388,18 @@ const state = {
 // ─────────────────────────────────────────────
 // API helpers
 // ─────────────────────────────────────────────
+function withProject(urlStr) {
+  if (!state.project) return urlStr
+  const [p, q] = urlStr.split('?')
+  const sp = new URLSearchParams(q ?? '')
+  sp.set('project', state.project.id)
+  return `${p}?${sp.toString()}`
+}
 async function api(method, path, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } }
   if (body) opts.body = JSON.stringify(body)
-  const r = await fetch(path, opts)
+  const url = path.startsWith('/api/projects') ? path : withProject(path)
+  const r = await fetch(url, opts)
   if (!r.ok) throw new Error(await r.text())
   return r.json()
 }
@@ -487,10 +504,47 @@ function buildStatBlocks(added, deleted) {
 // Init & load files
 // ─────────────────────────────────────────────
 async function init() {
-  try {
-    const meta = await api('GET', '/api/meta')
-    document.getElementById('base-branch').textContent = meta.baseBranch
-  } catch {}
+  const projectSelect = document.getElementById('project-select')
+  const projects = await api('GET', '/api/projects')
+  state.projects = projects
+  if (projects.length === 0) {
+    projectSelect.innerHTML = '<option>— no projects registered —</option>'
+    projectSelect.disabled = true
+    document.getElementById('diff-placeholder').textContent =
+      'No projects registered. Run: claude mcp add review-annotator -- npx code-review-annotator --mcp --dir <path>'
+    return
+  }
+  projectSelect.innerHTML = ''
+  for (const p of projects) {
+    const opt = document.createElement('option')
+    opt.value = p.id
+    opt.textContent = p.displayPath
+    projectSelect.appendChild(opt)
+  }
+  const stored = localStorage.getItem('current-project')
+  const startProject = projects.find(p => p.id === stored) ?? projects[0]
+  projectSelect.value = startProject.id
+  await switchProject(startProject)
+
+  projectSelect.addEventListener('change', async (e) => {
+    const next = projects.find(p => p.id === e.target.value)
+    if (next) await switchProject(next)
+  })
+}
+
+async function switchProject(project) {
+  state.project = project
+  localStorage.setItem('current-project', project.id)
+  state.currentFile = null
+  state.diff = null
+  state.comments = []
+  state.files = []
+  state.selection = null
+  state.selectionAnchor = null
+  document.getElementById('base-branch').textContent = project.baseBranch
+  document.getElementById('diff-content').style.display = 'none'
+  document.getElementById('diff-placeholder').style.display = 'block'
+  document.getElementById('diff-placeholder').textContent = '← Select a file to review'
   await loadFiles()
 }
 

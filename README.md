@@ -4,8 +4,10 @@ Remote code review tool for [Claude Code](https://claude.ai/code) workflows. Bro
 
 ```
 ssh -L 8080:localhost:8080 your-server
-npx code-review-annotator --dir /path/to/project --base main --port 8080
+npx code-review-annotator --port 8080
 ```
+
+One HTTP server can serve multiple projects / worktrees. MCP servers started via `claude mcp add ... --mcp --dir <path>` register themselves into a central registry; the browser UI lists every registered project in a dropdown.
 
 ![UI screenshot showing diff viewer with inline comment threads](https://placeholder)
 
@@ -41,10 +43,13 @@ The plugin bundles an MCP server that connects automatically when Claude Code st
 ### Standalone (npx)
 
 ```bash
-# HTTP server only
+# HTTP server (multi-project — projects register via MCP)
+npx code-review-annotator --port 8080
+
+# Or pre-seed the registry with a specific project at startup
 npx code-review-annotator --dir /path/to/project --base main --port 8080
 
-# MCP server only (for manual claude mcp add)
+# MCP server — registers the project into the shared registry on startup
 claude mcp add review-annotator -- npx code-review-annotator --mcp --dir /path/to/project --base main
 ```
 
@@ -55,17 +60,19 @@ claude mcp add review-annotator -- npx code-review-annotator --mcp --dir /path/t
 ### 1. Start the HTTP server on the remote
 
 ```bash
-npx code-review-annotator --dir /path/to/project --base main --port 8080
+npx code-review-annotator --port 8080
 ```
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--dir` | `cwd` | Project root (must be a git repo) |
-| `--base` | auto-detect `main` → `master` | Base branch to diff against |
 | `--port` | `8080` | HTTP server port |
+| `--dir` | — | Optional in HTTP mode: if set, auto-registers this project at startup. **Required** in `--mcp` mode. |
+| `--base` | auto-detect `main` → `master` | Base branch to diff against (used when registering `--dir`) |
 | `--mcp` | — | Run as MCP stdio server instead |
 
 If `--base` is omitted, the tool tries `main` then `master`. If neither exists it errors.
+
+Projects register themselves into `$XDG_CONFIG_HOME/code-review-annotator/projects.json` (default `~/.config/...`). The registry persists across HTTP restarts; stale entries (dir no longer exists) are filtered out of the UI automatically. The registry is safe to hand-edit.
 
 ### 2. Open the UI locally
 
@@ -157,9 +164,12 @@ Line numbers are **actual file line numbers** (1-based), not diff positions:
 
 The HTTP server also exposes a REST API for custom integrations:
 
+Every project-scoped endpoint takes a `project=<abs-dir>` query parameter identifying which registered project to act on. If omitted, the first registered project is used.
+
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/meta` | `{ baseBranch }` |
+| `GET` | `/api/projects` | `[{ id, dir, displayPath, name, baseBranch }]` — the registry |
+| `GET` | `/api/meta` | `{ baseBranch, dir, displayPath, name }` for the resolved project |
 | `GET` | `/api/files` | Directory file tree (respects `.gitignore` / `.claudeignore`) |
 | `GET` | `/api/diff?file=` | Parsed unified diff for a file |
 | `GET` | `/api/diff/summary` | All changed files with `+/-` stats |

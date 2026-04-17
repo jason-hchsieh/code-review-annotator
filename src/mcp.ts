@@ -3,6 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { CommentStore, ReviewComment } from './comments.ts'
 import { getChangedFiles, getSourceLines } from './gitDiff.ts'
+import { registerProject } from './registry.ts'
 
 function arraysEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false
@@ -53,8 +54,14 @@ function generateExportPrompt(
 export function startMcpServer(dir: string, baseBranch: string) {
   const store = new CommentStore(dir, baseBranch)
 
+  try {
+    registerProject(dir, baseBranch)
+  } catch (err) {
+    console.error(`[code-review-annotator] registry write failed: ${String(err)}`)
+  }
+
   const server = new Server(
-    { name: 'code-review-annotator', version: '0.6.0' },
+    { name: 'code-review-annotator', version: '0.7.0' },
     { capabilities: { tools: {} } },
   )
 

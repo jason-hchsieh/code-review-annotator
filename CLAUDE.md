@@ -5,10 +5,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Start web UI (default port 8080, target the repo to review)
+# Start web UI (default port 8080 — multi-project, projects self-register via MCP)
+npx tsx src/cli.ts --port 8080
+
+# Pre-seed the registry with a project at HTTP startup (optional shortcut)
 npx tsx src/cli.ts --dir /path/to/repo --base main --port 8080
 
-# Start MCP stdio server (used by Claude Code via `claude mcp add`)
+# Start MCP stdio server — registers the project in the shared registry on startup
 npx tsx src/cli.ts --mcp --dir /path/to/repo --base main
 ```
 
@@ -36,7 +39,7 @@ Use semver: patch for bug fixes, minor for new features.
 
 ## Architecture
 
-The tool has two runtime modes, both sharing the same core modules.
+The tool has two runtime modes, both sharing the same core modules. A central **project registry** at `$XDG_CONFIG_HOME/code-review-annotator/projects.json` (default `~/.config/...`) lets a single HTTP server serve many projects / worktrees — each MCP server registers its `--dir` on startup, and the browser UI lists every registered project in a dropdown. Stale entries (dir missing) are filtered on read; the file is safe to hand-edit.
 
 ### Diff model — GitHub-style
 
@@ -66,9 +69,10 @@ An MCP stdio server exposing 5 tools to Claude Code:
 
 | File | Responsibility |
 |------|---------------|
-| `src/comments.ts` | `CommentStore` — all state. Reads/writes `.review-comments.json` in the target repo root. Manages comment lifecycle (`open` ↔ `resolved`) and reply threads. Stores `baseBranch` and per-comment `commitSha` + `anchorSnippet`. |
+| `src/comments.ts` | `CommentStore` — all state. Reads/writes `.review-comments.json` in the target repo root. Manages comment lifecycle (`open` ↔ `resolved`) and reply threads. Stores `baseBranch` and per-comment `commitSha` + `anchorSnippet`. HTTP server creates a fresh store per request so MCP writes are always visible. |
 | `src/gitDiff.ts` | Git diff computation via `simple-git`. `resolveMergeBase(dir, baseBranch)` runs `git merge-base HEAD <baseBranch>`. `detectDefaultBase` tries `main` then `master` for the CLI auto-detect. |
 | `src/fileTree.ts` | Directory scanner respecting `.gitignore` and `.claudeignore`. Used by `/api/files` but not the sidebar (sidebar uses diff summary). |
+| `src/registry.ts` | Central project registry. Atomic tmp+rename writes. `registerProject(dir, baseBranch)` is idempotent (upserts by abs path). `listProjects()` filters entries whose `dir` no longer exists. |
 
 ### Data model
 
@@ -87,12 +91,12 @@ An MCP stdio server exposing 5 tools to Claude Code:
 
 ### CLI flags
 
-- `--dir <path>` — project root (must be a git repo)
-- `--base <ref>` — base branch; omit to auto-detect `main` then `master`
-- `--port <n>` — HTTP port (default `8080`)
-- `--mcp` — run as MCP stdio server instead of HTTP
+- `--port <n>` — HTTP port (default `8080`, HTTP mode only)
+- `--dir <path>` — project root (must be a git repo). **Required** in `--mcp` mode. Optional in HTTP mode — if provided, auto-registers the project into the registry at startup.
+- `--base <ref>` — base branch; omit to auto-detect `main` then `master`. Used when `--dir` is being registered.
+- `--mcp` — run as MCP stdio server instead of HTTP. MCP mode registers `--dir` into the shared registry on startup so it shows up in the browser UI.
 
-The CLI resolves `baseBranch` once at startup and passes it to `startHttpServer` / `startMcpServer`. `CommentStore` persists it to `.review-comments.json` but the CLI flag always takes precedence — on next launch the file is overwritten with the flag value.
+HTTP mode resolves the project per request by reading the registry and matching the `?project=<abs-dir>` query param (or picking the first registered project when absent). MCP mode resolves `baseBranch` once at startup and passes it to the `CommentStore`. `CommentStore` persists it to `.review-comments.json` but the CLI flag always takes precedence — on next launch the file is overwritten with the flag value.
 
 ### Outdated detection
 
