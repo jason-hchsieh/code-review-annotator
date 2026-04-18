@@ -316,6 +316,32 @@ body > * { position: relative; z-index: 1; }
 .call-header-meta {
   color: var(--text-dim); font-size: 11px; font-family: var(--font-mono);
 }
+.file-comment-nav {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 4px; border: 1px solid var(--border); border-radius: 5px;
+  background: var(--bg3);
+}
+.file-comment-nav-btn {
+  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+  width: 22px; height: 22px; border-radius: 3px; cursor: pointer; padding: 0;
+  font-family: var(--font-mono); font-size: 12px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all 0.12s var(--ease);
+}
+.file-comment-nav-btn:hover:not(:disabled) {
+  background: var(--accent-soft); color: var(--accent); border-color: var(--accent);
+}
+.file-comment-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.file-comment-nav-count {
+  color: var(--text-muted); font-family: var(--font-mono); font-size: 11px;
+  min-width: 40px; text-align: center; user-select: none;
+}
+@keyframes comment-flash {
+  0%   { box-shadow: 0 0 0 0 var(--accent),    0 0 0 0   var(--accent-soft); }
+  50%  { box-shadow: 0 0 0 2px var(--accent),  0 0 14px 4px var(--accent-soft); }
+  100% { box-shadow: 0 0 0 0 var(--accent),    0 0 0 0   var(--accent-soft); }
+}
+.comment-flash { animation: comment-flash 1s var(--ease); }
 
 .diff-table {
   width: 100%; border-collapse: collapse;
@@ -1071,6 +1097,11 @@ body > * { position: relative; z-index: 1; }
       <span class="call-header-file" id="ch-file"></span>
       <span class="call-header-meta" id="ch-meta"></span>
       <span class="spacer" style="flex:1"></span>
+      <div class="file-comment-nav" id="file-comment-nav" style="display:none" title="Jump between comments on this file (n / p)">
+        <button class="file-comment-nav-btn" id="btn-file-comment-prev" title="Previous comment on this file (p)" aria-label="Previous comment">↑</button>
+        <span class="file-comment-nav-count" id="file-comment-nav-count">0 / 0</span>
+        <button class="file-comment-nav-btn" id="btn-file-comment-next" title="Next comment on this file (n)" aria-label="Next comment">↓</button>
+      </div>
       <div class="scope-menu-wrap">
         <button class="btn-scope-menu" id="btn-scope-menu" title="Create a file / multi-file / view-level comment">+ Comment ▾</button>
         <div class="scope-menu" id="scope-menu">
@@ -1181,6 +1212,8 @@ const state = {
   scopeForm: null,
   // Multi-file selection (active only in git-range/browse modes)
   multiSelect: { active: false, files: new Set() },
+  // In-file comment navigation (prev/next jumps within the currently opened file)
+  fileCommentNav: { ids: [], index: -1 },
 }
 
 const EXPAND_STEP = 20
@@ -1926,6 +1959,48 @@ function renderContent() {
     renderFileScopePanel(target, { file: data.file, beforeSha: data.beforeSha ?? '', afterSha: data.afterSha ?? '' })
   }
   updateMenuVisibility()
+  updateFileCommentNav()
+}
+
+// ─── In-file comment navigation ───
+// Collects every comment rendered for the current file — file-scope cards in
+// #file-scope-panel plus line-scope threads inside the diff table — in DOM
+// order. Multi-file / view comments live in #scope-panel and are intentionally
+// excluded: those aren't anchored to *this* file specifically.
+function updateFileCommentNav() {
+  const wrap = $('#file-comment-nav')
+  const countEl = $('#file-comment-nav-count')
+  const prevBtn = $('#btn-file-comment-prev')
+  const nextBtn = $('#btn-file-comment-next')
+  const nodes = document.querySelectorAll('#file-scope-panel [data-comment-id], #diff-table [data-comment-id]')
+  const ids = Array.from(nodes).map(el => el.dataset.commentId)
+  // Preserve position when the same comment is still in the list (common after
+  // SSE refresh / reply add); otherwise reset.
+  const prevCurId = state.fileCommentNav.ids[state.fileCommentNav.index]
+  state.fileCommentNav.ids = ids
+  state.fileCommentNav.index = prevCurId ? ids.indexOf(prevCurId) : -1
+  if (!ids.length) { wrap.style.display = 'none'; return }
+  wrap.style.display = 'inline-flex'
+  const pos = state.fileCommentNav.index
+  countEl.textContent = pos >= 0 ? `${pos + 1} / ${ids.length}` : `${ids.length} comment${ids.length === 1 ? '' : 's'}`
+  prevBtn.disabled = false
+  nextBtn.disabled = false
+}
+
+function jumpFileComment(dir) {
+  const ids = state.fileCommentNav.ids
+  if (!ids.length) return
+  let idx = state.fileCommentNav.index
+  if (idx < 0) idx = dir > 0 ? 0 : ids.length - 1
+  else idx = (idx + dir + ids.length) % ids.length
+  state.fileCommentNav.index = idx
+  const el = document.querySelector(`[data-comment-id="${ids[idx]}"]`)
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  el.classList.remove('comment-flash')
+  void el.offsetWidth // restart animation
+  el.classList.add('comment-flash')
+  $('#file-comment-nav-count').textContent = `${idx + 1} / ${ids.length}`
 }
 
 // ─── Diff rendering ───
@@ -2205,6 +2280,7 @@ function appendCommentThread(tbody, comment, opts = {}) {
   const startsCollapsed = comment.status === 'resolved'
   const thread = document.createElement('div')
   thread.className = `comment-thread status-${comment.status}${startsCollapsed ? ' collapsed' : ''}`
+  thread.dataset.commentId = comment.id
 
   const hdr = document.createElement('div'); hdr.className = 'comment-thread-header'; hdr.title = 'Click to collapse / expand'
   const caret = document.createElement('span'); caret.className = 'comment-collapse-caret'; caret.textContent = '▾'; hdr.appendChild(caret)
@@ -2339,6 +2415,7 @@ function scopeCardActions(comment) {
 
 function buildScopeCard(comment, currentFile = null) {
   const card = document.createElement('div'); card.className = 'scope-card status-' + comment.status
+  card.dataset.commentId = comment.id
   card.appendChild(scopeCardHead(comment))
   if (comment.scope === 'multi-file' || comment.scope === 'file') {
     const files = document.createElement('div'); files.className = 'scope-card-files'
@@ -3138,7 +3215,16 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && $('#graph-modal').classList.contains('open')) {
     closeGraphPicker()
   }
+  // n / p — jump between comments on the current file. Skip when typing.
+  const t = e.target
+  const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+  if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (e.key === 'n') { e.preventDefault(); jumpFileComment(1) }
+    else if (e.key === 'p') { e.preventDefault(); jumpFileComment(-1) }
+  }
 })
+$('#btn-file-comment-prev').addEventListener('click', () => jumpFileComment(-1))
+$('#btn-file-comment-next').addEventListener('click', () => jumpFileComment(1))
 
 // ─── SSE ───
 function startLiveStream() {
