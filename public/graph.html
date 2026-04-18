@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Range picker · Code Review Annotator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --font-mono: 'JetBrains Mono', Menlo, monospace;
+    --font-ui: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: 'Fraunces', Georgia, serif;
+
+    --bg: #13120f;
+    --bg2: #1b1a15;
+    --bg3: #25231c;
+    --border: #33312a;
+    --border-strong: #4a4638;
+    --text: #e8e2d1;
+    --text-muted: #a8a294;
+    --text-dim: #70695d;
+
+    --accent: #e9a53e;
+    --accent-hover: #f0b555;
+    --accent-soft: rgba(233, 165, 62, 0.12);
+    --accent-glow: rgba(233, 165, 62, 0.35);
+
+    --lane-0: #c8a660;   /* main - aged brass */
+    --lane-1: #8fa87c;   /* feature - sage */
+    --lane-2: #c37b69;   /* hotfix - terracotta */
+    --lane-3: #7fa3b8;   /* experimental - oxide blue */
+
+    --added: #8bb36f;
+    --deleted: #d28570;
+
+    --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: 0.002em;
+  }
+
+  /* Atmospheric backdrop: warm radial glow + paper grain */
+  body::before {
+    content: "";
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(1400px 700px at 80% -10%, rgba(233, 165, 62, 0.06), transparent 55%),
+      radial-gradient(900px 500px at 10% 120%, rgba(176, 140, 217, 0.03), transparent 55%);
+  }
+  body::after {
+    content: "";
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    opacity: 0.25;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.6  0 0 0 0 0.55  0 0 0 0 0.4  0 0 0 0.08 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+
+  main { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; }
+
+  /* ----- top bar ----- */
+  header {
+    display: flex; align-items: center; gap: 18px;
+    padding: 14px 26px 13px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(27, 26, 21, 0.85), rgba(19, 18, 15, 0.55));
+    backdrop-filter: blur(6px);
+    flex-shrink: 0;
+  }
+  .crumb {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-family: var(--font-ui);
+    letter-spacing: 0.02em;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .crumb a {
+    color: var(--text-muted); text-decoration: none;
+    transition: color 0.15s var(--ease);
+  }
+  .crumb a:hover { color: var(--accent); }
+  .crumb-sep { color: var(--text-dim); opacity: 0.6; }
+
+  h1.title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  h1.title em {
+    color: var(--accent);
+    font-style: italic;
+    font-weight: 600;
+    margin-right: 2px;
+  }
+
+  .spacer { flex: 1; }
+
+  .key-hints {
+    display: inline-flex; gap: 14px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .key-hints kbd {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    background: var(--bg3);
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px;
+    color: var(--text-muted);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-right: 4px;
+  }
+
+  /* ----- selection strip ----- */
+  .strip {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto;
+    align-items: center;
+    gap: 18px;
+    padding: 18px 26px 20px;
+    border-bottom: 1px solid var(--border);
+    background:
+      linear-gradient(180deg, rgba(37, 35, 28, 0.4), rgba(27, 26, 21, 0.15));
+  }
+
+  .chip {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px 14px;
+    background: linear-gradient(180deg, rgba(27, 26, 21, 0.7), rgba(19, 18, 15, 0.4));
+    transition: border-color 0.2s var(--ease), transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+    min-height: 78px;
+    cursor: pointer;
+  }
+  .chip:hover { border-color: var(--border-strong); }
+  .chip.active {
+    border-color: var(--accent);
+    box-shadow:
+      0 0 0 1px var(--accent),
+      0 4px 28px -8px var(--accent-glow),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+  .chip-label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .chip-label .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-dim);
+  }
+  .chip.active .chip-label .dot {
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
+  .chip-ref {
+    margin-top: 6px;
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.3;
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  }
+  .chip-ref .ref-kind {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+  }
+  .chip-ref .empty {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+  .chip-subject {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  .swap {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--bg2);
+    border: 1px solid var(--border-strong);
+    color: var(--text-muted);
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all 0.18s var(--ease);
+  }
+  .swap:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    transform: rotate(180deg);
+  }
+
+  .apply {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 12px 20px 13px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, var(--accent), #d88f2a);
+    color: #1a1611;
+    border: none;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    box-shadow:
+      0 6px 20px -8px var(--accent-glow),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+    transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease);
+  }
+  .apply:hover { transform: translateY(-1px); box-shadow: 0 10px 30px -8px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.25); }
+  .apply:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .apply .count {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(26, 22, 17, 0.3);
+    color: #1a1611;
+  }
+
+  /* ----- body split ----- */
+  .split { flex: 1; display: grid; grid-template-columns: 1fr 360px; overflow: hidden; }
+
+  /* ----- graph area ----- */
+  .graph-wrap {
+    position: relative;
+    overflow: auto;
+    background:
+      linear-gradient(180deg, rgba(19, 18, 15, 0.0) 0%, rgba(19, 18, 15, 0.35) 100%);
+  }
+
+  /* top-left floating legend */
+  .legend {
+    position: absolute;
+    top: 18px; left: 24px;
+    z-index: 4;
+    padding: 12px 14px 12px 12px;
+    background: rgba(27, 26, 21, 0.88);
+    backdrop-filter: blur(6px);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex; flex-direction: column; gap: 6px;
+    font-size: 11.5px;
+  }
+  .legend-title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+    text-transform: lowercase;
+    padding-bottom: 2px;
+  }
+  .legend-row {
+    display: flex; align-items: center; gap: 9px;
+    padding: 3px 0;
+  }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 0 3px currentColor;
+    color: transparent;
+  }
+  .legend-name {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text);
+  }
+  .legend-tag {
+    margin-left: auto;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 10.5px;
+    color: var(--text-dim);
+  }
+
+  /* date gutter */
+  .date-marker {
+    position: absolute;
+    left: 26px;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 400;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+    transform: translateY(-50%);
+    display: flex; align-items: center; gap: 10px;
+    pointer-events: none;
+  }
+  .date-marker::before {
+    content: "";
+    display: inline-block;
+    width: 14px; height: 1px;
+    background: var(--border-strong);
+  }
+
+  /* main graph SVG */
+  svg.graph {
+    display: block;
+    margin-left: 140px;
+  }
+
+  /* commit card (hover popover) */
+  .popover {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(15, 14, 11, 0.96);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 14px;
+    min-width: 260px; max-width: 340px;
+    box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--accent-soft);
+    z-index: 10;
+    opacity: 0; transform: translateY(4px);
+    transition: opacity 0.15s var(--ease), transform 0.15s var(--ease);
+  }
+  .popover.visible { opacity: 1; transform: translateY(0); }
+  .popover .pop-sha {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--accent);
+    letter-spacing: 0.03em;
+  }
+  .popover .pop-subject {
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.45;
+  }
+  .popover .pop-meta {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border-strong);
+    display: flex; justify-content: space-between; gap: 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .popover .pop-meta strong {
+    font-weight: 500; color: var(--text);
+    font-family: var(--font-display);
+    font-style: italic;
+  }
+  .popover .pop-actions {
+    margin-top: 10px;
+    display: flex; gap: 6px;
+  }
+  .popover .pop-actions button {
+    flex: 1;
+    padding: 6px 8px;
+    background: var(--bg2);
+    border: 1px solid var(--border-strong);
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.12s var(--ease);
+  }
+  .popover .pop-actions button:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  /* graph node styling handled inline on SVG, plus a few states */
+  .node { cursor: pointer; }
+  .node-dot {
+    transition: r 0.2s var(--ease-out), filter 0.2s var(--ease);
+  }
+  .node:hover .node-dot { filter: drop-shadow(0 0 6px var(--accent-glow)); }
+
+  .node.from .node-dot, .node.to .node-dot {
+    filter: drop-shadow(0 0 10px var(--accent-glow));
+  }
+  .node.in-range .node-dot {
+    filter: drop-shadow(0 0 4px var(--accent-glow));
+  }
+
+  .node-ring {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    opacity: 0;
+    transform-origin: center;
+    transform-box: fill-box;
+    transition: opacity 0.2s var(--ease-out);
+  }
+  .node.from .node-ring,
+  .node.to .node-ring { opacity: 1; }
+  .node.from .node-ring { animation: pulse 2.8s var(--ease) infinite; }
+  .node.to .node-ring { animation: pulse 2.8s var(--ease) infinite 1.4s; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50%      { opacity: 1;    transform: scale(1.15); }
+  }
+
+  .node-label {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    fill: var(--text);
+    pointer-events: none;
+  }
+  .node-label.sha {
+    fill: var(--text-dim);
+    font-size: 10.5px;
+  }
+
+  .branch-pill {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 11.5px;
+    fill: var(--text);
+  }
+  .branch-pill-bg {
+    fill: var(--bg2);
+    stroke: var(--border-strong);
+    stroke-width: 1;
+    rx: 3;
+  }
+  .special-pill-bg {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+    rx: 4;
+  }
+
+  .range-glow {
+    stroke: var(--accent);
+    stroke-width: 6;
+    fill: none;
+    opacity: 0.25;
+    filter: blur(3px);
+    stroke-linecap: round;
+  }
+  .range-core {
+    stroke: var(--accent);
+    stroke-width: 2;
+    fill: none;
+    opacity: 0.85;
+    stroke-linecap: round;
+  }
+
+  /* stroke-in reveal for edges */
+  .edge { stroke-dasharray: 600; stroke-dashoffset: 600; }
+  .edge.revealed {
+    animation: stroke-reveal 0.9s var(--ease-out) forwards;
+  }
+  @keyframes stroke-reveal {
+    to { stroke-dashoffset: 0; }
+  }
+
+  .node-enter { opacity: 0; transform: scale(0.3); transform-origin: center; transform-box: fill-box; }
+  .node-enter.revealed { animation: node-in 0.35s var(--ease-out) forwards; }
+  @keyframes node-in {
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* ----- right sidebar: range preview ----- */
+  aside.preview {
+    border-left: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(27, 26, 21, 0.55), rgba(19, 18, 15, 0.9));
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .preview-head {
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .preview-title {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .preview-sub {
+    margin-top: 4px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+  }
+  .preview-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 14px 22px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .stat {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .stat-num {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    line-height: 1;
+  }
+  .stat.added .stat-num { color: var(--added); }
+  .stat.deleted .stat-num { color: var(--deleted); }
+  .stat-label {
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .file-list {
+    flex: 1; overflow-y: auto;
+    padding: 4px 0 18px;
+  }
+  .file-group-hdr {
+    padding: 12px 22px 6px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-family: var(--font-ui);
+  }
+  .file-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 22px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text);
+    cursor: default;
+    transition: background 0.12s var(--ease);
+    border-left: 2px solid transparent;
+  }
+  .file-row:hover { background: var(--bg3); border-left-color: var(--accent); }
+  .file-status {
+    width: 16px; text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+  }
+  .file-status.M { color: var(--accent); }
+  .file-status.A { color: var(--added); }
+  .file-status.D { color: var(--deleted); }
+  .file-status.R { color: var(--text-muted); }
+
+  .file-path {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .file-path .dim { color: var(--text-dim); }
+  .file-delta {
+    font-size: 10.5px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .file-delta .plus { color: var(--added); }
+  .file-delta .minus { color: var(--deleted); }
+
+  .preview-empty {
+    padding: 40px 24px;
+    text-align: center;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+  .preview-empty small {
+    display: block;
+    margin-top: 10px;
+    font-family: var(--font-ui);
+    font-style: normal;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    opacity: 0.8;
+  }
+
+  .non-ancestor-warn {
+    margin: 10px 22px 0;
+    padding: 10px 12px;
+    border-left: 2px solid var(--deleted);
+    background: rgba(210, 133, 112, 0.08);
+    font-size: 11.5px;
+    color: var(--deleted);
+    line-height: 1.4;
+  }
+  .non-ancestor-warn strong {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+  }
+
+  /* fallback text inputs at the very bottom (advanced) */
+  .fallback {
+    padding: 10px 22px 14px;
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    align-items: center;
+  }
+  .fallback label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    font-weight: 600;
+    grid-column: 1 / -1;
+    margin-bottom: -2px;
+    font-family: var(--font-ui);
+  }
+  .fallback input {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 6px 8px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    outline: none;
+    transition: border-color 0.15s var(--ease);
+  }
+  .fallback input:focus { border-color: var(--accent); }
+
+  /* utility */
+  .muted { color: var(--text-muted); }
+  .dim   { color: var(--text-dim); }
+
+  /* scrollbar refinement */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--bg3);
+    border: 2px solid var(--bg);
+    border-radius: 6px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+</style>
+</head>
+<body>
+<main>
+
+  <header>
+    <span class="crumb">
+      <a href="#">← Diff view</a>
+      <span class="crumb-sep">/</span>
+      <span>Range picker</span>
+    </span>
+    <h1 class="title"><em>¶</em> Pick a range, visually</h1>
+    <span class="spacer"></span>
+    <div class="key-hints">
+      <span><kbd>Click</kbd>assign from · to</span>
+      <span><kbd>Shift</kbd>+<kbd>Click</kbd>set to</span>
+      <span><kbd>⇧⌫</kbd>clear</span>
+    </div>
+  </header>
+
+  <!-- selection strip: from / swap / to / apply -->
+  <section class="strip" id="strip">
+    <div class="chip" data-role="from" id="chip-from">
+      <div class="chip-label"><span class="dot"></span>from</div>
+      <div class="chip-ref"><span class="empty">Click a commit on the graph</span></div>
+      <div class="chip-subject muted" id="chip-from-sub"></div>
+    </div>
+
+    <button class="swap" id="swap" title="Swap from ↔ to" aria-label="Swap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 7h11l-3-3" /><path d="M17 17H6l3 3" />
+      </svg>
+    </button>
+
+    <div class="chip" data-role="to" id="chip-to">
+      <div class="chip-label"><span class="dot"></span>to</div>
+      <div class="chip-ref"><span class="empty">Pick another to draw the range</span></div>
+      <div class="chip-subject muted" id="chip-to-sub"></div>
+    </div>
+
+    <button class="apply" id="apply" disabled>
+      Load diff <span class="count" id="apply-count">—</span>
+    </button>
+  </section>
+
+  <div class="split">
+    <!-- ---------- Graph column ---------- -->
+    <div class="graph-wrap" id="graph-wrap">
+      <div class="legend" id="legend"></div>
+      <div id="date-gutter"></div>
+      <svg class="graph" id="graph" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="popover" id="popover"></div>
+    </div>
+
+    <!-- ---------- Right preview column ---------- -->
+    <aside class="preview">
+      <div class="preview-head">
+        <div class="preview-title" id="preview-title">Nothing selected yet</div>
+        <div class="preview-sub" id="preview-sub">Range preview will appear here.</div>
+      </div>
+
+      <div class="preview-stats" id="preview-stats" style="display:none">
+        <div class="stat"><div class="stat-num" id="stat-files">0</div><div class="stat-label">files</div></div>
+        <div class="stat added"><div class="stat-num" id="stat-added">+0</div><div class="stat-label">added</div></div>
+        <div class="stat deleted"><div class="stat-num" id="stat-deleted">−0</div><div class="stat-label">deleted</div></div>
+      </div>
+
+      <div id="ancestor-warn"></div>
+
+      <div class="file-list" id="file-list">
+        <div class="preview-empty">
+          <span style="font-family: var(--font-display); font-style: italic;">A constellation awaits a pair of stars.</span>
+          <small>Click any commit on the graph to pin it as <em>from</em>. Click another to close the range.</small>
+        </div>
+      </div>
+
+      <div class="fallback">
+        <label>Advanced · type a ref</label>
+        <input id="fb-from" placeholder="from (main, HEAD, SHA…)" spellcheck="false" />
+        <input id="fb-to" placeholder="to (HEAD, WORKTREE…)" spellcheck="false" />
+      </div>
+    </aside>
+  </div>
+</main>
+
+<script>
+/* ========================================================================== *
+ * Mock git topology — plausible data that exercises merges, multiple lanes,  *
+ * and special refs. Newest first (y=0 at top).                               *
+ * ========================================================================== */
+
+const branches = [
+  { lane: 0, name: 'main',                 color: 'var(--lane-0)' },
+  { lane: 1, name: 'feat/export-cta',      color: 'var(--lane-1)' },
+  { lane: 2, name: 'fix/orphan-tool-call', color: 'var(--lane-2)' },
+  { lane: 3, name: 'spike/ws-live',        color: 'var(--lane-3)' },
+];
+
+// Each commit: id, sha, lane, parents (by id), subject, author, date, tags
+// Special nodes (WORKTREE / INDEX) sit at the very top of lane 0.
+const commits = [
+  { id: 'WT',  kind: 'special', label: 'WORKTREE', sub: '3 unstaged, 1 untracked',  lane: 0, parents: ['IX'] },
+  { id: 'IX',  kind: 'special', label: 'INDEX',    sub: '2 files staged',           lane: 0, parents: ['c0'] },
+
+  { id: 'c0',  sha: 'bf33363', lane: 0, parents: ['c1', 'c2'], tags: ['HEAD', 'main'],
+    subject: 'Merge pull request #3 from jason-hchsieh/claude/sleepy-jackson',
+    author: 'jasonhch', when: 'Today · 11:14' },
+
+  { id: 'c1',  sha: '058dd0b', lane: 0, parents: ['c3'], tags: [],
+    subject: "Merge remote-tracking branch 'origin/main' into claude/sleepy",
+    author: 'jasonhch', when: 'Today · 10:48' },
+
+  { id: 'c2',  sha: '6cf1ebb', lane: 1, parents: ['c3'], tags: [],
+    subject: 'refactor: anchor comments by blob SHA, drop sessions table',
+    author: 'claude',  when: 'Today · 10:40' },
+
+  { id: 'c3',  sha: 'b9049ad', lane: 0, parents: ['c4'], tags: [],
+    subject: 'feat(ui): export CTA with count, gutter affordance, live pill',
+    author: 'jasonhch', when: 'Yesterday · 19:02' },
+
+  { id: 'c4',  sha: '114d307', lane: 0, parents: ['c5', 'c6'], tags: [],
+    subject: 'feat(ui): GitHub-style file tree in sidebar',
+    author: 'jasonhch', when: 'Yesterday · 15:37' },
+
+  { id: 'c5',  sha: '9ab42e0', lane: 2, parents: ['c7'], tags: ['fix/orphan-tool-call'],
+    subject: 'fix: orphan tool calls after 5min timeout should not crash view',
+    author: 'claude',  when: 'Yesterday · 14:12' },
+
+  { id: 'c6',  sha: '7201d4b', lane: 0, parents: ['c7'], tags: [],
+    subject: 'chore(deps): bump diff to 5.2.0, tsx to latest patch',
+    author: 'jasonhch', when: 'Yesterday · 13:08' },
+
+  { id: 'c7',  sha: '3e8c910', lane: 0, parents: ['c8'], tags: [],
+    subject: 'refactor: split LogStore read/write into atomic tmp+rename',
+    author: 'jasonhch', when: '2 days ago · 18:20' },
+
+  { id: 'c8',  sha: 'ff04a22', lane: 0, parents: ['c9', 'c10'], tags: [],
+    subject: 'Merge branch spike/ws-live — decision: stay with SSE, defer WS',
+    author: 'jasonhch', when: '2 days ago · 11:55' },
+
+  { id: 'c9',  sha: 'aa9e17f', lane: 3, parents: ['c10'], tags: ['spike/ws-live'],
+    subject: 'spike: WebSocket live refresh (rejected, kept for reference)',
+    author: 'jasonhch', when: '3 days ago · 20:10' },
+
+  { id: 'c10', sha: '2d1c3a8', lane: 0, parents: ['c11'], tags: [],
+    subject: 'feat(server): SSE stream at /api/events, 1.5s poll window',
+    author: 'jasonhch', when: '3 days ago · 16:48' },
+
+  { id: 'c11', sha: '4b88e02', lane: 0, parents: [],      tags: ['v0.14.0'],
+    subject: 'release: v0.14.0 — central project registry, MCP auto-register',
+    author: 'jasonhch', when: 'Last week' },
+];
+
+commits.forEach((c, i) => { c.y = i; });
+const commitMap = Object.fromEntries(commits.map(c => [c.id, c]));
+
+/* Date group markers — keyed by commit id that starts the group */
+const dateGroups = [
+  { startId: 'c0',  label: 'Today' },
+  { startId: 'c3',  label: 'Yesterday' },
+  { startId: 'c7',  label: '2 days ago' },
+  { startId: 'c9',  label: '3 days ago' },
+  { startId: 'c11', label: 'Last week' },
+];
+
+/* Mock per-range file changes. Keyed by `${from}→${to}`. Fallback: random-ish. */
+const rangeFiles = {
+  'c11→c0': {
+    added: 412, deleted: 187,
+    groups: [
+      { title: 'src', files: [
+        { status: 'M', path: 'src/', name: 'log.ts',      add: 68, del: 31 },
+        { status: 'M', path: 'src/', name: 'server.ts',   add: 54, del: 22 },
+        { status: 'M', path: 'src/', name: 'mcp.ts',      add: 12, del:  8 },
+        { status: 'M', path: 'src/', name: 'git.ts',      add: 31, del:  5 },
+        { status: 'A', path: 'src/', name: 'watcher.ts',  add: 48, del:  0 },
+        { status: 'A', path: 'src/', name: 'registry.ts', add: 94, del:  0 },
+      ]},
+      { title: 'public', files: [
+        { status: 'M', path: 'public/', name: 'index.html', add: 77, del: 112 },
+      ]},
+      { title: 'scripts', files: [
+        { status: 'M', path: 'scripts/', name: 'hook.js', add: 18, del:  4 },
+      ]},
+      { title: 'plugin', files: [
+        { status: 'M', path: 'hooks/',        name: 'hooks.json',      add: 4, del: 2 },
+        { status: 'M', path: '.claude-plugin/', name: 'plugin.json',   add: 1, del: 1 },
+        { status: 'M', path: '.claude-plugin/', name: 'marketplace.json', add: 1, del: 1 },
+        { status: 'M', path: '',              name: 'package.json',    add: 2, del: 0 },
+        { status: 'M', path: '',              name: 'CLAUDE.md',       add: 2, del: 1 },
+      ]},
+    ],
+  },
+  'c3→c0': {
+    added: 94, deleted: 38,
+    groups: [
+      { title: 'src', files: [
+        { status: 'M', path: 'src/', name: 'log.ts',     add: 22, del: 12 },
+        { status: 'M', path: 'src/', name: 'server.ts',  add: 18, del:  4 },
+      ]},
+      { title: 'public', files: [
+        { status: 'M', path: 'public/', name: 'index.html', add: 54, del: 22 },
+      ]},
+    ],
+  },
+  'c7→c4': {
+    added: 132, deleted: 41,
+    groups: [
+      { title: 'src', files: [
+        { status: 'A', path: 'src/', name: 'watcher.ts', add: 48, del: 0 },
+        { status: 'M', path: 'src/', name: 'server.ts',  add: 36, del: 7 },
+      ]},
+      { title: 'public', files: [
+        { status: 'M', path: 'public/', name: 'index.html', add: 48, del: 34 },
+      ]},
+    ],
+  },
+};
+/* Utility: default filelist for ranges we didn't pre-compute */
+function defaultFilesFor(fromId, toId) {
+  const fromY = commitMap[fromId].y;
+  const toY   = commitMap[toId].y;
+  const span  = Math.abs(toY - fromY);
+  const added = 18 * span + 12;
+  const deleted = 7 * span + 5;
+  return {
+    added, deleted,
+    groups: [
+      { title: 'src', files: [
+        { status: 'M', path: 'src/',    name: 'log.ts',       add: Math.round(added * 0.3), del: Math.round(deleted * 0.3) },
+        { status: 'M', path: 'src/',    name: 'server.ts',    add: Math.round(added * 0.25), del: Math.round(deleted * 0.25) },
+      ]},
+      { title: 'public', files: [
+        { status: 'M', path: 'public/', name: 'index.html',   add: Math.round(added * 0.3), del: Math.round(deleted * 0.25) },
+      ]},
+      { title: 'docs', files: [
+        { status: 'M', path: '',        name: 'CLAUDE.md',    add: Math.round(added * 0.1), del: 2 },
+      ]},
+    ],
+  };
+}
+
+/* ========================================================================== *
+ * Graph layout constants                                                      *
+ * ========================================================================== */
+
+const LANE_GAP  = 38;
+const ROW_GAP   = 52;
+const LEFT_PAD  = 36;
+const TOP_PAD   = 34;
+const RIGHT_PAD = 480; // room for subject/tags
+const DOT_R     = 7;
+
+function laneX(lane) { return LEFT_PAD + lane * LANE_GAP; }
+function rowY(y)     { return TOP_PAD  + y    * ROW_GAP; }
+
+const laneColorCSS = ['var(--lane-0)', 'var(--lane-1)', 'var(--lane-2)', 'var(--lane-3)'];
+
+/* ========================================================================== *
+ * Render                                                                      *
+ * ========================================================================== */
+
+const svg = document.getElementById('graph');
+const graphWrap = document.getElementById('graph-wrap');
+const dateGutter = document.getElementById('date-gutter');
+const popover = document.getElementById('popover');
+
+const totalLanes = Math.max(...commits.map(c => c.lane)) + 1;
+const totalRows  = commits.length;
+const W = LEFT_PAD + (totalLanes - 1) * LANE_GAP + RIGHT_PAD;
+const H = TOP_PAD  + (totalRows  - 1) * ROW_GAP + TOP_PAD;
+svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+svg.setAttribute('width',  W);
+svg.setAttribute('height', H);
+
+/* --- Legend --- */
+const legend = document.getElementById('legend');
+legend.innerHTML = `
+  <div class="legend-title">branches on screen</div>
+  ${branches.map(b => `
+    <div class="legend-row">
+      <span class="legend-dot" style="color:${b.color}"></span>
+      <span class="legend-name">${b.name}</span>
+      ${b.lane === 0 ? '<span class="legend-tag">— trunk</span>' : ''}
+    </div>
+  `).join('')}
+`;
+
+/* --- Date gutter markers (positioned absolutely over graph-wrap) --- */
+for (const g of dateGroups) {
+  const c = commitMap[g.startId]; if (!c) continue;
+  const el = document.createElement('div');
+  el.className = 'date-marker';
+  el.style.top = (rowY(c.y) + 8) + 'px';
+  el.textContent = g.label;
+  dateGutter.appendChild(el);
+}
+
+/* --- Edges (parent lines) --- */
+function edgePath(from, to) {
+  const x1 = laneX(from.lane), y1 = rowY(from.y);
+  const x2 = laneX(to.lane),   y2 = rowY(to.y);
+  if (x1 === x2) return `M ${x1} ${y1} L ${x2} ${y2}`;
+  // smooth s-curve merging/branching. Bezier control: vertical then curve.
+  const midY = (y1 + y2) / 2;
+  return `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+}
+const edgeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+edgeGroup.setAttribute('id', 'edges');
+svg.appendChild(edgeGroup);
+
+const edges = []; // {from, to, path}
+for (const c of commits) {
+  for (const pId of c.parents) {
+    const p = commitMap[pId]; if (!p) continue;
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', edgePath(c, p));
+    path.setAttribute('fill', 'none');
+    // edges that change lane use the child's color if diverging upward, or parent's if merging
+    const sameLane = c.lane === p.lane;
+    const strokeColor = sameLane ? laneColorCSS[c.lane] : (c.lane < p.lane ? laneColorCSS[c.lane] : laneColorCSS[p.lane]);
+    path.setAttribute('stroke', strokeColor);
+    path.setAttribute('stroke-width', sameLane ? '2' : '1.6');
+    path.setAttribute('stroke-opacity', sameLane ? '0.9' : '0.7');
+    path.classList.add('edge');
+    edgeGroup.appendChild(path);
+    edges.push({ from: c, to: p, path });
+  }
+}
+
+/* --- Range highlight (drawn above edges, below nodes) --- */
+const rangeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+rangeGroup.setAttribute('id', 'range');
+svg.appendChild(rangeGroup);
+
+/* --- Nodes + labels --- */
+const nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+nodeGroup.setAttribute('id', 'nodes');
+svg.appendChild(nodeGroup);
+
+const nodeEls = {}; // commit.id -> <g>
+for (const c of commits) {
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.classList.add('node', 'node-enter');
+  g.dataset.id = c.id;
+  const x = laneX(c.lane), y = rowY(c.y);
+  g.setAttribute('transform', `translate(${x} ${y})`);
+
+  // outer selection ring (hidden until selected)
+  const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  ring.classList.add('node-ring');
+  ring.setAttribute('cx', 0); ring.setAttribute('cy', 0);
+  ring.setAttribute('r', DOT_R + 6);
+  g.appendChild(ring);
+
+  // dot
+  const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  dot.classList.add('node-dot');
+  dot.setAttribute('cx', 0); dot.setAttribute('cy', 0);
+  if (c.kind === 'special') {
+    dot.setAttribute('r', DOT_R - 1);
+    dot.setAttribute('fill', 'var(--bg)');
+    dot.setAttribute('stroke', 'var(--accent)');
+    dot.setAttribute('stroke-width', '1.6');
+    dot.setAttribute('stroke-dasharray', '2 2');
+  } else {
+    dot.setAttribute('r', DOT_R);
+    dot.setAttribute('fill', laneColorCSS[c.lane]);
+    dot.setAttribute('stroke', 'var(--bg)');
+    dot.setAttribute('stroke-width', '2');
+  }
+  g.appendChild(dot);
+
+  // tiny inner dot for merges (2+ parents)
+  if (c.parents && c.parents.length >= 2) {
+    const inner = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    inner.setAttribute('cx', 0); inner.setAttribute('cy', 0);
+    inner.setAttribute('r', 2.2);
+    inner.setAttribute('fill', 'var(--bg)');
+    g.appendChild(inner);
+  }
+
+  nodeGroup.appendChild(g);
+  nodeEls[c.id] = g;
+
+  // label + sha to the right of the rightmost lane
+  const labelX = laneX(totalLanes - 1) + LANE_GAP * 0.6;
+  const labelG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  labelG.setAttribute('transform', `translate(${labelX} ${y})`);
+
+  let cursor = 0;
+
+  // sha / special kind
+  const shaT = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  shaT.classList.add('node-label', 'sha');
+  shaT.setAttribute('x', 0);
+  shaT.setAttribute('y', 4);
+  shaT.textContent = c.kind === 'special' ? c.label : c.sha;
+  if (c.kind === 'special') {
+    shaT.setAttribute('fill', 'var(--accent)');
+    shaT.style.fontWeight = '600';
+    shaT.style.letterSpacing = '0.08em';
+  }
+  labelG.appendChild(shaT);
+  cursor += c.kind === 'special' ? 80 : 64;
+
+  // tag pills (HEAD, branch names)
+  if (c.tags && c.tags.length) {
+    for (const tag of c.tags) {
+      const pill = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      pill.setAttribute('transform', `translate(${cursor} 0)`);
+      const isHead = tag === 'HEAD';
+      const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      textEl.classList.add('branch-pill');
+      textEl.setAttribute('x', 6); textEl.setAttribute('y', 4);
+      textEl.textContent = tag;
+      if (isHead) {
+        textEl.style.fill = 'var(--accent)';
+        textEl.style.fontWeight = '600';
+      } else if (tag.startsWith('v')) {
+        textEl.style.fill = 'var(--added)';
+      } else {
+        textEl.style.fill = laneColorCSS[c.lane];
+      }
+      // measure via a hidden temp — approximation
+      const approxW = tag.length * 6.6 + 14;
+      bg.setAttribute('x', 0); bg.setAttribute('y', -9);
+      bg.setAttribute('width', approxW); bg.setAttribute('height', 18);
+      bg.setAttribute('rx', 3); bg.setAttribute('ry', 3);
+      bg.classList.add('branch-pill-bg');
+      if (isHead) {
+        bg.setAttribute('stroke', 'var(--accent)');
+        bg.setAttribute('fill', 'var(--accent-soft)');
+      }
+      pill.appendChild(bg);
+      pill.appendChild(textEl);
+      labelG.appendChild(pill);
+      cursor += approxW + 6;
+    }
+  }
+
+  // subject line below the sha / tags
+  const subjT = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  subjT.classList.add('node-label');
+  subjT.setAttribute('x', 0);
+  subjT.setAttribute('y', 20);
+  subjT.setAttribute('fill', c.kind === 'special' ? 'var(--text-muted)' : 'var(--text)');
+  if (c.kind === 'special') {
+    subjT.style.fontStyle = 'italic';
+    subjT.style.fontFamily = 'var(--font-display)';
+  }
+  subjT.textContent = truncate(c.kind === 'special' ? c.sub : c.subject, 62);
+  labelG.appendChild(subjT);
+
+  nodeGroup.appendChild(labelG);
+}
+
+function truncate(s, n) { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+
+/* --- Stagger reveal animation --- */
+requestAnimationFrame(() => {
+  edges.forEach((e, i) => {
+    setTimeout(() => e.path.classList.add('revealed'), 40 * i);
+  });
+  commits.forEach((c, i) => {
+    setTimeout(() => nodeEls[c.id].classList.add('revealed'), 80 + 35 * i);
+  });
+});
+
+/* ========================================================================== *
+ * Selection & interaction                                                     *
+ * ========================================================================== */
+
+let fromId = null;
+let toId   = null;
+
+function setSelection(role, id) {
+  if (role === 'from') fromId = id;
+  else if (role === 'to') toId = id;
+  applyVisualState();
+  renderStrip();
+  renderPreview();
+}
+
+function clickCommit(id, ev) {
+  if (ev.shiftKey) { setSelection('to', id); return; }
+  if (!fromId)        return setSelection('from', id);
+  if (fromId === id)  return setSelection('from', null);
+  if (!toId)          return setSelection('to', id);
+  if (toId === id)    return setSelection('to', null);
+  // both filled, reset: new from
+  fromId = id; toId = null;
+  applyVisualState(); renderStrip(); renderPreview();
+}
+
+for (const c of commits) {
+  const g = nodeEls[c.id];
+  g.addEventListener('click', (e) => clickCommit(c.id, e));
+  g.addEventListener('mouseenter', (e) => showPopover(c, g));
+  g.addEventListener('mouseleave', hidePopover);
+}
+
+/* --- Visual state --- */
+function applyVisualState() {
+  for (const c of commits) {
+    const g = nodeEls[c.id];
+    g.classList.remove('from', 'to', 'in-range');
+  }
+  if (fromId) nodeEls[fromId].classList.add('from');
+  if (toId)   nodeEls[toId].classList.add('to');
+  drawRangeHighlight();
+}
+
+function drawRangeHighlight() {
+  rangeGroup.innerHTML = '';
+  if (!fromId || !toId) return;
+  const path = shortestPath(fromId, toId);
+  if (!path) return;
+
+  // mark in-range nodes (excluding endpoints)
+  for (let i = 1; i < path.length - 1; i++) {
+    const g = nodeEls[path[i]];
+    if (g) g.classList.add('in-range');
+  }
+
+  // draw the range highlight as two stacked paths (glow + core)
+  const d = pathToD(path);
+  const glow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  glow.classList.add('range-glow');
+  glow.setAttribute('d', d);
+  rangeGroup.appendChild(glow);
+
+  const core = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  core.classList.add('range-core');
+  core.setAttribute('d', d);
+  rangeGroup.appendChild(core);
+}
+
+function pathToD(pathIds) {
+  // Build a continuous SVG path threading through the commits by connecting
+  // each consecutive pair using the same bezier shape as the edges.
+  let d = '';
+  for (let i = 0; i < pathIds.length - 1; i++) {
+    const a = commitMap[pathIds[i]];
+    const b = commitMap[pathIds[i + 1]];
+    const x1 = laneX(a.lane), y1 = rowY(a.y);
+    const x2 = laneX(b.lane), y2 = rowY(b.y);
+    if (i === 0) d += `M ${x1} ${y1} `;
+    if (x1 === x2) d += `L ${x2} ${y2} `;
+    else {
+      const midY = (y1 + y2) / 2;
+      d += `C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2} `;
+    }
+  }
+  return d;
+}
+
+/* BFS ancestor path: find path from `to` going up to `from` through parents. */
+function shortestPath(a, b) {
+  const visited = new Map(); visited.set(b, null);
+  const queue = [b];
+  while (queue.length) {
+    const cur = queue.shift();
+    if (cur === a) {
+      const out = [];
+      let k = a;
+      while (k != null) { out.push(k); k = visited.get(k); }
+      return out.reverse();
+    }
+    const node = commitMap[cur];
+    if (!node) continue;
+    for (const p of node.parents) {
+      if (!visited.has(p)) { visited.set(p, cur); queue.push(p); }
+    }
+  }
+  return null;
+}
+
+/* --- Strip chips --- */
+function renderStrip() {
+  renderChip('from', fromId);
+  renderChip('to', toId);
+  const ok = fromId && toId;
+  const applyBtn = document.getElementById('apply');
+  applyBtn.disabled = !ok;
+
+  // file count preview
+  const range = currentRange();
+  document.getElementById('apply-count').textContent = range ? `${range.fileCount} files` : '—';
+}
+
+function renderChip(role, id) {
+  const chip = document.getElementById(`chip-${role}`);
+  const ref = chip.querySelector('.chip-ref');
+  const sub = chip.querySelector('.chip-subject');
+  chip.classList.toggle('active', !!id);
+  if (!id) {
+    ref.innerHTML = `<span class="empty">${
+      role === 'from' ? 'Click a commit on the graph' : 'Pick another to draw the range'
+    }</span>`;
+    sub.textContent = '';
+    return;
+  }
+  const c = commitMap[id];
+  if (c.kind === 'special') {
+    ref.innerHTML = `<span>${c.label}</span><span class="ref-kind">· live state</span>`;
+    sub.textContent = c.sub;
+  } else {
+    const tagHtml = (c.tags && c.tags.length)
+      ? ` <span class="ref-kind">${c.tags[0]}</span>` : '';
+    ref.innerHTML = `<span>${c.sha}</span>${tagHtml}`;
+    sub.textContent = c.subject;
+  }
+}
+
+/* --- Preview panel --- */
+function renderPreview() {
+  const range = currentRange();
+  const title = document.getElementById('preview-title');
+  const subEl = document.getElementById('preview-sub');
+  const stats = document.getElementById('preview-stats');
+  const list  = document.getElementById('file-list');
+  const warn  = document.getElementById('ancestor-warn');
+  warn.innerHTML = '';
+
+  if (!range) {
+    title.textContent = fromId ? 'Pick a to-ref' : 'Nothing selected yet';
+    subEl.textContent = fromId
+      ? `from is pinned at ${abbrev(fromId)} — click another commit to close the range.`
+      : 'Range preview will appear here.';
+    stats.style.display = 'none';
+    list.innerHTML = `<div class="preview-empty">
+      <span style="font-family: var(--font-display); font-style: italic;">A constellation awaits a pair of stars.</span>
+      <small>Click any commit on the graph to pin it as <em>from</em>. Click another to close the range.</small>
+    </div>`;
+    return;
+  }
+
+  title.innerHTML = `${abbrev(fromId)} <span class="dim">→</span> ${abbrev(toId)}`;
+  subEl.textContent = range.nonAncestor
+    ? `Non-ancestor range · merge-base ${range.mergeBase}`
+    : `Linear range · ${range.commits} commit${range.commits === 1 ? '' : 's'}`;
+
+  stats.style.display = 'grid';
+  document.getElementById('stat-files').textContent   = range.fileCount;
+  document.getElementById('stat-added').textContent   = '+' + range.added;
+  document.getElementById('stat-deleted').textContent = '−' + range.deleted;
+
+  if (range.nonAncestor) {
+    warn.innerHTML = `
+      <div class="non-ancestor-warn">
+        <strong>Non-linear range.</strong><br>
+        These refs don't share a direct ancestor relationship. The diff still
+        computes <code>${abbrev(fromId)}..${abbrev(toId)}</code>, but treat it
+        as informational only.
+      </div>`;
+  }
+
+  let html = '';
+  for (const g of range.groups) {
+    html += `<div class="file-group-hdr">${g.title}</div>`;
+    for (const f of g.files) {
+      html += `
+        <div class="file-row" title="${f.path}${f.name}">
+          <span class="file-status ${f.status}">${f.status}</span>
+          <span class="file-path"><span class="dim">${f.path}</span>${f.name}</span>
+          <span class="file-delta"><span class="plus">+${f.add}</span> <span class="minus">−${f.del}</span></span>
+        </div>`;
+    }
+  }
+  list.innerHTML = html;
+}
+
+function currentRange() {
+  if (!fromId || !toId) return null;
+  const key = `${fromId}→${toId}`;
+  const reverseKey = `${toId}→${fromId}`;
+  const data = rangeFiles[key] || rangeFiles[reverseKey] || defaultFilesFor(fromId, toId);
+  const fileCount = data.groups.reduce((s, g) => s + g.files.length, 0);
+  // detect non-ancestor: if neither is reachable from the other via parents-only traversal
+  const linear = isAncestor(fromId, toId) || isAncestor(toId, fromId);
+  return {
+    fileCount, added: data.added, deleted: data.deleted,
+    commits: Math.abs(commitMap[fromId].y - commitMap[toId].y),
+    groups: data.groups,
+    nonAncestor: !linear,
+    mergeBase: !linear ? 'c7' : null,
+  };
+}
+function isAncestor(a, b) { return !!shortestPath(a, b); }
+
+function abbrev(id) {
+  const c = commitMap[id];
+  if (!c) return id;
+  return c.kind === 'special' ? c.label : c.sha.slice(0, 7);
+}
+
+/* --- Hover popover --- */
+function showPopover(c, nodeEl) {
+  if (c.kind === 'special') {
+    popover.innerHTML = `
+      <div class="pop-sha" style="color:var(--accent);letter-spacing:0.1em">${c.label}</div>
+      <div class="pop-subject" style="font-family:var(--font-display);font-style:italic">${c.sub}</div>
+      <div class="pop-meta"><span>live state — not a commit</span></div>
+      <div class="pop-actions">
+        <button data-act="from">Set from</button>
+        <button data-act="to">Set to</button>
+      </div>`;
+  } else {
+    const tagsHtml = (c.tags && c.tags.length)
+      ? `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${c.tags.map(t =>
+          `<span style="font-family:var(--font-mono);font-size:10.5px;padding:1px 6px;border-radius:3px;background:var(--bg3);color:${t==='HEAD'?'var(--accent)':'var(--text-muted)'}">${t}</span>`).join('')}</div>`
+      : '';
+    popover.innerHTML = `
+      <div class="pop-sha">${c.sha}</div>
+      <div class="pop-subject">${c.subject}</div>
+      ${tagsHtml}
+      <div class="pop-meta">
+        <span><strong>${c.author}</strong></span>
+        <span>${c.when}</span>
+      </div>
+      <div class="pop-actions">
+        <button data-act="from">Set from</button>
+        <button data-act="to">Set to</button>
+      </div>`;
+  }
+
+  popover.querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => setSelection(b.dataset.act, c.id));
+  });
+
+  // position near the node
+  const rect = nodeEl.getBoundingClientRect();
+  const wrapRect = graphWrap.getBoundingClientRect();
+  popover.style.left = (rect.right - wrapRect.left + graphWrap.scrollLeft + 16) + 'px';
+  popover.style.top  = (rect.top   - wrapRect.top  + graphWrap.scrollTop  - 4)  + 'px';
+  popover.classList.add('visible');
+  popover.style.pointerEvents = 'auto';
+}
+function hidePopover() {
+  // delay so buttons are clickable
+  setTimeout(() => {
+    if (!popover.matches(':hover')) {
+      popover.classList.remove('visible');
+      popover.style.pointerEvents = 'none';
+    }
+  }, 120);
+}
+popover.addEventListener('mouseleave', () => {
+  popover.classList.remove('visible');
+  popover.style.pointerEvents = 'none';
+});
+
+/* --- Swap --- */
+document.getElementById('swap').addEventListener('click', () => {
+  [fromId, toId] = [toId, fromId];
+  applyVisualState(); renderStrip(); renderPreview();
+});
+
+/* --- Apply button (would call the real API in production) --- */
+document.getElementById('apply').addEventListener('click', () => {
+  if (!fromId || !toId) return;
+  const url = `#view=git-range&from=${encodeURIComponent(fromIdAsRef())}&to=${encodeURIComponent(toIdAsRef())}`;
+  // In the real app: window.location.hash = url;
+  // For the prototype: flash the button.
+  const btn = document.getElementById('apply');
+  btn.style.background = 'linear-gradient(180deg, var(--added), #5d8b4b)';
+  btn.textContent = 'Loading diff…';
+  setTimeout(() => { alert(`Would navigate to:\n${url}`); location.reload(); }, 400);
+});
+function fromIdAsRef() {
+  const c = commitMap[fromId];
+  return c.kind === 'special' ? c.label : c.sha;
+}
+function toIdAsRef() {
+  const c = commitMap[toId];
+  return c.kind === 'special' ? c.label : c.sha;
+}
+
+/* --- Fallback text inputs keep in sync --- */
+const fbFrom = document.getElementById('fb-from');
+const fbTo   = document.getElementById('fb-to');
+function syncFallback() {
+  fbFrom.value = fromId ? fromIdAsRef() : '';
+  fbTo.value   = toId   ? toIdAsRef()   : '';
+}
+const originalApply = applyVisualState;
+applyVisualState = function() { originalApply(); syncFallback(); };
+
+/* --- Keyboard --- */
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Backspace' && e.shiftKey) {
+    e.preventDefault();
+    fromId = null; toId = null;
+    applyVisualState(); renderStrip(); renderPreview();
+  }
+  if (e.key === 'Escape') {
+    popover.classList.remove('visible');
+  }
+});
+
+/* --- Chip click = cycle (clear that slot) --- */
+document.getElementById('chip-from').addEventListener('click', () => {
+  if (fromId) { fromId = null; applyVisualState(); renderStrip(); renderPreview(); }
+});
+document.getElementById('chip-to').addEventListener('click', () => {
+  if (toId) { toId = null; applyVisualState(); renderStrip(); renderPreview(); }
+});
+
+/* --- Initial state demo: preselect the most common "last release → HEAD" range --- */
+fromId = 'c11';
+toId   = 'c0';
+applyVisualState();
+renderStrip();
+renderPreview();
+
+</script>
+</body>
+</html>
