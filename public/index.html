@@ -255,6 +255,43 @@ body > * { position: relative; z-index: 1; }
   color: var(--comment-open); font-family: var(--font-mono); font-size: 10.5px;
 }
 
+/* GitHub-style file tree (session modes) */
+.tree-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 14px 4px 6px;
+  cursor: pointer; user-select: none; min-width: 0;
+  border-left: 2px solid transparent;
+  transition: background 0.1s var(--ease), border-left-color 0.1s var(--ease);
+}
+.tree-row:hover { background: var(--bg3); }
+.tree-row.file.active { background: var(--accent-soft); border-left-color: var(--accent); }
+.tree-caret {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 12px; height: 12px; flex-shrink: 0;
+  color: var(--text-dim); font-family: var(--font-mono); font-size: 9px;
+  transition: transform 0.12s var(--ease);
+}
+.tree-row.folder.collapsed .tree-caret { transform: rotate(-90deg); }
+.tree-icon {
+  flex-shrink: 0; width: 14px; height: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-muted);
+}
+.tree-row.folder .tree-icon { color: var(--accent); }
+.tree-name {
+  font-family: var(--font-mono); font-size: 12px; color: var(--text);
+  flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tree-row.folder .tree-name { color: var(--text); font-weight: 500; }
+.tree-row.file .tree-name { color: var(--text); }
+.tree-row .tool-badge { margin-left: 4px; }
+.tree-row .tree-badges { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+.tree-row .tree-path-hint {
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--text-dim);
+  margin-left: 4px; flex-shrink: 0;
+}
+
 #content {
   flex: 1; overflow: auto; background: var(--bg);
   display: flex; flex-direction: column;
@@ -632,6 +669,7 @@ const state = {
   selection: null, // { side, startLine, endLine }
   liveStream: null,
   gitRefs: [],
+  collapsedFolders: new Set(), // tree-view folder paths that are collapsed
 }
 
 const $ = (sel) => document.querySelector(sel)
@@ -882,8 +920,88 @@ function renderTimeline() {
         : 'No files match that filter.'
       tl.appendChild(empty); return
     }
-    for (const f of items) tl.appendChild(renderFileRow(f))
+    if (filter) {
+      for (const f of items) tl.appendChild(renderFileRow(f, 0, /*showPath*/ true))
+    } else {
+      const tree = buildFileTree(items)
+      renderTreeInto(tree, 0, tl)
+    }
   }
+}
+
+// ─── File tree (GitHub-style) ───
+function buildFileTree(files) {
+  const root = { type: 'folder', name: '', path: '', _children: new Map() }
+  for (const f of files) {
+    // git ls-files --others collapses whole-dir untracked paths to 'foo/' — strip trailing slash
+    const parts = f.file.replace(/\/+$/, '').split('/')
+    let cur = root
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i]
+      const childPath = (cur.path ? cur.path + '/' : '') + part
+      if (!cur._children.has(part)) {
+        cur._children.set(part, { type: 'folder', name: part, path: childPath, _children: new Map() })
+      }
+      cur = cur._children.get(part)
+    }
+    const leaf = parts[parts.length - 1]
+    cur._children.set(leaf, { type: 'file', name: leaf, path: f.file, data: f })
+  }
+  return finalizeTree(root)
+}
+
+function finalizeTree(node) {
+  if (node.type === 'file') return node
+  const children = [...node._children.values()].map(finalizeTree)
+  delete node._children
+  children.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1
+    return a.name.localeCompare(b.name)
+  })
+  // Collapse single-folder chains (folder/foo/bar when each is the only child)
+  node.children = children.map(c => {
+    if (c.type !== 'folder') return c
+    let cur = c
+    while (cur.children.length === 1 && cur.children[0].type === 'folder') {
+      const only = cur.children[0]
+      cur = { type: 'folder', name: cur.name + '/' + only.name, path: only.path, children: only.children }
+    }
+    return cur
+  })
+  return node
+}
+
+function renderTreeInto(node, level, container) {
+  for (const child of node.children) {
+    if (child.type === 'folder') {
+      container.appendChild(renderFolderRow(child, level))
+      if (!state.collapsedFolders.has(child.path)) {
+        renderTreeInto(child, level + 1, container)
+      }
+    } else {
+      container.appendChild(renderFileRow(child.data, level, /*showPath*/ false, child.name))
+    }
+  }
+}
+
+function renderFolderRow(folder, level) {
+  const collapsed = state.collapsedFolders.has(folder.path)
+  const row = document.createElement('div')
+  row.className = 'tree-row folder' + (collapsed ? ' collapsed' : '')
+  row.style.paddingLeft = (6 + level * 14) + 'px'
+
+  const caret = document.createElement('span'); caret.className = 'tree-caret'; caret.textContent = '▾'
+  const icon = document.createElement('span'); icon.className = 'tree-icon'
+  icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.75 2.5h3.5l1.5 1.5h7.5a.75.75 0 01.75.75v8a.75.75 0 01-.75.75H1.75A.75.75 0 011 12.75v-9.5A.75.75 0 011.75 2.5z" opacity="0.85"/></svg>'
+  const name = document.createElement('span'); name.className = 'tree-name'; name.textContent = folder.name
+
+  row.appendChild(caret); row.appendChild(icon); row.appendChild(name)
+  row.addEventListener('click', () => {
+    if (state.collapsedFolders.has(folder.path)) state.collapsedFolders.delete(folder.path)
+    else state.collapsedFolders.add(folder.path)
+    renderTimeline()
+  })
+  return row
 }
 
 function renderToolCallRow(call) {
@@ -918,23 +1036,38 @@ function renderToolCallRow(call) {
   return row
 }
 
-function renderFileRow(f) {
+function renderFileRow(f, level = 0, showPath = false, leafName = null) {
   const row = document.createElement('div')
-  row.className = 'timeline-item' + (state.selectedFile === f.file ? ' active' : '')
+  row.className = 'tree-row file' + (state.selectedFile === f.file ? ' active' : '')
+  row.style.paddingLeft = (6 + level * 14) + 'px'
+  row.title = f.file
   row.addEventListener('click', () => selectFile(f.file))
 
-  const top = document.createElement('div'); top.className = 'timeline-item-top'
-  if (state.mode === 'git-range') {
-    const badge = document.createElement('span')
-    badge.className = `tool-badge ${f.status}`
-    badge.textContent = f.status
-    top.appendChild(badge)
-  }
-  const file = document.createElement('span'); file.className = 'timeline-file'; file.textContent = f.file
-  top.appendChild(file)
+  // spacer where a folder would have its caret
+  const caretSpacer = document.createElement('span'); caretSpacer.className = 'tree-caret'; caretSpacer.textContent = ''
+  row.appendChild(caretSpacer)
 
-  const meta = document.createElement('div'); meta.className = 'timeline-item-meta'
-  const badges = document.createElement('div'); badges.className = 'timeline-badges'
+  const icon = document.createElement('span'); icon.className = 'tree-icon'
+  icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3.75 1.5h6l3.75 3.75v9.25A.75.75 0 0112.75 15.25H3.75a.75.75 0 01-.75-.75V2.25a.75.75 0 01.75-.75zm6 .75V5h2.75L9.75 2.25z" opacity="0.75"/></svg>'
+  row.appendChild(icon)
+
+  const displayName = leafName ?? f.file.split('/').pop()
+  const name = document.createElement('span'); name.className = 'tree-name'; name.textContent = displayName
+  row.appendChild(name)
+
+  if (showPath && f.file.includes('/')) {
+    const hint = document.createElement('span'); hint.className = 'tree-path-hint'
+    hint.textContent = f.file.slice(0, f.file.length - displayName.length - 1) + '/'
+    row.appendChild(hint)
+  }
+
+  const badges = document.createElement('div'); badges.className = 'tree-badges'
+  if (state.mode === 'git-range' && f.status) {
+    const sb = document.createElement('span')
+    sb.className = `tool-badge ${f.status}`
+    sb.textContent = f.status
+    badges.appendChild(sb)
+  }
   const openComments = state.comments.filter(c =>
     c.target?.kind === state.mode && c.target?.id === state.selectedSessionId &&
     c.target?.file === f.file && c.status === 'open'
@@ -944,8 +1077,7 @@ function renderFileRow(f) {
     const cc = document.createElement('span'); cc.className = 'comment-count'; cc.textContent = openComments
     badges.appendChild(dot); badges.appendChild(cc)
   }
-  meta.appendChild(badges)
-  row.appendChild(top); row.appendChild(meta)
+  row.appendChild(badges)
   return row
 }
 
