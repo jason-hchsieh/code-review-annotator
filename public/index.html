@@ -2145,9 +2145,18 @@ function renderDiff(before, after, beforeSha, afterSha, file, target, comments) 
       const list = commentsByAnchor.get(`after:${row.afterLine}`)
       if (list) for (const c of list) appendCommentThread(tbody, c, { migrated: migratedIds.has(c.id) })
     }
+    // Inline the comment form immediately after the last row in the current
+    // selection — otherwise on a long diff the form appends far below and
+    // looks like the click did nothing.
+    if (state.selection) {
+      const sel = state.selection
+      const rowLineForSel = sel.side === 'before' ? row.beforeLine : row.afterLine
+      const sideMatches = row.type === 'context' || visualSide === sel.side
+      if (sideMatches && rowLineForSel === sel.endLine) {
+        appendCommentForm(tbody, target, { before, after, beforeSha, afterSha, file })
+      }
+    }
   }
-
-  if (state.selection) appendCommentForm(tbody, target, { before, after, beforeSha, afterSha, file })
 }
 
 function appendHunkSep(tbody, row) {
@@ -2204,8 +2213,10 @@ function renderBrowse(content, contentSha, file, target, comments) {
     tr.addEventListener('click', (e) => handleLineClick(e, { afterLine: n, beforeLine: null }, 'current', target))
     const list = commentsByAnchor.get(`current:${n}`)
     if (list) for (const c of list) appendCommentThread(tbody, c, { migrated: migratedIds.has(c.id) })
+    if (state.selection && state.selection.side === 'current' && n === state.selection.endLine) {
+      appendCommentForm(tbody, target, { before: '', after: content, beforeSha: '', afterSha: contentSha, file })
+    }
   }
-  if (state.selection) appendCommentForm(tbody, target, { before: '', after: content, beforeSha: '', afterSha: contentSha, file })
 }
 
 function handleLineClick(e, row, side, target) {
@@ -2238,7 +2249,8 @@ function appendCommentForm(tbody, target, viewData) {
   const lineRef = sel.startLine === sel.endLine ? `L${sel.startLine}` : `L${sel.startLine}–L${sel.endLine}`
   hdr.textContent = `New comment on ${sel.side} ${lineRef}`
   const body = document.createElement('div'); body.className = 'comment-form-body'
-  const ta = document.createElement('textarea'); ta.placeholder = 'Leave a comment…'; ta.focus()
+  const ta = document.createElement('textarea'); ta.placeholder = 'Leave a comment…'
+  queueMicrotask(() => { ta.focus(); tr.scrollIntoView({ block: 'nearest' }) })
   const actions = document.createElement('div'); actions.className = 'comment-form-actions'
   const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
   cancel.addEventListener('click', () => { state.selection = null; renderContent() })
