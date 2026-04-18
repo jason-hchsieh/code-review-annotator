@@ -346,10 +346,33 @@ body > * { position: relative; z-index: 1; }
 .diff-row.context .td-sign { color: var(--text-dim); }
 .diff-row.hunk-sep {
   background: var(--bg2); color: var(--text-dim);
-  font-size: 11px; text-align: center; padding: 4px 0;
+  font-size: 11px;
   border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
 }
-.diff-row.hunk-sep td { padding: 4px 12px; }
+.diff-row.hunk-sep td { padding: 3px 8px; vertical-align: middle; }
+.diff-row.hunk-sep:hover { background: var(--bg2); }
+.td-expand {
+  width: 82px; padding: 3px 6px !important;
+  border-right: 1px solid var(--border);
+}
+.expand-group { display: inline-flex; gap: 3px; }
+.expand-btn {
+  background: var(--bg3); color: var(--text-muted);
+  border: 1px solid var(--border); border-radius: 3px;
+  width: 22px; height: 20px; padding: 0;
+  font-family: var(--font-mono); font-size: 12px; line-height: 1;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all 0.1s var(--ease);
+}
+.expand-btn:hover {
+  background: var(--accent-soft); color: var(--accent);
+  border-color: var(--accent);
+}
+.td-hunk-label {
+  color: var(--text-dim); font-family: var(--font-mono); font-style: italic;
+  white-space: nowrap;
+}
 
 /* Comment threads */
 .comment-thread-row td { padding: 0; }
@@ -752,7 +775,12 @@ const state = {
   collapsedFolders: new Set(), // tree-view folder paths that are collapsed
   seenCallIds: null,     // null = first load, Set after
   flashIds: new Set(),   // ids to flash on next timeline render
+  // Per-file gap expansions for diff view (GitHub-style). Reset on target change.
+  // Map<gapKey, { top: number, bottom: number, all: boolean }>
+  gapExpansions: new Map(),
 }
+
+const EXPAND_STEP = 20
 
 // ─── URL hash sync ───
 // View state lives in the URL hash so links are shareable and reloads preserve
@@ -1345,11 +1373,11 @@ function renderFileRow(f, level = 0, showPath = false, leafName = null) {
 
 // ─── Content selection / rendering ───
 function selectCall(id) {
-  state.selectedCallId = id; state.selection = null
+  state.selectedCallId = id; state.selection = null; state.gapExpansions = new Map()
   renderContent(); renderTimeline()
 }
 async function selectFile(file) {
-  state.selectedFile = file; state.selection = null
+  state.selectedFile = file; state.selection = null; state.gapExpansions = new Map()
   try {
     if (state.mode === 'browse') {
       state.viewFileData = await api('GET',
@@ -1413,7 +1441,9 @@ function renderContent() {
 }
 
 // ─── Diff rendering ───
-function buildHunks(before, after) {
+// Compute every diff row once. Returns the full row list; the render function
+// chooses which rows to show based on `state.gapExpansions`.
+function diffAllRows(before, after) {
   const parts = Diff.diffLines(before, after)
   const rows = []
   let beforeLine = 1, afterLine = 1
@@ -1427,29 +1457,71 @@ function buildHunks(before, after) {
       else rows.push({ type, beforeLine: beforeLine++, afterLine: afterLine++, content: line })
     }
   }
+  return rows
+}
+
+// Build the visible list: default-keep 3 lines of context around each change,
+// collapse the rest into interactive `gap` markers. Every gap — including the
+// leading and trailing gaps — gets a marker so the reviewer can expand toward
+// the top or bottom of the file.
+function buildHunks(before, after, expansions) {
+  const rows = diffAllRows(before, after)
   const CONTEXT = 3
-  const changedIdx = rows.map((r, i) => r.type !== 'context' ? i : -1).filter(i => i >= 0)
-  if (changedIdx.length === 0) return rows
+  const changedIdx = []
+  for (let i = 0; i < rows.length; i++) if (rows[i].type !== 'context') changedIdx.push(i)
+  // No changes: show the whole file (users still want to be able to comment).
+  if (changedIdx.length === 0) return rows.map(r => ({ ...r }))
   const keep = new Set()
   for (const i of changedIdx) for (let j = Math.max(0, i - CONTEXT); j <= Math.min(rows.length - 1, i + CONTEXT); j++) keep.add(j)
-  const out = []
-  let lastKept = -2
-  for (let i = 0; i < rows.length; i++) {
-    if (keep.has(i)) {
-      if (lastKept >= 0 && i - lastKept > 1) {
-        const gap = i - lastKept - 1
-        out.push({ type: 'hunk-sep', content: `… ${gap} unchanged line${gap === 1 ? '' : 's'} …` })
-      }
-      out.push(rows[i]); lastKept = i
-    }
+  // Collect contiguous runs of hidden rows (the gaps).
+  const gaps = []
+  let gs = -1
+  for (let i = 0; i <= rows.length; i++) {
+    const hidden = i < rows.length && !keep.has(i)
+    if (hidden && gs === -1) gs = i
+    else if (!hidden && gs !== -1) { gaps.push({ start: gs, end: i - 1 }); gs = -1 }
   }
+  const out = []
+  let cursor = 0
+  for (const gap of gaps) {
+    while (cursor < gap.start) { out.push(rows[cursor]); cursor++ }
+    const key = gapKey(gap)
+    const exp = expansions?.get(key) || { top: 0, bottom: 0, all: false }
+    const total = gap.end - gap.start + 1
+    if (exp.all || exp.top + exp.bottom >= total) {
+      for (let i = gap.start; i <= gap.end; i++) out.push(rows[i])
+    } else {
+      const shownTop = Math.min(exp.top, total)
+      const shownBottom = Math.min(exp.bottom, total - shownTop)
+      for (let i = gap.start; i < gap.start + shownTop; i++) out.push(rows[i])
+      out.push({
+        type: 'hunk-sep',
+        gapKey: key,
+        hidden: total - shownTop - shownBottom,
+      })
+      for (let i = gap.end - shownBottom + 1; i <= gap.end; i++) out.push(rows[i])
+    }
+    cursor = gap.end + 1
+  }
+  while (cursor < rows.length) { out.push(rows[cursor]); cursor++ }
   return out
+}
+
+function gapKey(gap) { return `g:${gap.start}-${gap.end}` }
+
+function expandGap(key, kind) {
+  const cur = state.gapExpansions.get(key) || { top: 0, bottom: 0, all: false }
+  if (kind === 'all') cur.all = true
+  else if (kind === 'top') cur.top += EXPAND_STEP
+  else if (kind === 'bottom') cur.bottom += EXPAND_STEP
+  state.gapExpansions.set(key, cur)
+  renderContent()
 }
 
 function renderDiff(before, after, beforeSha, afterSha, file, target, comments) {
   const tbody = $('#diff-table tbody')
   tbody.innerHTML = ''
-  const rows = buildHunks(before, after ?? '')
+  const rows = buildHunks(before, after ?? '', state.gapExpansions)
   const lang = detectLang(file)
 
   // Blob-aware side resolution: each comment is anchored by blobSha.
@@ -1467,16 +1539,17 @@ function renderDiff(before, after, beforeSha, afterSha, file, target, comments) 
 
   for (const row of rows) {
     if (row.type === 'hunk-sep') {
-      const tr = tbody.insertRow(); tr.className = 'diff-row hunk-sep'
-      const td = tr.insertCell(); td.colSpan = 4; td.textContent = row.content
+      appendHunkSep(tbody, row)
       continue
     }
     const tr = tbody.insertRow()
-    const side = row.type === 'added' ? 'after' : row.type === 'deleted' ? 'before' : 'context'
-    tr.className = `diff-row ${row.type}` + (side !== 'context' ? ' selectable' : '')
-    tr.dataset.side = side
-    if (side === 'before') tr.dataset.line = row.beforeLine
-    if (side === 'after') tr.dataset.line = row.afterLine
+    // Row visual side: context rows belong to BOTH sides (same content on
+    // before & after). Selection side is decided at click time.
+    const visualSide = row.type === 'added' ? 'after' : row.type === 'deleted' ? 'before' : 'context'
+    tr.className = `diff-row ${row.type} selectable`
+    tr.dataset.side = visualSide
+    if (visualSide === 'before') tr.dataset.line = row.beforeLine
+    if (visualSide === 'after') tr.dataset.line = row.afterLine
     const tdBefore = tr.insertCell(); tdBefore.className = 'td-line-num'; tdBefore.textContent = row.beforeLine ?? ''
     const tdAfter = tr.insertCell(); tdAfter.className = 'td-line-num'; tdAfter.textContent = row.afterLine ?? ''
     const tdSign = tr.insertCell(); tdSign.className = 'td-sign'
@@ -1484,11 +1557,17 @@ function renderDiff(before, after, beforeSha, afterSha, file, target, comments) 
     const tdCode = tr.insertCell(); tdCode.className = 'td-code'
     highlightInto(tdCode, row.content, lang)
 
-    if (state.selection && state.selection.side === side) {
-      const n = side === 'before' ? row.beforeLine : row.afterLine
-      if (n >= state.selection.startLine && n <= state.selection.endLine) tr.classList.add('selected')
+    if (state.selection) {
+      const selSide = state.selection.side
+      const rowLineForSel = selSide === 'before' ? row.beforeLine : row.afterLine
+      // Context rows can appear in either-side selection; added/deleted only in their own side.
+      const sideMatches = row.type === 'context' || visualSide === selSide
+      if (sideMatches && rowLineForSel != null
+          && rowLineForSel >= state.selection.startLine && rowLineForSel <= state.selection.endLine) {
+        tr.classList.add('selected')
+      }
     }
-    tr.addEventListener('click', (e) => handleLineClick(e, row, side, target))
+    tr.addEventListener('click', (e) => handleLineClick(e, row, visualSide, target))
 
     if (row.beforeLine !== null) {
       const list = commentsByAnchor.get(`before:${row.beforeLine}`)
@@ -1501,6 +1580,25 @@ function renderDiff(before, after, beforeSha, afterSha, file, target, comments) 
   }
 
   if (state.selection) appendCommentForm(tbody, target, { before, after, beforeSha, afterSha, file })
+}
+
+function appendHunkSep(tbody, row) {
+  const tr = tbody.insertRow(); tr.className = 'diff-row hunk-sep'
+  const tdExpand = tr.insertCell(); tdExpand.className = 'td-expand'; tdExpand.colSpan = 3
+  const group = document.createElement('div'); group.className = 'expand-group'
+  const makeBtn = (label, title, handler) => {
+    const b = document.createElement('button')
+    b.className = 'expand-btn'; b.type = 'button'
+    b.title = title; b.innerHTML = label
+    b.addEventListener('click', (e) => { e.stopPropagation(); handler() })
+    return b
+  }
+  group.appendChild(makeBtn('↑', `Show ${EXPAND_STEP} lines up`, () => expandGap(row.gapKey, 'top')))
+  group.appendChild(makeBtn('↓', `Show ${EXPAND_STEP} lines down`, () => expandGap(row.gapKey, 'bottom')))
+  group.appendChild(makeBtn('↕', 'Show all unchanged lines', () => expandGap(row.gapKey, 'all')))
+  tdExpand.appendChild(group)
+  const tdCode = tr.insertCell(); tdCode.className = 'td-code td-hunk-label'
+  tdCode.textContent = `… ${row.hidden} unchanged line${row.hidden === 1 ? '' : 's'} …`
 }
 
 function renderBrowse(content, contentSha, file, target, comments) {
@@ -1540,8 +1638,12 @@ function renderBrowse(content, contentSha, file, target, comments) {
 }
 
 function handleLineClick(e, row, side, target) {
-  if (side === 'context') return
-  const lineNum = side === 'before' ? row.beforeLine : side === 'after' ? row.afterLine : row.afterLine
+  // Context rows anchor to 'after' by default — the current state is what
+  // reviewers normally want to reference. (blob match still works: unchanged
+  // lines exist in the after blob.)
+  if (side === 'context') side = 'after'
+  const lineNum = side === 'before' ? row.beforeLine : row.afterLine
+  if (lineNum == null) return
   if (!state.selection || state.selection.side !== side) {
     state.selection = { side, startLine: lineNum, endLine: lineNum }
   } else if (e.shiftKey) {
