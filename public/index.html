@@ -255,6 +255,43 @@ body > * { position: relative; z-index: 1; }
   color: var(--comment-open); font-family: var(--font-mono); font-size: 10.5px;
 }
 
+/* GitHub-style file tree (session modes) */
+.tree-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 14px 4px 6px;
+  cursor: pointer; user-select: none; min-width: 0;
+  border-left: 2px solid transparent;
+  transition: background 0.1s var(--ease), border-left-color 0.1s var(--ease);
+}
+.tree-row:hover { background: var(--bg3); }
+.tree-row.file.active { background: var(--accent-soft); border-left-color: var(--accent); }
+.tree-caret {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 12px; height: 12px; flex-shrink: 0;
+  color: var(--text-dim); font-family: var(--font-mono); font-size: 9px;
+  transition: transform 0.12s var(--ease);
+}
+.tree-row.folder.collapsed .tree-caret { transform: rotate(-90deg); }
+.tree-icon {
+  flex-shrink: 0; width: 14px; height: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-muted);
+}
+.tree-row.folder .tree-icon { color: var(--accent); }
+.tree-name {
+  font-family: var(--font-mono); font-size: 12px; color: var(--text);
+  flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tree-row.folder .tree-name { color: var(--text); font-weight: 500; }
+.tree-row.file .tree-name { color: var(--text); }
+.tree-row .tool-badge { margin-left: 4px; }
+.tree-row .tree-badges { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+.tree-row .tree-path-hint {
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--text-dim);
+  margin-left: 4px; flex-shrink: 0;
+}
+
 #content {
   flex: 1; overflow: auto; background: var(--bg);
   display: flex; flex-direction: column;
@@ -517,6 +554,106 @@ body > * { position: relative; z-index: 1; }
   box-shadow: 0 4px 14px rgba(0,0,0,0.4);
 }
 #toast.visible { opacity: 1; }
+
+/* ─── UX polish: live pill, export CTA, gutter affordance, timeline density ─── */
+#live-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  color: var(--text-muted); font-size: 11px; white-space: nowrap;
+  padding: 3px 10px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  font-family: var(--font-mono); letter-spacing: 0.02em;
+  transition: border-color 0.15s var(--ease);
+}
+#live-pill.connected { border-color: rgba(139, 179, 111, 0.35); }
+#live-pill.error { border-color: var(--deleted-fg); color: var(--deleted-fg); }
+#live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--comment-resolved);
+  transition: background 0.2s var(--ease);
+  position: relative;
+}
+#live-pill.connected #live-dot { background: var(--added-fg); }
+#live-pill.error #live-dot { background: var(--deleted-fg); }
+#live-pill.flash #live-dot::after {
+  content: ""; position: absolute; inset: -4px; border-radius: 50%;
+  border: 2px solid var(--added-fg);
+  animation: live-ping 0.75s var(--ease);
+}
+@keyframes live-ping {
+  0% { transform: scale(0.6); opacity: 0.8; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+#live-time { color: var(--text-dim); }
+
+#btn-export { display: inline-flex; align-items: center; gap: 8px; }
+#btn-export:hover:not(:disabled) { background: var(--accent-hover); }
+#btn-export:disabled {
+  background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border); box-shadow: none;
+  cursor: default; font-weight: 500; opacity: 1;
+}
+#btn-export-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 19px; height: 18px; padding: 0 6px;
+  background: rgba(0,0,0,0.22); border-radius: 9px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0;
+}
+#btn-export:disabled #btn-export-count { display: none; }
+#btn-export-arrow { font-size: 13px; opacity: 0.75; margin-left: -2px; }
+#btn-export:disabled #btn-export-arrow { display: none; }
+#btn-export.pulse { animation: export-pulse 0.9s var(--ease); }
+@keyframes export-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(233, 165, 62, 0.45), 0 1px 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15); }
+  70% { box-shadow: 0 0 0 10px rgba(233, 165, 62, 0), 0 1px 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15); }
+  100% { box-shadow: 0 0 0 0 rgba(233, 165, 62, 0), 0 1px 0 rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15); }
+}
+
+.td-line-num { position: relative; }
+.diff-row.selectable .td-line-num:first-child::before {
+  content: "+";
+  position: absolute;
+  left: 3px; top: 50%; transform: translate(-6px, -50%) scale(0.85);
+  width: 14px; height: 14px;
+  background: var(--accent); color: var(--btn-ink);
+  border-radius: 3px;
+  font-family: var(--font-ui); font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; line-height: 1;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.12s var(--ease), transform 0.12s var(--ease);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.diff-row.selectable:hover .td-line-num:first-child::before {
+  opacity: 1; transform: translate(0, -50%) scale(1);
+}
+.diff-row.selected .td-line-num:first-child::before {
+  content: "×";
+  opacity: 1; transform: translate(0, -50%) scale(1);
+  background: var(--accent-hover);
+}
+
+.timeline-file {
+  display: flex; align-items: baseline; gap: 0; min-width: 0;
+  white-space: nowrap; overflow: hidden;
+}
+.timeline-file .path-dir {
+  color: var(--text-dim); overflow: hidden; text-overflow: ellipsis;
+  flex: 0 1 auto; min-width: 0;
+}
+.timeline-file .path-name {
+  color: var(--text); font-weight: 500; flex: 0 0 auto;
+}
+.timeline-diffstat {
+  display: inline-flex; gap: 4px; font-family: var(--font-mono);
+  font-size: 10.5px; letter-spacing: 0.01em;
+}
+.diffstat-added { color: var(--added-fg); }
+.diffstat-deleted { color: var(--deleted-fg); }
+.timeline-item-meta .timeline-badges { margin-left: auto; }
+.timeline-item.flash-new { animation: timeline-flash 1.4s var(--ease); }
+@keyframes timeline-flash {
+  0% { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+  100% { background: transparent; box-shadow: inset 0 0 0 transparent; }
+}
 </style>
 </head>
 <body>
@@ -524,13 +661,22 @@ body > * { position: relative; z-index: 1; }
 <div id="header">
   <div id="app-title"><span id="app-title-mark">❧</span>Code Review Annotator</div>
   <select id="project-select" aria-label="Project"></select>
+  <span id="live-pill" title="Live updates">
+    <span id="live-dot"></span>
+    <span id="live-label">connecting…</span>
+    <span id="live-time"></span>
+  </span>
   <div id="mode-switch" class="mode-switch" role="tablist">
     <button data-mode="tool-call" class="active">Tool calls</button>
     <button data-mode="git-range">Git diff</button>
     <button data-mode="browse">Browse</button>
   </div>
   <div class="spacer"></div>
-  <button id="btn-export" disabled>Export</button>
+  <button id="btn-export" disabled aria-label="Export review prompt">
+    <span id="btn-export-label">No open comments</span>
+    <span id="btn-export-count"></span>
+    <span id="btn-export-arrow">↗</span>
+  </button>
   <select id="theme-select" aria-label="Theme">
     <option value="editorial">Editorial</option>
     <option value="classic">Classic</option>
@@ -603,6 +749,9 @@ const state = {
   selection: null, // { side, startLine, endLine }
   liveStream: null,
   gitRefs: [],
+  collapsedFolders: new Set(), // tree-view folder paths that are collapsed
+  seenCallIds: null,     // null = first load, Set after
+  flashIds: new Set(),   // ids to flash on next timeline render
 }
 
 // ─── URL hash sync ───
@@ -629,6 +778,65 @@ function writeViewToHash() {
 }
 
 const $ = (sel) => document.querySelector(sel)
+
+// ─── Diff stat cache (tool-call timeline) ───
+const diffstatCache = new Map()
+function computeDiffStat(call) {
+  if (diffstatCache.has(call.id)) {
+    const cached = diffstatCache.get(call.id)
+    if (cached.pending && call.status === 'complete') diffstatCache.delete(call.id)
+    else return cached
+  }
+  const before = call.before ?? ''
+  const after = call.after ?? ''
+  if (call.status !== 'complete') {
+    const s = { added: 0, deleted: 0, pending: true }
+    diffstatCache.set(call.id, s); return s
+  }
+  if (before.length + after.length > 200_000) {
+    const s = { added: 0, deleted: 0, skipped: true }
+    diffstatCache.set(call.id, s); return s
+  }
+  const parts = Diff.diffLines(before, after)
+  let added = 0, deleted = 0
+  for (const p of parts) {
+    const n = p.count ?? 0
+    if (p.added) added += n
+    else if (p.removed) deleted += n
+  }
+  const stat = { added, deleted }
+  diffstatCache.set(call.id, stat)
+  return stat
+}
+
+// ─── Live indicator ───
+const live = { state: 'idle', lastEventAt: 0 }
+function setLiveState(next) {
+  live.state = next
+  const pill = $('#live-pill')
+  const label = $('#live-label')
+  pill.classList.remove('connected', 'error')
+  if (next === 'connected') { pill.classList.add('connected'); label.textContent = 'live' }
+  else if (next === 'error') { pill.classList.add('error'); label.textContent = 'offline' }
+  else if (next === 'connecting') { label.textContent = 'connecting…' }
+  else { label.textContent = 'idle' }
+}
+function flashLive() {
+  const pill = $('#live-pill')
+  pill.classList.remove('flash'); void pill.offsetWidth; pill.classList.add('flash')
+  live.lastEventAt = Date.now()
+  renderLiveTime()
+}
+function renderLiveTime() {
+  const el = $('#live-time')
+  if (!live.lastEventAt) { el.textContent = ''; return }
+  const s = Math.floor((Date.now() - live.lastEventAt) / 1000)
+  if (s < 5) el.textContent = '· just now'
+  else if (s < 60) el.textContent = `· ${s}s`
+  else if (s < 3600) el.textContent = `· ${Math.floor(s / 60)}m`
+  else el.textContent = `· ${Math.floor(s / 3600)}h`
+}
+setInterval(renderLiveTime, 5000)
 
 async function api(method, path, body) {
   const url = state.project ? `${path}${path.includes('?') ? '&' : '?'}project=${encodeURIComponent(state.project.dir)}` : path
@@ -845,6 +1053,16 @@ async function refreshData() {
   if (state.mode === 'tool-call') {
     const calls = await api('GET', '/api/tool-calls')
     calls.sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+    if (state.seenCallIds === null) {
+      state.seenCallIds = new Set(calls.map(c => c.id))
+    } else {
+      for (const c of calls) {
+        if (!state.seenCallIds.has(c.id)) {
+          state.flashIds.add(c.id)
+          state.seenCallIds.add(c.id)
+        }
+      }
+    }
     state.toolCalls = calls
     renderTimeline()
   } else {
@@ -881,8 +1099,26 @@ async function refreshViewFiles() {
   renderTimeline()
 }
 
+let lastOpenCount = 0
+let openCountInitialized = false
 function updateExportBtn() {
-  $('#btn-export').disabled = state.comments.filter(c => c.status === 'open').length === 0
+  const openCount = state.comments.filter(c => c.status === 'open').length
+  const btn = $('#btn-export')
+  const label = $('#btn-export-label')
+  const countEl = $('#btn-export-count')
+  btn.disabled = openCount === 0
+  if (openCount === 0) {
+    label.textContent = 'No open comments'
+    countEl.textContent = ''
+  } else {
+    label.textContent = openCount === 1 ? 'Export comment' : 'Export comments'
+    countEl.textContent = openCount
+  }
+  if (openCountInitialized && openCount > lastOpenCount) {
+    btn.classList.remove('pulse'); void btn.offsetWidth; btn.classList.add('pulse')
+  }
+  lastOpenCount = openCount
+  openCountInitialized = true
 }
 
 // ─── Sidebar timeline ───
@@ -919,24 +1155,132 @@ function renderTimeline() {
         : 'No files match that filter.'
       tl.appendChild(empty); return
     }
-    for (const f of items) tl.appendChild(renderFileRow(f))
+    if (filter) {
+      for (const f of items) tl.appendChild(renderFileRow(f, 0, /*showPath*/ true))
+    } else {
+      const tree = buildFileTree(items)
+      renderTreeInto(tree, 0, tl)
+    }
   }
+  state.flashIds.clear()
+}
+
+// ─── File tree (GitHub-style) ───
+function buildFileTree(files) {
+  const root = { type: 'folder', name: '', path: '', _children: new Map() }
+  for (const f of files) {
+    // git ls-files --others collapses whole-dir untracked paths to 'foo/' — strip trailing slash
+    const parts = f.file.replace(/\/+$/, '').split('/')
+    let cur = root
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i]
+      const childPath = (cur.path ? cur.path + '/' : '') + part
+      if (!cur._children.has(part)) {
+        cur._children.set(part, { type: 'folder', name: part, path: childPath, _children: new Map() })
+      }
+      cur = cur._children.get(part)
+    }
+    const leaf = parts[parts.length - 1]
+    cur._children.set(leaf, { type: 'file', name: leaf, path: f.file, data: f })
+  }
+  return finalizeTree(root)
+}
+
+function finalizeTree(node) {
+  if (node.type === 'file') return node
+  const children = [...node._children.values()].map(finalizeTree)
+  delete node._children
+  children.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1
+    return a.name.localeCompare(b.name)
+  })
+  // Collapse single-folder chains (folder/foo/bar when each is the only child)
+  node.children = children.map(c => {
+    if (c.type !== 'folder') return c
+    let cur = c
+    while (cur.children.length === 1 && cur.children[0].type === 'folder') {
+      const only = cur.children[0]
+      cur = { type: 'folder', name: cur.name + '/' + only.name, path: only.path, children: only.children }
+    }
+    return cur
+  })
+  return node
+}
+
+function renderTreeInto(node, level, container) {
+  for (const child of node.children) {
+    if (child.type === 'folder') {
+      container.appendChild(renderFolderRow(child, level))
+      if (!state.collapsedFolders.has(child.path)) {
+        renderTreeInto(child, level + 1, container)
+      }
+    } else {
+      container.appendChild(renderFileRow(child.data, level, /*showPath*/ false, child.name))
+    }
+  }
+}
+
+function renderFolderRow(folder, level) {
+  const collapsed = state.collapsedFolders.has(folder.path)
+  const row = document.createElement('div')
+  row.className = 'tree-row folder' + (collapsed ? ' collapsed' : '')
+  row.style.paddingLeft = (6 + level * 14) + 'px'
+
+  const caret = document.createElement('span'); caret.className = 'tree-caret'; caret.textContent = '▾'
+  const icon = document.createElement('span'); icon.className = 'tree-icon'
+  icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.75 2.5h3.5l1.5 1.5h7.5a.75.75 0 01.75.75v8a.75.75 0 01-.75.75H1.75A.75.75 0 011 12.75v-9.5A.75.75 0 011.75 2.5z" opacity="0.85"/></svg>'
+  const name = document.createElement('span'); name.className = 'tree-name'; name.textContent = folder.name
+
+  row.appendChild(caret); row.appendChild(icon); row.appendChild(name)
+  row.addEventListener('click', () => {
+    if (state.collapsedFolders.has(folder.path)) state.collapsedFolders.delete(folder.path)
+    else state.collapsedFolders.add(folder.path)
+    renderTimeline()
+  })
+  return row
 }
 
 function renderToolCallRow(call) {
   const row = document.createElement('div')
   row.className = 'timeline-item' + (state.selectedCallId === call.id ? ' active' : '')
+  if (state.flashIds.has(call.id)) row.classList.add('flash-new')
   row.addEventListener('click', () => selectCall(call.id))
 
   const top = document.createElement('div'); top.className = 'timeline-item-top'
   const badge = document.createElement('span'); badge.className = `tool-badge ${call.tool}`; badge.textContent = call.tool
-  const file = document.createElement('span'); file.className = 'timeline-file'; file.textContent = call.file
+  const file = document.createElement('span')
+  file.className = 'timeline-file'
+  file.title = call.file
+  const slash = call.file.lastIndexOf('/')
+  if (slash >= 0) {
+    const dir = document.createElement('span'); dir.className = 'path-dir'; dir.textContent = call.file.slice(0, slash + 1)
+    const name = document.createElement('span'); name.className = 'path-name'; name.textContent = call.file.slice(slash + 1)
+    file.appendChild(dir); file.appendChild(name)
+  } else {
+    const name = document.createElement('span'); name.className = 'path-name'; name.textContent = call.file
+    file.appendChild(name)
+  }
   top.appendChild(badge); top.appendChild(file)
 
   const meta = document.createElement('div'); meta.className = 'timeline-item-meta'
   const time = document.createElement('span'); time.className = 'timeline-time'
   time.textContent = relativeTime(call.startedAt); time.title = new Date(call.startedAt).toLocaleString()
   meta.appendChild(time)
+
+  const stat = computeDiffStat(call)
+  if (!stat.pending && (stat.added > 0 || stat.deleted > 0)) {
+    const ds = document.createElement('span'); ds.className = 'timeline-diffstat'
+    if (stat.added > 0) {
+      const a = document.createElement('span'); a.className = 'diffstat-added'; a.textContent = `+${stat.added}`
+      ds.appendChild(a)
+    }
+    if (stat.deleted > 0) {
+      const d = document.createElement('span'); d.className = 'diffstat-deleted'; d.textContent = `−${stat.deleted}`
+      ds.appendChild(d)
+    }
+    meta.appendChild(ds)
+  }
+
   const badges = document.createElement('div'); badges.className = 'timeline-badges'
   if (call.status !== 'complete') {
     const sb = document.createElement('span'); sb.className = `status-badge ${call.status}`; sb.textContent = call.status
@@ -955,23 +1299,38 @@ function renderToolCallRow(call) {
   return row
 }
 
-function renderFileRow(f) {
+function renderFileRow(f, level = 0, showPath = false, leafName = null) {
   const row = document.createElement('div')
-  row.className = 'timeline-item' + (state.selectedFile === f.file ? ' active' : '')
+  row.className = 'tree-row file' + (state.selectedFile === f.file ? ' active' : '')
+  row.style.paddingLeft = (6 + level * 14) + 'px'
+  row.title = f.file
   row.addEventListener('click', () => selectFile(f.file))
 
-  const top = document.createElement('div'); top.className = 'timeline-item-top'
-  if (state.mode === 'git-range') {
-    const badge = document.createElement('span')
-    badge.className = `tool-badge ${f.status}`
-    badge.textContent = f.status
-    top.appendChild(badge)
-  }
-  const file = document.createElement('span'); file.className = 'timeline-file'; file.textContent = f.file
-  top.appendChild(file)
+  // spacer where a folder would have its caret
+  const caretSpacer = document.createElement('span'); caretSpacer.className = 'tree-caret'; caretSpacer.textContent = ''
+  row.appendChild(caretSpacer)
 
-  const meta = document.createElement('div'); meta.className = 'timeline-item-meta'
-  const badges = document.createElement('div'); badges.className = 'timeline-badges'
+  const icon = document.createElement('span'); icon.className = 'tree-icon'
+  icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3.75 1.5h6l3.75 3.75v9.25A.75.75 0 0112.75 15.25H3.75a.75.75 0 01-.75-.75V2.25a.75.75 0 01.75-.75zm6 .75V5h2.75L9.75 2.25z" opacity="0.75"/></svg>'
+  row.appendChild(icon)
+
+  const displayName = leafName ?? f.file.split('/').pop()
+  const name = document.createElement('span'); name.className = 'tree-name'; name.textContent = displayName
+  row.appendChild(name)
+
+  if (showPath && f.file.includes('/')) {
+    const hint = document.createElement('span'); hint.className = 'tree-path-hint'
+    hint.textContent = f.file.slice(0, f.file.length - displayName.length - 1) + '/'
+    row.appendChild(hint)
+  }
+
+  const badges = document.createElement('div'); badges.className = 'tree-badges'
+  if (state.mode === 'git-range' && f.status) {
+    const sb = document.createElement('span')
+    sb.className = `tool-badge ${f.status}`
+    sb.textContent = f.status
+    badges.appendChild(sb)
+  }
   const openComments = state.comments.filter(c =>
     commentMatchesView(c, state.mode, state.gitRange, f.file) && c.status === 'open'
   ).length
@@ -980,8 +1339,7 @@ function renderFileRow(f) {
     const cc = document.createElement('span'); cc.className = 'comment-count'; cc.textContent = openComments
     badges.appendChild(dot); badges.appendChild(cc)
   }
-  meta.appendChild(badges)
-  row.appendChild(top); row.appendChild(meta)
+  row.appendChild(badges)
   return row
 }
 
@@ -1488,9 +1846,17 @@ for (const id of ['#gr-from', '#gr-to']) {
 // ─── SSE ───
 function startLiveStream() {
   if (state.liveStream) { state.liveStream.close(); state.liveStream = null }
-  if (!state.project) return
+  if (!state.project) { setLiveState('idle'); return }
+  setLiveState('connecting')
   const es = new EventSource(`/api/events?project=${encodeURIComponent(state.project.dir)}`)
-  es.addEventListener('log', async () => { await refreshAll() })
+  es.addEventListener('hello', () => setLiveState('connected'))
+  es.addEventListener('log', async () => {
+    setLiveState('connected')
+    flashLive()
+    await refreshAll()
+  })
+  es.onopen = () => setLiveState('connected')
+  es.onerror = () => setLiveState('error')
   state.liveStream = es
 }
 
@@ -1518,6 +1884,10 @@ $('#project-select').addEventListener('change', async (e) => {
   const projects = await (await fetch('/api/projects')).json()
   state.project = projects.find(p => p.dir === dir)
   state.selectedCallId = null; state.selectedFile = null; state.viewFileData = null
+  state.seenCallIds = null
+  state.flashIds.clear()
+  diffstatCache.clear()
+  live.lastEventAt = 0
   await loadGitRefs()
   await refreshData()
   renderContent()
