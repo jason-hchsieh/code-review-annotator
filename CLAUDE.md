@@ -152,7 +152,7 @@ The script **always exits 0** on any failure (server down, no matching project, 
 
 **MCP project-dir resolution order** (first match wins):
 1. `--dir <path>` flag
-2. `$CLAUDE_PROJECT_DIR` env var — forwarded by `scripts/run-mcp.sh` as `--dir` when the value is an existing directory. `.mcp.json` requests this var under `env` so Claude Code can substitute the current session's project.
+2. `$CLAUDE_PROJECT_DIR` env var — Claude Code injects this into the MCP subprocess automatically, so `.mcp.json` does **not** re-declare it under `env` (doing so would make the plugin loader require the var to be set in the outer shell before startup). `scripts/run-mcp.sh` reads it and forwards it as `--dir` when the value is an existing directory.
 3. `process.cwd()` — works when launched directly with `tsx src/cli.ts --mcp` from a git repo.
 4. Registry fallback in `src/cli.ts` — if the resolved cwd has no `.review-log.json`, the most recently registered project from `~/.config/code-review-annotator/projects.json` is used. This handles plugin-mode MCP servers whose cwd is the plugin install path.
 
