@@ -109,6 +109,90 @@ export function listRefs(dir: string, limit = 30): RefEntry[] {
   return out
 }
 
+export interface GraphCommit {
+  sha: string
+  parents: string[]
+  author: string
+  date: string
+  subject: string
+  refs: string[]
+  isHead: boolean
+}
+
+export interface GraphData {
+  commits: GraphCommit[]
+  headSha: string | null
+  headRef: string | null
+}
+
+/**
+ * Return commit topology for the visual range picker. Walks `--all` so feature
+ * branches and detached commits are included. Refs (tags + local/remote
+ * branches) are attached to their tip commit.
+ */
+export function listGraphCommits(dir: string, limit = 80): GraphData {
+  if (!isGitRepo(dir)) return { commits: [], headSha: null, headRef: null }
+
+  const SEP = '\x1f'
+  const raw = git(
+    dir,
+    ['log', '--all', '--date-order', `-n${limit}`,
+     `--pretty=format:%H${SEP}%P${SEP}%an${SEP}%cI${SEP}%s`],
+    { allowFail: true },
+  )
+
+  const refsAtCommit = new Map<string, string[]>()
+  const refRaw = git(
+    dir,
+    ['for-each-ref', '--format=%(objectname)\t%(refname:short)\t%(refname)',
+     'refs/heads', 'refs/remotes', 'refs/tags'],
+    { allowFail: true },
+  )
+  for (const line of refRaw.split('\n')) {
+    if (!line.trim()) continue
+    const [sha, short, full] = line.split('\t')
+    if (!sha) continue
+    if (full?.startsWith('refs/remotes/') && short?.endsWith('/HEAD')) continue
+    const arr = refsAtCommit.get(sha) ?? []
+    arr.push(short)
+    refsAtCommit.set(sha, arr)
+  }
+
+  let headSha: string | null = null
+  let headRef: string | null = null
+  try {
+    headSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: dir, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim() || null
+  } catch { /* detached or empty repo */ }
+  try {
+    const out = execFileSync('git', ['symbolic-ref', '--short', '-q', 'HEAD'], {
+      cwd: dir, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+    if (out) headRef = out
+  } catch { /* detached HEAD */ }
+
+  const commits: GraphCommit[] = []
+  for (const line of raw.split('\n')) {
+    if (!line) continue
+    const parts = line.split(SEP)
+    if (parts.length < 5) continue
+    const [sha, parentStr, author, date, subject] = parts
+    const parents = parentStr.trim() ? parentStr.trim().split(/\s+/) : []
+    commits.push({
+      sha,
+      parents,
+      author,
+      date,
+      subject,
+      refs: refsAtCommit.get(sha) ?? [],
+      isHead: sha === headSha,
+    })
+  }
+
+  return { commits, headSha, headRef }
+}
+
 export function isAncestor(dir: string, a: string, b: string): boolean {
   try {
     execFileSync('git', ['merge-base', '--is-ancestor', a, b], {
