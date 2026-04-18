@@ -4,6 +4,8 @@ Tool-call review for [Claude Code](https://claude.ai/code). Every `Edit` / `Writ
 
 Beyond the tool-call timeline, you can also create ad-hoc **git diff** review sessions (compare any two refs — branch / HEAD / SHA / `INDEX` / `WORKTREE`) and **browse** sessions (annotate any file in the worktree, no diff). Comments made in each mode are kept independent of one another.
 
+Comments support four **scopes**: `line` (a specific line range), `file` (a whole file), `multi-file` (cross-cutting change across N files), and `view` (review-level / architectural note).
+
 ```
 ssh -L 8080:localhost:8080 your-server
 npx code-review-annotator --port 8080
@@ -91,9 +93,10 @@ The header has a three-way **mode switcher**:
 - **Browse** — a user-created session that lists every worktree file (tracked + untracked, respecting `.gitignore`). No diff; pick a file, leave comments on any line.
 
 In any mode:
-- **Click** any line to add a single-line comment. Clicking the same line again deselects.
+- **Click** any line to add a line-scope comment. Clicking the same line again deselects.
 - **Shift+Click** a second line on the same side to select a range.
-- Comments anchor to `(target-kind, target-id, file, side, line-range)` and are kept separately per mode — switching modes doesn't move comments.
+- **+ Comment ▾** button in the file header opens a menu for `file` / `multi-file` / `view` scopes. Multi-file activates sidebar multi-select so you can pick the N files with checkboxes before writing the comment.
+- Comments anchor by `(file, line-range, blobSha, anchorText)` — independent of the view. The `viewContext` records which perspective the reviewer was in when writing.
 
 ### 4. Ask Claude Code to fix
 
@@ -135,8 +138,8 @@ Claude Code accesses these tools via the `code-review` MCP server:
 | Tool | Description |
 |------|-------------|
 | `get_tool_calls` | List captured tool-call snapshots. Filters: `file`, `status`. Returns compact records (id, tool, file, status, timestamps, line counts). |
-| `get_review_comments` | Fetch comments. Filters: `toolCallId`, `viewSource`, `fromRef`, `toRef`, `file`, `status` (defaults to `open`). Each result is enriched with `file`, `viewContext`, `anchorText`, `blobSha`, `sourceLines` (the lines the reviewer pointed at), and (for `viewContext.source='tool-call'`) a compact `toolCall` summary. |
-| `get_export_prompt` | Generate a fix / report / both prompt string. Filters: `toolCallId`, `viewSource`, `fromRef`, `toRef`, `mode`. |
+| `get_review_comments` | Fetch comments. Filters: `toolCallId`, `viewSource`, `fromRef`, `toRef`, `file`, `scope`, `status` (defaults to `open`). Each result carries `scope` (`line` / `file` / `multi-file` / `view`), `anchors[]` (each with `file`, `blobSha` and — for `line` scope — `startLine`, `endLine`, `anchorText`, `sourceLines`), `viewContext`, and (for `viewContext.source='tool-call'`) a compact `toolCall` summary. |
+| `get_export_prompt` | Generate a fix / report / both prompt string grouped by scope. Filters: `toolCallId`, `viewSource`, `fromRef`, `toRef`, `scope`, `mode`. |
 | `mark_resolved` | Mark a comment as resolved by ID. |
 | `reply_to_comment` | Add a reply to a comment thread (authored as `claude`). Use after fixing to explain what changed. |
 
@@ -148,12 +151,13 @@ get_review_comments(
   viewSource?: 'tool-call' | 'git-range' | 'browse',
   fromRef?:    string,                       // match viewContext.fromRef (git-range only)
   toRef?:      string,                       // match viewContext.toRef (git-range only)
-  file?:       string,
+  file?:       string,                       // matches if any anchor targets this file
+  scope?:      'line' | 'file' | 'multi-file' | 'view',
   status?:     'open' | 'resolved',          // default: 'open'
 )
 ```
 
-Line numbers are **1-based file line numbers inside the referenced content** — not diff positions. `viewContext.side` on the comment says which snapshot the reviewer was looking at:
+Line numbers on line-scope anchors are **1-based file line numbers inside the referenced content** — not diff positions. `viewContext.side` on the comment says which snapshot the reviewer was looking at:
 - `side: "after"` → line in the file after the edit ran / at the to-ref
 - `side: "before"` → line in the file before the edit ran / at the from-ref
 - `side: "current"` → line in the worktree file (browse mode)
@@ -181,14 +185,14 @@ Every project-scoped endpoint takes a `project=<abs-dir>` query parameter identi
 | `GET` | `/api/view/files?view=git-range&from=&to=` | `[{ file, status }]` — changed files between refs. |
 | `GET` | `/api/view/file?view=browse&path=` | `{ file, before:'', after, beforeSha:'', afterSha, isBrowse:true }` — worktree file contents. |
 | `GET` | `/api/view/file?view=git-range&from=&to=&path=` | `{ file, before, after, beforeSha, afterSha, isBrowse:false }` — resolved blobs at each ref. |
-| `GET` | `/api/comments` | Comments (filters: `toolCallId`, `view`, `from`, `to`, `file`, `status`) |
-| `POST` | `/api/comments` | Add a comment. Preferred shape: `{ file, blobSha, anchorText, viewContext: { source, side, toolCallId?, fromRef?, toRef? }, startLine, endLine?, body }`. Convenience shape for tool-call targets: `{ toolCallId, side, startLine, endLine?, body }`. |
+| `GET` | `/api/comments` | Comments (filters: `toolCallId`, `view`, `from`, `to`, `file`, `scope`, `status`) |
+| `POST` | `/api/comments` | Add a comment. Preferred shape: `{ scope: 'line'\|'file'\|'multi-file'\|'view', anchors: Anchor[], viewContext: { source, side, toolCallId?, fromRef?, toRef? }, body }` where `Anchor = { file, blobSha, startLine?, endLine?, anchorText? }`. `scope='view'` requires 0 anchors, `line`/`file` exactly 1, `multi-file` >= 2. Convenience shape for tool-call line comments: `{ toolCallId, side, startLine, endLine?, body }`. |
 | `PATCH` | `/api/comments/:id` | Update body or status |
 | `DELETE` | `/api/comments/:id` | Delete a comment |
 | `POST` | `/api/comments/:id/replies` | Add a reply to a comment thread |
 | `PATCH` | `/api/comments/:id/replies/:replyId` | Update a reply's body |
 | `DELETE` | `/api/comments/:id/replies/:replyId` | Delete a reply |
-| `GET` | `/api/export?mode=fix\|report\|both&toolCallId=?&view=?&from=?&to=?` | Generate prompt string |
+| `GET` | `/api/export?mode=fix\|report\|both&toolCallId=?&view=?&from=?&to=?&scope=?` | Generate prompt string (grouped by scope) |
 | `GET` | `/api/events` | Server-Sent Events stream. Sends `hello` on connect; then `log` when `.review-log.json` changes. 20 s `: ping` heartbeat. |
 
 ### Live updates
@@ -222,11 +226,16 @@ State is persisted to `.review-log.json` in the project root. Add it to `.gitign
   "comments": [
     {
       "id": "c1",
-      "file": "src/parser.ts",
-      "startLine": 42,
-      "endLine": 45,
-      "blobSha":    "4d5e6f…",     // git hash-object of file contents when the comment was written
-      "anchorText": "function foo() {\n  …\n}",  // verbatim text at the anchor (fuzzy-relocate fallback)
+      "scope": "line",
+      "anchors": [
+        {
+          "file":       "src/parser.ts",
+          "blobSha":    "4d5e6f…",     // git hash-object of file contents when the comment was written
+          "startLine":  42,
+          "endLine":    45,
+          "anchorText": "function foo() {\n  …\n}"  // verbatim text at the anchor (fuzzy-relocate fallback)
+        }
+      ],
       "viewContext": {
         "source":     "tool-call",
         "side":       "after",
@@ -239,26 +248,37 @@ State is persisted to `.review-log.json` in the project root. Add it to `.gitign
     },
     {
       "id": "c2",
-      "file": "src/parser.ts",
-      "startLine": 10, "endLine": 10,
-      "blobSha":    "7e8f9a…",
-      "anchorText": "function parseHdr() {",
+      "scope": "multi-file",
+      "anchors": [
+        { "file": "src/parser.ts", "blobSha": "7e8f…" },
+        { "file": "src/lexer.ts",  "blobSha": "9a0b…" }
+      ],
       "viewContext": {
         "source":  "git-range",
         "side":    "after",
         "fromRef": "main",
         "toRef":   "HEAD"
       },
-      "body": "Rename this to `parseHeader`.",
+      "body": "These two files share token-table logic that should be factored out.",
       "status": "open",
       "createdAt": "2026-04-17T10:10:00.000Z",
+      "replies": []
+    },
+    {
+      "id": "c3",
+      "scope": "view",
+      "anchors": [],
+      "viewContext": { "source": "browse", "side": "current" },
+      "body": "No tests cover the error-path branches. Add them before merging.",
+      "status": "open",
+      "createdAt": "2026-04-17T10:15:00.000Z",
       "replies": []
     }
   ]
 }
 ```
 
-Pre-v0.15 logs (comments with `{ target, side, toolCallId }` and a separate `sessions[]` table) are auto-migrated to the new shape on load — legacy fields are backfilled into `viewContext` / `file` / `blobSha` / `anchorText`, and the file is rewritten without them on the next save.
+Pre-v0.19 logs (comments with flat `{ file, startLine, endLine, blobSha, anchorText }` shape) are migrated to the new `scope` + `anchors[]` shape on load, and the file is rewritten on next save.
 
 The HTTP server, MCP server, and hook scripts all read/write this file. Install the plugin so all three land together — they share state through the JSON file.
 

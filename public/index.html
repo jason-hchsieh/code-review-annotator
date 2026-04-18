@@ -497,6 +497,130 @@ body > * { position: relative; z-index: 1; }
 .comment-form-body textarea:focus { border-color: var(--accent); }
 .comment-form-actions { display: flex; justify-content: flex-end; gap: 6px; }
 
+/* Scope panel (file-level / multi-file / view comments) */
+#scope-panel, #file-scope-panel {
+  padding: 10px 18px; display: flex; flex-direction: column; gap: 8px;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+}
+#scope-panel.empty, #file-scope-panel.empty { display: none; }
+.scope-section-title {
+  font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-muted); font-weight: 600; margin-bottom: 2px;
+}
+.scope-card {
+  border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  background: var(--bg); border-radius: 6px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.scope-card.status-resolved { border-left-color: var(--comment-resolved); opacity: 0.6; }
+.scope-card-head {
+  display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-muted);
+}
+.scope-card-files {
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--text);
+  word-break: break-all; line-height: 1.55;
+}
+.scope-card-files .file-chip {
+  display: inline-block; padding: 1px 8px; border-radius: 3px;
+  background: var(--bg3); color: var(--text); margin-right: 4px;
+  font-size: 11px; border: 1px solid var(--border);
+}
+.scope-card-files .file-chip.current { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.scope-card-body { font-size: 13px; line-height: 1.55; color: var(--text); white-space: pre-wrap; }
+.scope-kind-badge {
+  display: inline-block; padding: 1px 7px; border-radius: 3px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.05em;
+  text-transform: uppercase; font-weight: 600;
+}
+.scope-kind-badge.file { background: var(--bg3); color: var(--text-muted); border: 1px solid var(--border); }
+.scope-kind-badge.multi { background: var(--accent-soft); color: var(--accent); }
+.scope-kind-badge.view { background: var(--deleted-bg); color: var(--deleted-fg); }
+.scope-card-replies {
+  display: flex; flex-direction: column; gap: 6px;
+  padding-top: 6px; border-top: 1px solid var(--border); margin-top: 4px;
+}
+.scope-card-reply {
+  font-size: 12.5px; line-height: 1.5; color: var(--text); padding: 4px 0;
+}
+.scope-card-reply .meta {
+  font-size: 10.5px; color: var(--text-muted); margin-bottom: 2px; display: flex; gap: 6px;
+}
+.scope-card-actions { display: flex; gap: 6px; margin-top: 4px; }
+
+/* Scope menu dropdown in call-header */
+.scope-menu-wrap { position: relative; display: inline-block; }
+.btn-scope-menu {
+  background: var(--bg); border: 1px solid var(--accent); color: var(--accent);
+  padding: 4px 11px; border-radius: 4px; font-size: 11.5px; font-weight: 600;
+  cursor: pointer; outline: none; font-family: var(--font-ui);
+  transition: all 0.12s var(--ease);
+}
+.btn-scope-menu:hover { background: var(--accent-soft); }
+.scope-menu {
+  position: absolute; right: 0; top: 100%; margin-top: 4px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 5px;
+  min-width: 200px; z-index: 25; display: none;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+.scope-menu.open { display: block; }
+.scope-menu button {
+  display: block; width: 100%; text-align: left; background: transparent; border: none;
+  color: var(--text); padding: 8px 14px; cursor: pointer; font-size: 12.5px;
+  font-family: var(--font-ui);
+}
+.scope-menu button:hover { background: var(--bg3); }
+.scope-menu button:disabled { color: var(--text-dim); cursor: not-allowed; }
+.scope-menu button:disabled:hover { background: transparent; }
+
+/* Scope comment inline form */
+.scope-form {
+  border: 1px solid var(--accent); border-radius: 6px; background: var(--bg);
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.scope-form-head { font-size: 11.5px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+.scope-form textarea {
+  width: 100%; min-height: 70px; resize: vertical;
+  background: var(--bg2); border: 1px solid var(--border); color: var(--text);
+  border-radius: 4px; padding: 8px 10px; font-family: var(--font-ui); font-size: 13px;
+  outline: none;
+}
+.scope-form textarea:focus { border-color: var(--accent); }
+.scope-form-actions { display: flex; justify-content: flex-end; gap: 6px; }
+
+/* Multi-select mode */
+.btn-multi-toggle {
+  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+  padding: 2px 7px; border-radius: 3px; font-size: 11px; cursor: pointer;
+  font-family: var(--font-mono); transition: all 0.12s var(--ease);
+}
+.btn-multi-toggle:hover { color: var(--text); border-color: var(--border-strong); }
+.btn-multi-toggle.active { background: var(--accent); color: var(--btn-ink); border-color: var(--accent); }
+#sidebar.multi-select .tree-row.file { cursor: pointer; }
+#sidebar.multi-select .tree-row.file.multi-selected { background: var(--accent-soft); }
+.tree-checkbox {
+  width: 14px; height: 14px; margin-right: 4px;
+  border: 1.5px solid var(--border-strong); border-radius: 3px;
+  display: none; flex-shrink: 0; align-items: center; justify-content: center;
+  font-size: 11px; color: var(--accent); background: var(--bg);
+}
+#sidebar.multi-select .tree-checkbox { display: inline-flex; }
+.tree-row.file.multi-selected .tree-checkbox { background: var(--accent); border-color: var(--accent); color: var(--btn-ink); }
+#multi-select-bar {
+  padding: 10px 12px; background: var(--bg3); border-top: 1px solid var(--accent);
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+#multi-select-count { font-size: 12px; color: var(--text); flex: 1; font-weight: 500; }
+#multi-select-bar button {
+  padding: 5px 11px; border-radius: 4px; font-size: 11.5px; cursor: pointer;
+  font-family: var(--font-ui); font-weight: 500;
+}
+#btn-multi-cancel { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
+#btn-multi-cancel:hover { color: var(--text); background: var(--bg2); }
+#btn-multi-comment { background: var(--accent); border: none; color: var(--btn-ink); font-weight: 600; }
+#btn-multi-comment:disabled { opacity: 0.4; cursor: not-allowed; }
+#btn-multi-comment:not(:disabled):hover { background: var(--accent-hover); }
+
 /* Kebab menu */
 .kebab-wrap { position: relative; display: inline-block; margin-left: auto; }
 .kebab-btn {
@@ -905,6 +1029,7 @@ body > * { position: relative; z-index: 1; }
     <div class="sidebar-header">
       <span class="sidebar-title" id="sidebar-title">Tool calls</span>
       <span class="sidebar-count" id="tl-count">0</span>
+      <button class="btn-multi-toggle" id="btn-multi-toggle" title="Multi-select files (comment across N files)" style="display:none">⊠ multi</button>
     </div>
     <div class="session-bar" id="view-bar" style="display:none; flex-direction: column; align-items: stretch;">
       <div class="view-bar-tools">
@@ -929,17 +1054,33 @@ body > * { position: relative; z-index: 1; }
     <div class="session-meta" id="view-meta" style="display:none"></div>
     <div class="sidebar-search"><input id="tl-search" type="text" placeholder="filter by file…" /></div>
     <div id="timeline"><div class="timeline-empty">No tool calls captured yet.<br>Run Claude Code with the plugin installed — each Edit / Write will show up here.</div></div>
+    <div id="multi-select-bar" style="display:none">
+      <span id="multi-select-count">0 files</span>
+      <button id="btn-multi-cancel">Cancel</button>
+      <button id="btn-multi-comment" disabled>Comment</button>
+    </div>
   </aside>
 
   <section id="content">
     <div class="empty-state" id="empty-state">
       Pick a tool call from the timeline to review its before→after diff.
     </div>
+    <div id="scope-panel" class="empty"></div>
     <div id="call-header" style="display:none">
       <span class="tool-badge" id="ch-tool"></span>
       <span class="call-header-file" id="ch-file"></span>
       <span class="call-header-meta" id="ch-meta"></span>
+      <span class="spacer" style="flex:1"></span>
+      <div class="scope-menu-wrap">
+        <button class="btn-scope-menu" id="btn-scope-menu" title="Create a file / multi-file / view-level comment">+ Comment ▾</button>
+        <div class="scope-menu" id="scope-menu">
+          <button data-scope="file">Comment on this file</button>
+          <button data-scope="multi-file">Comment on multiple files…</button>
+          <button data-scope="view">Comment on this view</button>
+        </div>
+      </div>
     </div>
+    <div id="file-scope-panel" class="empty"></div>
     <table class="diff-table" id="diff-table" style="display:none"><tbody></tbody></table>
   </section>
 </div>
@@ -1028,15 +1169,18 @@ const state = {
   viewFileData: null, // { file, before, after, beforeSha, afterSha, isBrowse }
   // shared
   comments: [],
-  selection: null, // { side, startLine, endLine }
+  selection: null, // { side, startLine, endLine } — line-level form
   liveStream: null,
   gitRefs: [],
   collapsedFolders: new Set(), // tree-view folder paths that are collapsed
   seenCallIds: null,     // null = first load, Set after
   flashIds: new Set(),   // ids to flash on next timeline render
   // Per-file gap expansions for diff view (GitHub-style). Reset on target change.
-  // Map<gapKey, { top: number, bottom: number, all: boolean }>
   gapExpansions: new Map(),
+  // Scope-comment draft form: { kind: 'file' | 'multi-file' | 'view', anchors: Anchor[] }
+  scopeForm: null,
+  // Multi-file selection (active only in git-range/browse modes)
+  multiSelect: { active: false, files: new Set() },
 }
 
 const EXPAND_STEP = 20
@@ -1185,23 +1329,20 @@ function abbreviate(ref) {
 }
 
 // ─── Comment → view matching (blob-aware) ───
-// Views are pure projections: a comment surfaces if its viewContext matches the view
-// and its file matches the rendered file. Post-Phase 0, every comment has viewContext
-// (the load-time normalizer backfills it).
+// A comment's viewContext identifies the perspective it was written in.
+// A comment's anchors identify which files / lines it targets.
 
 function commentMatchesToolCall(c, call) {
   return c.viewContext?.source === 'tool-call' && c.viewContext.toolCallId === call.id
 }
 
-function commentMatchesView(c, mode, gitRange, file) {
+/** Does this comment belong to the current view's perspective (ignoring file)? */
+function commentMatchesViewContext(c, mode, gitRange) {
   const vc = c.viewContext
   if (!vc) return false
-  if (mode === 'browse') {
-    return vc.source === 'browse' && (c.file ?? '') === file
-  }
+  if (mode === 'browse') return vc.source === 'browse'
   if (mode === 'git-range') {
     if (vc.source !== 'git-range') return false
-    if ((c.file ?? '') !== file) return false
     if ((vc.fromRef ?? '') !== (gitRange?.fromRef ?? '')) return false
     if ((vc.toRef ?? '') !== (gitRange?.toRef ?? '')) return false
     return true
@@ -1209,13 +1350,17 @@ function commentMatchesView(c, mode, gitRange, file) {
   return false
 }
 
-/** Pick the display side for a comment by matching its blobSha against the current view's before/after blobs.
- * Returns { side, migrated } — migrated=true when the blob didn't match and we fell back to viewContext.side. */
-function resolveCommentSide(c, beforeSha, afterSha) {
-  const fallback = c.viewContext?.side ?? 'after'
-  if (c.blobSha) {
-    if (beforeSha && c.blobSha === beforeSha) return { side: 'before', migrated: false }
-    if (afterSha && c.blobSha === afterSha) return { side: 'after', migrated: false }
+/** Does any anchor target this file? */
+function commentHasAnchorOn(c, file) {
+  return Array.isArray(c.anchors) && c.anchors.some(a => a.file === file)
+}
+
+/** Pick the display side for a line comment's anchor by matching its blobSha against before/after. */
+function resolveAnchorSide(anchor, viewContext, beforeSha, afterSha) {
+  const fallback = viewContext?.side ?? 'after'
+  if (anchor?.blobSha) {
+    if (beforeSha && anchor.blobSha === beforeSha) return { side: 'before', migrated: false }
+    if (afterSha && anchor.blobSha === afterSha) return { side: 'after', migrated: false }
     return { side: fallback, migrated: true }
   }
   return { side: fallback, migrated: false }
@@ -1230,32 +1375,82 @@ function sliceLinesClient(content, start, end) {
   return lines.slice(s - 1, e).join('\n')
 }
 
-/** Build the POST /api/comments body in new shape. `viewData` carries the rendered content + SHAs. */
-function buildCommentPayload(target, viewData, sel, text) {
+function buildViewContextForTarget(target) {
+  const vc = { source: target.kind }
+  if (target.kind === 'tool-call') vc.toolCallId = target.id
+  else if (target.kind === 'git-range') {
+    vc.fromRef = state.gitRange.fromRef
+    vc.toRef = state.gitRange.toRef
+  }
+  return vc
+}
+
+/** Line-scope payload — click-and-drag line selection. */
+function buildLineCommentPayload(target, viewData, sel, text) {
   const isBefore = sel.side === 'before'
   const isCurrent = sel.side === 'current'
   const content = isBefore ? (viewData?.before ?? '') : (viewData?.after ?? '')
   const blobSha = isBefore ? (viewData?.beforeSha ?? '') : (viewData?.afterSha ?? '')
   const anchorText = sliceLinesClient(content, sel.startLine, sel.endLine)
-  const viewContext = {
-    source: target.kind,
-    side: sel.side,
-  }
-  if (target.kind === 'tool-call') viewContext.toolCallId = target.id
-  else if (target.kind === 'git-range') {
-    viewContext.fromRef = state.gitRange.fromRef
-    viewContext.toRef = state.gitRange.toRef
-  }
-  if (isCurrent) viewContext.side = 'current'
+  const viewContext = buildViewContextForTarget(target)
+  viewContext.side = isCurrent ? 'current' : sel.side
   return {
-    file: viewData?.file ?? target.file ?? '',
-    startLine: sel.startLine,
-    endLine: sel.endLine,
-    blobSha,
-    anchorText,
+    scope: 'line',
+    anchors: [{
+      file: viewData?.file ?? target.file ?? '',
+      blobSha,
+      startLine: sel.startLine,
+      endLine: sel.endLine,
+      anchorText,
+    }],
     viewContext,
     body: text,
   }
+}
+
+/** File-scope payload — one file anchor, no line range. */
+function buildFileCommentPayload(target, viewData, text) {
+  const vc = buildViewContextForTarget(target)
+  // For scope=file we record the currently-visible side's blob SHA (before for tool-call's before, after otherwise).
+  const blobSha = target.kind === 'browse' ? (viewData?.afterSha ?? '')
+    : target.kind === 'tool-call' ? (viewData?.afterSha ?? viewData?.beforeSha ?? '')
+    : (viewData?.afterSha ?? '')
+  vc.side = target.kind === 'browse' ? 'current' : 'after'
+  return {
+    scope: 'file',
+    anchors: [{ file: viewData?.file ?? target.file ?? '', blobSha }],
+    viewContext: vc,
+    body: text,
+  }
+}
+
+/** Multi-file payload — N anchors (blobSha is resolved server-side via /api/view/file). */
+async function buildMultiFileCommentPayload(files, text) {
+  const mode = state.mode
+  if (mode !== 'git-range' && mode !== 'browse') throw new Error('multi-file only in git-range/browse')
+  const anchors = []
+  for (const file of files) {
+    let blobSha = ''
+    try {
+      const qp = mode === 'browse'
+        ? `view=browse&path=${encodeURIComponent(file)}`
+        : `view=git-range&path=${encodeURIComponent(file)}&from=${encodeURIComponent(state.gitRange.fromRef)}&to=${encodeURIComponent(state.gitRange.toRef)}`
+      const data = await api('GET', `/api/view/file?${qp}`)
+      blobSha = data.afterSha ?? ''
+    } catch { /* silent fail — anchor still usable without sha */ }
+    anchors.push({ file, blobSha })
+  }
+  const vc = mode === 'browse'
+    ? { source: 'browse', side: 'current' }
+    : { source: 'git-range', side: 'after', fromRef: state.gitRange.fromRef, toRef: state.gitRange.toRef }
+  return { scope: 'multi-file', anchors, viewContext: vc, body: text }
+}
+
+/** View-scope payload — no anchors, target is viewContext itself. */
+function buildViewCommentPayload(target, text) {
+  const vc = buildViewContextForTarget(target)
+  if (target.kind === 'browse') vc.side = 'current'
+  return { scope: 'view', anchors: [], viewContext: vc, body: text }
 }
 
 // ─── Projects ───
@@ -1300,6 +1495,11 @@ function applyModeUi() {
   }
   renderViewMeta()
   writeViewToHash()
+  // btn-multi-toggle + multi-file menu item visibility depend on mode.
+  const btnMulti = $('#btn-multi-toggle')
+  if (btnMulti) btnMulti.style.display = state.mode === 'tool-call' ? 'none' : 'inline-block'
+  const menuMulti = document.querySelector('#scope-menu button[data-scope="multi-file"]')
+  if (menuMulti) menuMulti.disabled = state.mode === 'tool-call'
 }
 
 function renderViewMeta() {
@@ -1329,6 +1529,9 @@ async function switchMode(mode) {
   state.selectedFile = null
   state.viewFileData = null
   state.selectedCallId = null
+  state.scopeForm = null
+  state.multiSelect.active = false; state.multiSelect.files.clear()
+  updateMultiSelectUi()
   applyModeUi()
   await refreshData()
   await refreshContent()
@@ -1589,14 +1792,27 @@ function renderToolCallRow(call) {
 
 function renderFileRow(f, level = 0, showPath = false, leafName = null) {
   const row = document.createElement('div')
-  row.className = 'tree-row file' + (state.selectedFile === f.file ? ' active' : '')
+  const isMulti = state.multiSelect.active
+  const isSelected = isMulti && state.multiSelect.files.has(f.file)
+  row.className = 'tree-row file' + (state.selectedFile === f.file ? ' active' : '') + (isSelected ? ' multi-selected' : '')
   row.style.paddingLeft = (6 + level * 14) + 'px'
   row.title = f.file
-  row.addEventListener('click', () => selectFile(f.file))
+  row.addEventListener('click', (e) => {
+    if (state.multiSelect.active) {
+      toggleMultiFile(f.file)
+      e.stopPropagation()
+    } else {
+      selectFile(f.file)
+    }
+  })
 
   // spacer where a folder would have its caret
   const caretSpacer = document.createElement('span'); caretSpacer.className = 'tree-caret'; caretSpacer.textContent = ''
   row.appendChild(caretSpacer)
+
+  const checkbox = document.createElement('span'); checkbox.className = 'tree-checkbox'
+  checkbox.textContent = isSelected ? '✓' : ''
+  row.appendChild(checkbox)
 
   const icon = document.createElement('span'); icon.className = 'tree-icon'
   icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3.75 1.5h6l3.75 3.75v9.25A.75.75 0 0112.75 15.25H3.75a.75.75 0 01-.75-.75V2.25a.75.75 0 01.75-.75zm6 .75V5h2.75L9.75 2.25z" opacity="0.75"/></svg>'
@@ -1620,7 +1836,7 @@ function renderFileRow(f, level = 0, showPath = false, leafName = null) {
     badges.appendChild(sb)
   }
   const openComments = state.comments.filter(c =>
-    commentMatchesView(c, state.mode, state.gitRange, f.file) && c.status === 'open'
+    commentMatchesViewContext(c, state.mode, state.gitRange) && commentHasAnchorOn(c, f.file) && c.status === 'open'
   ).length
   if (openComments > 0) {
     const dot = document.createElement('span'); dot.className = 'comment-dot'
@@ -1634,10 +1850,12 @@ function renderFileRow(f, level = 0, showPath = false, leafName = null) {
 // ─── Content selection / rendering ───
 function selectCall(id) {
   state.selectedCallId = id; state.selection = null; state.gapExpansions = new Map()
+  state.scopeForm = null
   renderContent(); renderTimeline()
 }
 async function selectFile(file) {
   state.selectedFile = file; state.selection = null; state.gapExpansions = new Map()
+  state.scopeForm = null
   try {
     if (state.mode === 'browse') {
       state.viewFileData = await api('GET',
@@ -1673,7 +1891,10 @@ function renderContent() {
     $('#ch-meta').textContent = metaParts.join(' · ')
     const comments = state.comments.filter(c => commentMatchesToolCall(c, call))
     renderDiff(call.before, call.after ?? '', call.beforeSha, call.afterSha ?? '', call.file,
-      { kind: 'tool-call', id: call.id, file: '' }, comments)
+      { kind: 'tool-call', id: call.id, file: call.file }, comments)
+    renderScopePanel({ kind: 'tool-call', id: call.id, file: call.file })
+    renderFileScopePanel({ kind: 'tool-call', id: call.id, file: call.file },
+      { file: call.file, beforeSha: call.beforeSha, afterSha: call.afterSha ?? '' })
   } else {
     if (!state.viewFileData) {
       if (state.mode === 'git-range' && (!state.gitRange.fromRef || !state.gitRange.toRef)) {
@@ -1681,7 +1902,10 @@ function renderContent() {
       } else {
         emptyEl.textContent = 'Pick a file from the list.'
       }
-      emptyEl.style.display='flex'; hdr.style.display='none'; table.style.display='none'; return
+      emptyEl.style.display='flex'; hdr.style.display='none'; table.style.display='none'
+      renderScopePanel(state.mode === 'browse' ? { kind: 'browse', id: '', file: '' } : { kind: 'git-range', id: '', file: '' })
+      $('#file-scope-panel').className = 'empty'; $('#file-scope-panel').innerHTML = ''
+      return
     }
     const data = state.viewFileData
     emptyEl.style.display='none'; hdr.style.display='flex'; table.style.display='table'
@@ -1691,13 +1915,17 @@ function renderContent() {
     $('#ch-meta').textContent = state.mode === 'browse'
       ? 'worktree'
       : `${abbreviate(state.gitRange.fromRef)} → ${abbreviate(state.gitRange.toRef)}`
+    const target = state.mode === 'browse'
+      ? { kind: 'browse', id: '', file: data.file }
+      : { kind: 'git-range', id: '', file: data.file }
     const comments = state.comments.filter(c =>
-      commentMatchesView(c, state.mode, state.gitRange, data.file))
-    if (data.isBrowse) renderBrowse(data.after, data.afterSha ?? '', data.file,
-      { kind: 'browse', id: '', file: data.file }, comments)
-    else renderDiff(data.before, data.after, data.beforeSha ?? '', data.afterSha ?? '', data.file,
-      { kind: 'git-range', id: '', file: data.file }, comments)
+      commentMatchesViewContext(c, state.mode, state.gitRange) && commentHasAnchorOn(c, data.file))
+    if (data.isBrowse) renderBrowse(data.after, data.afterSha ?? '', data.file, target, comments)
+    else renderDiff(data.before, data.after, data.beforeSha ?? '', data.afterSha ?? '', data.file, target, comments)
+    renderScopePanel(target)
+    renderFileScopePanel(target, { file: data.file, beforeSha: data.beforeSha ?? '', afterSha: data.afterSha ?? '' })
   }
+  updateMenuVisibility()
 }
 
 // ─── Diff rendering ───
@@ -1784,15 +2012,20 @@ function renderDiff(before, after, beforeSha, afterSha, file, target, comments) 
   const rows = buildHunks(before, after ?? '', state.gapExpansions)
   const lang = detectLang(file)
 
-  // Blob-aware side resolution: each comment is anchored by blobSha.
+  // Blob-aware side resolution: each line comment's anchor has a blobSha.
   // When the SHA matches before/after we know which side to render on;
   // otherwise we fall back to viewContext.side and tag the thread as migrated.
+  // Non-line-scope comments don't anchor to lines; skip them here — they
+  // render in the scope panels instead.
   const migratedIds = new Set()
   const commentsByAnchor = new Map()
   for (const c of comments) {
-    const { side, migrated } = resolveCommentSide(c, beforeSha, afterSha)
+    if (c.scope !== 'line') continue
+    const anchor = c.anchors?.[0]; if (!anchor) continue
+    if (anchor.file !== file) continue
+    const { side, migrated } = resolveAnchorSide(anchor, c.viewContext, beforeSha, afterSha)
     if (migrated) migratedIds.add(c.id)
-    const key = `${side}:${c.endLine}`
+    const key = `${side}:${anchor.endLine}`
     if (!commentsByAnchor.has(key)) commentsByAnchor.set(key, [])
     commentsByAnchor.get(key).push(c)
   }
@@ -1870,9 +2103,12 @@ function renderBrowse(content, contentSha, file, target, comments) {
   const migratedIds = new Set()
   const commentsByAnchor = new Map()
   for (const c of comments) {
+    if (c.scope !== 'line') continue
+    const anchor = c.anchors?.[0]; if (!anchor) continue
+    if (anchor.file !== file) continue
     // Browse has one side ('current'); blob match against the sole visible blob.
-    if (c.blobSha && contentSha && c.blobSha !== contentSha) migratedIds.add(c.id)
-    const key = `current:${c.endLine}`
+    if (anchor.blobSha && contentSha && anchor.blobSha !== contentSha) migratedIds.add(c.id)
+    const key = `current:${anchor.endLine}`
     if (!commentsByAnchor.has(key)) commentsByAnchor.set(key, [])
     commentsByAnchor.get(key).push(c)
   }
@@ -1934,7 +2170,7 @@ function appendCommentForm(tbody, target, viewData) {
   const submit = document.createElement('button'); submit.className = 'btn-primary'; submit.textContent = 'Add comment'
   submit.addEventListener('click', async () => {
     const text = ta.value.trim(); if (!text) return
-    const payload = buildCommentPayload(target, viewData, sel, text)
+    const payload = buildLineCommentPayload(target, viewData, sel, text)
     const created = await api('POST', '/api/comments', payload)
     state.selection = null
     state.comments.push(created)
@@ -1961,7 +2197,11 @@ function appendCommentThread(tbody, comment, opts = {}) {
   const hdr = document.createElement('div'); hdr.className = 'comment-thread-header'; hdr.title = 'Click to collapse / expand'
   const caret = document.createElement('span'); caret.className = 'comment-collapse-caret'; caret.textContent = '▾'; hdr.appendChild(caret)
   const dot = document.createElement('span'); dot.className = 'comment-status-dot'; hdr.appendChild(dot)
-  const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
+  const anchor = comment.anchors?.[0]
+  const startLine = anchor?.startLine, endLine = anchor?.endLine
+  const lineRef = (startLine != null && endLine != null)
+    ? (startLine === endLine ? `L${startLine}` : `L${startLine}–L${endLine}`)
+    : ''
   const ref = document.createElement('span'); ref.className = 'comment-line-ref'; ref.textContent = lineRef
   const sideLabel = comment.viewContext?.side ?? ''
   const sideEl = document.createElement('span'); sideEl.className = 'comment-side-ref'; sideEl.textContent = sideLabel ? `(${sideLabel})` : ''
@@ -1970,7 +2210,8 @@ function appendCommentThread(tbody, comment, opts = {}) {
     const badge = document.createElement('span')
     badge.className = 'comment-migrated-badge'
     badge.textContent = 'migrated'
-    const origin = comment.blobSha ? `originally written against blob ${comment.blobSha.slice(0, 8)}` : 'content changed since comment was written'
+    const blob = anchor?.blobSha
+    const origin = blob ? `originally written against blob ${blob.slice(0, 8)}` : 'content changed since comment was written'
     badge.title = origin
     hdr.appendChild(badge)
   }
@@ -2051,6 +2292,203 @@ function appendCommentThread(tbody, comment, opts = {}) {
 
   thread.appendChild(hdr); thread.appendChild(collapsible)
   td.appendChild(thread)
+}
+
+// ─── Scope-level comments (file / multi-file / view) ───
+function scopeCardHead(comment) {
+  const head = document.createElement('div'); head.className = 'scope-card-head'
+  const badge = document.createElement('span')
+  badge.className = 'scope-kind-badge ' + (comment.scope === 'multi-file' ? 'multi' : comment.scope === 'view' ? 'view' : comment.scope === 'file' ? 'file' : '')
+  badge.textContent = comment.scope === 'multi-file' ? `multi-file · ${comment.anchors.length}` : comment.scope
+  head.appendChild(badge)
+  const ts = document.createElement('span')
+  ts.textContent = relativeTime(comment.createdAt); ts.title = new Date(comment.createdAt).toLocaleString()
+  head.appendChild(ts)
+  if (comment.status === 'resolved') {
+    const r = document.createElement('span'); r.textContent = '· resolved'; r.style.color = 'var(--comment-resolved)'
+    head.appendChild(r)
+  }
+  return head
+}
+
+function scopeCardActions(comment) {
+  const actions = document.createElement('div'); actions.className = 'scope-card-actions'
+  const toggle = document.createElement('button')
+  toggle.className = 'comment-action-btn ' + (comment.status === 'open' ? 'btn-resolve' : 'btn-reopen')
+  toggle.textContent = comment.status === 'open' ? 'Resolve' : 'Reopen'
+  toggle.addEventListener('click', () => updateStatus(comment.id, comment.status === 'open' ? 'resolved' : 'open'))
+  actions.appendChild(toggle)
+  const del = document.createElement('button')
+  del.className = 'comment-action-btn'; del.textContent = 'Delete'
+  del.addEventListener('click', () => deleteComment(comment))
+  actions.appendChild(del)
+  return actions
+}
+
+function buildScopeCard(comment, currentFile = null) {
+  const card = document.createElement('div'); card.className = 'scope-card status-' + comment.status
+  card.appendChild(scopeCardHead(comment))
+  if (comment.scope === 'multi-file' || comment.scope === 'file') {
+    const files = document.createElement('div'); files.className = 'scope-card-files'
+    for (const a of comment.anchors) {
+      const chip = document.createElement('span')
+      chip.className = 'file-chip' + (currentFile && a.file === currentFile ? ' current' : '')
+      chip.textContent = a.file
+      files.appendChild(chip)
+    }
+    card.appendChild(files)
+  }
+  const body = document.createElement('div'); body.className = 'scope-card-body'; body.textContent = comment.body
+  card.appendChild(body)
+  if (comment.replies?.length) {
+    const reps = document.createElement('div'); reps.className = 'scope-card-replies'
+    for (const r of comment.replies) {
+      const rEl = document.createElement('div'); rEl.className = 'scope-card-reply'
+      const meta = document.createElement('div'); meta.className = 'meta'
+      const who = document.createElement('span'); who.textContent = r.author === 'claude' ? 'Claude' : 'Reviewer'
+      const ts = document.createElement('span'); ts.textContent = relativeTime(r.createdAt); ts.title = new Date(r.createdAt).toLocaleString()
+      meta.appendChild(who); meta.appendChild(ts)
+      const b = document.createElement('div'); b.textContent = r.body
+      rEl.appendChild(meta); rEl.appendChild(b); reps.appendChild(rEl)
+    }
+    card.appendChild(reps)
+  }
+  card.appendChild(scopeCardActions(comment))
+  return card
+}
+
+function buildScopeForm(panel, headerText, buildPayload, extraEl = null, onSuccess = null) {
+  const form = document.createElement('div'); form.className = 'scope-form'
+  const hd = document.createElement('div'); hd.className = 'scope-form-head'; hd.textContent = headerText
+  form.appendChild(hd)
+  if (extraEl) form.appendChild(extraEl)
+  const ta = document.createElement('textarea'); ta.placeholder = 'Leave a comment…'; form.appendChild(ta)
+  const actions = document.createElement('div'); actions.className = 'scope-form-actions'
+  const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
+  cancel.addEventListener('click', () => { state.scopeForm = null; renderContent() })
+  const submit = document.createElement('button'); submit.className = 'btn-primary'; submit.textContent = 'Add comment'
+  submit.addEventListener('click', async () => {
+    const text = ta.value.trim(); if (!text) return
+    try {
+      const payload = await buildPayload(text)
+      if (!payload) return
+      const created = await api('POST', '/api/comments', payload)
+      state.scopeForm = null
+      if (onSuccess) onSuccess()
+      state.comments.push(created)
+      renderContent(); renderTimeline(); updateExportBtn()
+    } catch (err) { toast(`Failed: ${err.message}`) }
+  })
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit.click() }
+    if (e.key === 'Escape') cancel.click()
+  })
+  actions.appendChild(cancel); actions.appendChild(submit)
+  form.appendChild(actions)
+  panel.appendChild(form)
+  ta.focus()
+}
+
+function renderScopePanel(target) {
+  const panel = $('#scope-panel'); panel.innerHTML = ''
+  const multiFile = state.comments.filter(c => c.scope === 'multi-file' &&
+    commentMatchesViewContext(c, state.mode, state.gitRange))
+  const viewComments = state.comments.filter(c => c.scope === 'view' &&
+    (c.viewContext?.source === target.kind) &&
+    (target.kind === 'tool-call' ? c.viewContext.toolCallId === target.id : commentMatchesViewContext(c, state.mode, state.gitRange)))
+  const form = state.scopeForm
+  let rendered = false
+
+  if (form?.kind === 'multi-file') {
+    const files = Array.from(state.multiSelect.files)
+    const summary = document.createElement('div'); summary.className = 'scope-card-files'
+    if (files.length === 0) summary.innerHTML = '<em style="color:var(--text-muted)">Pick files from the sidebar (multi-select mode).</em>'
+    else for (const f of files) {
+      const chip = document.createElement('span'); chip.className = 'file-chip'; chip.textContent = f
+      summary.appendChild(chip)
+    }
+    buildScopeForm(
+      panel,
+      `New multi-file comment (${files.length} file${files.length === 1 ? '' : 's'})`,
+      async (text) => {
+        if (files.length < 2) { toast('Select at least 2 files for multi-file comments'); return null }
+        return await buildMultiFileCommentPayload(files, text)
+      },
+      summary,
+      () => { state.multiSelect.active = false; state.multiSelect.files.clear(); updateMultiSelectUi() },
+    )
+    rendered = true
+  } else if (form?.kind === 'view') {
+    const label = target.kind === 'tool-call' ? `this tool call` :
+                  target.kind === 'git-range' ? `${abbreviate(state.gitRange.fromRef)} → ${abbreviate(state.gitRange.toRef)}` :
+                  'browse (worktree)'
+    buildScopeForm(panel, `New review-level comment on ${label}`, async (text) => buildViewCommentPayload(target, text))
+    rendered = true
+  }
+
+  if (viewComments.length) {
+    const t = document.createElement('div'); t.className = 'scope-section-title'; t.textContent = 'Review-level comments'
+    panel.appendChild(t)
+    for (const c of viewComments) panel.appendChild(buildScopeCard(c))
+    rendered = true
+  }
+  if (multiFile.length) {
+    const t = document.createElement('div'); t.className = 'scope-section-title'; t.textContent = 'Multi-file comments'
+    panel.appendChild(t)
+    for (const c of multiFile) panel.appendChild(buildScopeCard(c, target?.file ?? null))
+    rendered = true
+  }
+  panel.className = rendered ? '' : 'empty'
+}
+
+function renderFileScopePanel(target, viewData) {
+  const panel = $('#file-scope-panel'); panel.innerHTML = ''
+  const file = viewData.file
+  if (!file) { panel.className = 'empty'; return }
+  const fileComments = state.comments.filter(c => c.scope === 'file' &&
+    commentMatchesViewContext(c, state.mode, state.gitRange) &&
+    commentHasAnchorOn(c, file) &&
+    (target.kind !== 'tool-call' || c.viewContext?.toolCallId === target.id))
+  const form = state.scopeForm
+  let rendered = false
+
+  if (form?.kind === 'file') {
+    buildScopeForm(panel, `New file-level comment on ${file}`, async (text) => buildFileCommentPayload(target, viewData, text))
+    rendered = true
+  }
+  if (fileComments.length) {
+    const t = document.createElement('div'); t.className = 'scope-section-title'; t.textContent = 'File-level comments'
+    panel.appendChild(t)
+    for (const c of fileComments) panel.appendChild(buildScopeCard(c, file))
+    rendered = true
+  }
+  panel.className = rendered ? '' : 'empty'
+}
+
+// ─── Multi-select sidebar mode ───
+function toggleMultiFile(file) {
+  const s = state.multiSelect.files
+  if (s.has(file)) s.delete(file); else s.add(file)
+  updateMultiSelectUi()
+  renderTimeline()
+}
+function updateMultiSelectUi() {
+  const sb = $('#sidebar')
+  sb.classList.toggle('multi-select', state.multiSelect.active)
+  const bar = $('#multi-select-bar')
+  bar.style.display = state.multiSelect.active ? 'flex' : 'none'
+  const n = state.multiSelect.files.size
+  $('#multi-select-count').textContent = `${n} file${n === 1 ? '' : 's'} selected`
+  $('#btn-multi-comment').disabled = n < 2
+  $('#btn-multi-toggle').classList.toggle('active', state.multiSelect.active)
+}
+
+function updateMenuVisibility() {
+  // btn-multi-toggle visible only in git-range / browse (one tool call = one file)
+  $('#btn-multi-toggle').style.display = state.mode === 'tool-call' ? 'none' : 'inline-block'
+  // multi-file menu item disabled in tool-call mode
+  const multiBtn = document.querySelector('#scope-menu button[data-scope="multi-file"]')
+  if (multiBtn) multiBtn.disabled = state.mode === 'tool-call'
 }
 
 async function refreshAll() {
@@ -2719,6 +3157,49 @@ $('#theme-select').addEventListener('change', (e) => {
   hljs.href = t === 'paper'
     ? 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github.min.css'
     : 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/styles/github-dark.min.css'
+})
+
+// ─── Scope-menu dropdown + multi-select ───
+$('#btn-scope-menu').addEventListener('click', (e) => {
+  e.stopPropagation()
+  $('#scope-menu').classList.toggle('open')
+})
+document.addEventListener('click', (e) => {
+  const m = $('#scope-menu')
+  if (m.classList.contains('open') && !e.target.closest('.scope-menu-wrap')) m.classList.remove('open')
+})
+for (const btn of document.querySelectorAll('#scope-menu button')) {
+  btn.addEventListener('click', () => {
+    if (btn.disabled) return
+    const kind = btn.dataset.scope
+    $('#scope-menu').classList.remove('open')
+    if (kind === 'multi-file') {
+      state.multiSelect.active = true
+      updateMultiSelectUi()
+      state.scopeForm = { kind: 'multi-file' }
+      renderContent(); renderTimeline()
+    } else {
+      state.scopeForm = { kind }
+      renderContent()
+    }
+  })
+}
+
+$('#btn-multi-toggle').addEventListener('click', () => {
+  state.multiSelect.active = !state.multiSelect.active
+  if (!state.multiSelect.active) { state.multiSelect.files.clear(); if (state.scopeForm?.kind === 'multi-file') state.scopeForm = null }
+  updateMultiSelectUi()
+  renderTimeline(); renderContent()
+})
+$('#btn-multi-cancel').addEventListener('click', () => {
+  state.multiSelect.active = false; state.multiSelect.files.clear()
+  if (state.scopeForm?.kind === 'multi-file') state.scopeForm = null
+  updateMultiSelectUi(); renderTimeline(); renderContent()
+})
+$('#btn-multi-comment').addEventListener('click', () => {
+  if (state.multiSelect.files.size < 2) return
+  state.scopeForm = { kind: 'multi-file' }
+  renderContent()
 })
 
 // ─── Events ───
