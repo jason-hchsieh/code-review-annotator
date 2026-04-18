@@ -632,6 +632,41 @@ body > * { position: relative; z-index: 1; }
 }
 #sidebar.multi-select .tree-checkbox { display: inline-flex; }
 .tree-row.file.multi-selected .tree-checkbox { background: var(--accent); border-color: var(--accent); color: var(--btn-ink); }
+
+/* "Seen / unimportant" markers */
+.btn-seen {
+  width: 18px; height: 18px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: transparent; color: var(--text-dim);
+  border-radius: 3px; cursor: pointer; font-size: 12px; line-height: 1;
+  opacity: 0; transition: opacity 0.1s var(--ease), color 0.1s var(--ease), background 0.1s var(--ease);
+}
+.tree-row:hover .btn-seen,
+.timeline-item:hover .btn-seen { opacity: 0.7; }
+.btn-seen:hover { color: var(--text); background: var(--bg3); opacity: 1 !important; }
+.tree-row.seen .btn-seen,
+.timeline-item.seen .btn-seen { opacity: 1; color: var(--accent); }
+.tree-row.seen .tree-name,
+.tree-row.seen .tree-path-hint,
+.timeline-item.seen .timeline-file,
+.timeline-item.seen .timeline-item-meta { opacity: 0.45; }
+.tree-row.seen .tree-name { text-decoration: line-through; text-decoration-color: var(--text-dim); }
+.tree-row.seen-ancestor { opacity: 0.55; }
+.tree-row.seen-ancestor .tree-name { font-style: italic; }
+.btn-hide-seen {
+  padding: 2px 8px; background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border); border-radius: 4px;
+  font-size: 10.5px; cursor: pointer; font-family: var(--font-mono);
+  transition: all 0.12s var(--ease); white-space: nowrap;
+}
+.btn-hide-seen:hover { color: var(--text); border-color: var(--border-strong); }
+.btn-hide-seen.active { background: var(--accent); color: var(--btn-ink); border-color: var(--accent); }
+.btn-clear-seen {
+  padding: 2px 6px; background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border); border-radius: 4px;
+  font-size: 10.5px; cursor: pointer; font-family: var(--font-mono);
+}
+.btn-clear-seen:hover { color: var(--text); border-color: var(--border-strong); }
 #multi-select-bar {
   padding: 10px 12px; background: var(--bg3); border-top: 1px solid var(--accent);
   display: flex; align-items: center; gap: 8px; flex-shrink: 0;
@@ -1055,6 +1090,8 @@ body > * { position: relative; z-index: 1; }
     <div class="sidebar-header">
       <span class="sidebar-title" id="sidebar-title">Tool calls</span>
       <span class="sidebar-count" id="tl-count">0</span>
+      <button class="btn-hide-seen" id="btn-hide-seen" title="Hide items marked as seen/unimportant">👁 hide seen</button>
+      <button class="btn-clear-seen" id="btn-clear-seen" title="Clear all seen marks" style="display:none">clear</button>
       <button class="btn-multi-toggle" id="btn-multi-toggle" title="Multi-select files (comment across N files)" style="display:none">⊠ multi</button>
     </div>
     <div class="session-bar" id="view-bar" style="display:none; flex-direction: column; align-items: stretch;">
@@ -1204,8 +1241,11 @@ const state = {
   liveStream: null,
   gitRefs: [],
   collapsedFolders: new Set(), // tree-view folder paths that are collapsed
-  seenCallIds: null,     // null = first load, Set after
+  knownCallIds: null,    // null = first load, Set after — tracks what's been rendered before (for flash)
   flashIds: new Set(),   // ids to flash on next timeline render
+  seenPaths: new Set(),  // file / folder paths marked as seen / unimportant (per project)
+  seenCalls: new Set(),  // tool-call ids marked as seen (per project)
+  hideSeen: false,       // when true, filter seen items out of the sidebar
   // Per-file gap expansions for diff view (GitHub-style). Reset on target change.
   gapExpansions: new Map(),
   // Scope-comment draft form: { kind: 'file' | 'multi-file' | 'view', anchors: Anchor[] }
@@ -1217,6 +1257,71 @@ const state = {
 }
 
 const EXPAND_STEP = 20
+
+// ─── Seen / unimportant marks (per-project, localStorage) ───
+// A file is "seen" if its path is in seenPaths, OR any ancestor folder is.
+// A folder is "seen" only if its own path is in seenPaths (but it is effectively
+// dimmed as "seen-ancestor" when an ancestor is marked).
+function seenKey(kind) {
+  const dir = state.project?.dir ?? ''
+  return `cra-seen-${kind}-${dir}`
+}
+function loadSeenForProject() {
+  try {
+    state.seenPaths = new Set(JSON.parse(localStorage.getItem(seenKey('paths')) ?? '[]'))
+    state.seenCalls = new Set(JSON.parse(localStorage.getItem(seenKey('calls')) ?? '[]'))
+  } catch { state.seenPaths = new Set(); state.seenCalls = new Set() }
+  state.hideSeen = localStorage.getItem('cra-hide-seen') === '1'
+  updateHideSeenBtn()
+}
+function persistSeenPaths() {
+  localStorage.setItem(seenKey('paths'), JSON.stringify([...state.seenPaths]))
+}
+function persistSeenCalls() {
+  localStorage.setItem(seenKey('calls'), JSON.stringify([...state.seenCalls]))
+}
+function isPathMarked(path) { return state.seenPaths.has(path) }
+function hasSeenAncestor(path) {
+  // any strict ancestor folder marked? walk parents
+  let p = path
+  while (true) {
+    const slash = p.lastIndexOf('/')
+    if (slash < 0) return false
+    p = p.slice(0, slash)
+    if (state.seenPaths.has(p)) return true
+  }
+}
+function isPathSeen(path) { return isPathMarked(path) || hasSeenAncestor(path) }
+function togglePathSeen(path) {
+  // If marked directly → unmark. If implicitly seen via ancestor → explicit-mark the path
+  // (so it stays seen even if the ancestor is later unmarked, matching user intent).
+  if (state.seenPaths.has(path)) state.seenPaths.delete(path)
+  else state.seenPaths.add(path)
+  persistSeenPaths()
+}
+function toggleCallSeen(id) {
+  if (state.seenCalls.has(id)) state.seenCalls.delete(id)
+  else state.seenCalls.add(id)
+  persistSeenCalls()
+}
+function updateHideSeenBtn() {
+  const btn = $('#btn-hide-seen')
+  if (!btn) return
+  btn.classList.toggle('active', state.hideSeen)
+  btn.textContent = state.hideSeen ? '👁 show all' : '👁 hide seen'
+  const clr = $('#btn-clear-seen')
+  const total = state.seenPaths.size + state.seenCalls.size
+  if (clr) clr.style.display = total > 0 ? 'inline-block' : 'none'
+}
+function makeSeenButton(isSeen, onToggle, titleSeen, titleUnseen) {
+  const btn = document.createElement('button')
+  btn.className = 'btn-seen'
+  btn.type = 'button'
+  btn.textContent = isSeen ? '✓' : '○'
+  btn.title = isSeen ? titleSeen : titleUnseen
+  btn.addEventListener('click', (e) => { e.stopPropagation(); onToggle() })
+  return btn
+}
 
 // ─── URL hash sync ───
 // View state lives in the URL hash so links are shareable and reloads preserve
@@ -1577,13 +1682,13 @@ async function refreshData() {
   if (state.mode === 'tool-call') {
     const calls = await api('GET', '/api/tool-calls')
     calls.sort((a, b) => a.startedAt.localeCompare(b.startedAt))
-    if (state.seenCallIds === null) {
-      state.seenCallIds = new Set(calls.map(c => c.id))
+    if (state.knownCallIds === null) {
+      state.knownCallIds = new Set(calls.map(c => c.id))
     } else {
       for (const c of calls) {
-        if (!state.seenCallIds.has(c.id)) {
+        if (!state.knownCallIds.has(c.id)) {
           state.flashIds.add(c.id)
-          state.seenCallIds.add(c.id)
+          state.knownCallIds.add(c.id)
         }
       }
     }
@@ -1651,7 +1756,8 @@ function renderTimeline() {
   const filter = $('#tl-search').value.trim().toLowerCase()
   tl.innerHTML = ''
   if (state.mode === 'tool-call') {
-    const items = filter ? state.toolCalls.filter(c => c.file.toLowerCase().includes(filter)) : state.toolCalls
+    let items = filter ? state.toolCalls.filter(c => c.file.toLowerCase().includes(filter)) : state.toolCalls
+    if (state.hideSeen) items = items.filter(c => !state.seenCalls.has(c.id) && !isPathSeen(c.file))
     $('#tl-count').textContent = items.length
     if (items.length === 0) {
       const empty = document.createElement('div'); empty.className = 'timeline-empty'
@@ -1668,9 +1774,10 @@ function renderTimeline() {
       empty.textContent = 'Enter two refs above (e.g. main → HEAD) and press Load.'
       tl.appendChild(empty); return
     }
-    const items = filter
+    let items = filter
       ? state.viewFiles.filter(f => f.file.toLowerCase().includes(filter))
       : state.viewFiles
+    if (state.hideSeen) items = items.filter(f => !isPathSeen(f.file))
     $('#tl-count').textContent = items.length
     if (items.length === 0) {
       const empty = document.createElement('div'); empty.className = 'timeline-empty'
@@ -1746,8 +1853,11 @@ function renderTreeInto(node, level, container) {
 
 function renderFolderRow(folder, level) {
   const collapsed = state.collapsedFolders.has(folder.path)
+  const marked = isPathMarked(folder.path)
+  const ancestorMarked = hasSeenAncestor(folder.path)
   const row = document.createElement('div')
   row.className = 'tree-row folder' + (collapsed ? ' collapsed' : '')
+    + (marked ? ' seen' : (ancestorMarked ? ' seen-ancestor' : ''))
   row.style.paddingLeft = (6 + level * 14) + 'px'
 
   const caret = document.createElement('span'); caret.className = 'tree-caret'; caret.textContent = '▾'
@@ -1756,6 +1866,12 @@ function renderFolderRow(folder, level) {
   const name = document.createElement('span'); name.className = 'tree-name'; name.textContent = folder.name
 
   row.appendChild(caret); row.appendChild(icon); row.appendChild(name)
+
+  const seenBtn = makeSeenButton(marked,
+    () => { togglePathSeen(folder.path); renderTimeline(); updateHideSeenBtn() },
+    'Unmark folder as seen', 'Mark folder as seen / unimportant')
+  row.appendChild(seenBtn)
+
   row.addEventListener('click', () => {
     if (state.collapsedFolders.has(folder.path)) state.collapsedFolders.delete(folder.path)
     else state.collapsedFolders.add(folder.path)
@@ -1766,7 +1882,10 @@ function renderFolderRow(folder, level) {
 
 function renderToolCallRow(call) {
   const row = document.createElement('div')
+  const markedCall = state.seenCalls.has(call.id)
+  const seenByPath = isPathSeen(call.file)
   row.className = 'timeline-item' + (state.selectedCallId === call.id ? ' active' : '')
+    + (markedCall || seenByPath ? ' seen' : '')
   if (state.flashIds.has(call.id)) row.classList.add('flash-new')
   row.addEventListener('click', () => selectCall(call.id))
 
@@ -1819,6 +1938,12 @@ function renderToolCallRow(call) {
     badges.appendChild(dot); badges.appendChild(cc)
   }
   meta.appendChild(badges)
+
+  const seenBtn = makeSeenButton(markedCall,
+    () => { toggleCallSeen(call.id); renderTimeline(); updateHideSeenBtn() },
+    'Unmark tool call as seen', 'Mark tool call as seen / unimportant')
+  meta.appendChild(seenBtn)
+
   row.appendChild(top); row.appendChild(meta)
   return row
 }
@@ -1827,7 +1952,10 @@ function renderFileRow(f, level = 0, showPath = false, leafName = null) {
   const row = document.createElement('div')
   const isMulti = state.multiSelect.active
   const isSelected = isMulti && state.multiSelect.files.has(f.file)
+  const marked = isPathMarked(f.file)
+  const ancestorMarked = hasSeenAncestor(f.file)
   row.className = 'tree-row file' + (state.selectedFile === f.file ? ' active' : '') + (isSelected ? ' multi-selected' : '')
+    + (marked ? ' seen' : (ancestorMarked ? ' seen-ancestor' : ''))
   row.style.paddingLeft = (6 + level * 14) + 'px'
   row.title = f.file
   row.addEventListener('click', (e) => {
@@ -1877,6 +2005,12 @@ function renderFileRow(f, level = 0, showPath = false, leafName = null) {
     badges.appendChild(dot); badges.appendChild(cc)
   }
   row.appendChild(badges)
+
+  const seenBtn = makeSeenButton(marked,
+    () => { togglePathSeen(f.file); renderTimeline(); updateHideSeenBtn() },
+    'Unmark file as seen', 'Mark file as seen / unimportant')
+  row.appendChild(seenBtn)
+
   return row
 }
 
@@ -3310,8 +3444,9 @@ $('#project-select').addEventListener('change', async (e) => {
   const projects = await (await fetch('/api/projects')).json()
   state.project = projects.find(p => p.dir === dir)
   state.selectedCallId = null; state.selectedFile = null; state.viewFileData = null
-  state.seenCallIds = null
+  state.knownCallIds = null
   state.flashIds.clear()
+  loadSeenForProject()
   diffstatCache.clear()
   live.lastEventAt = 0
   await loadGitRefs()
@@ -3321,10 +3456,24 @@ $('#project-select').addEventListener('change', async (e) => {
 })
 $('#tl-search').addEventListener('input', () => renderTimeline())
 
+$('#btn-hide-seen').addEventListener('click', () => {
+  state.hideSeen = !state.hideSeen
+  localStorage.setItem('cra-hide-seen', state.hideSeen ? '1' : '0')
+  updateHideSeenBtn(); renderTimeline()
+})
+$('#btn-clear-seen').addEventListener('click', () => {
+  if (state.seenPaths.size + state.seenCalls.size === 0) return
+  if (!confirm('Clear all seen / unimportant marks for this project?')) return
+  state.seenPaths.clear(); state.seenCalls.clear()
+  persistSeenPaths(); persistSeenCalls()
+  updateHideSeenBtn(); renderTimeline()
+})
+
 // ─── Boot ───
 ;(async function main() {
   await loadProjects()
   if (state.project) {
+    loadSeenForProject()
     const v = readViewFromHash()
     state.mode = v.mode
     state.gitRange = v.gitRange
