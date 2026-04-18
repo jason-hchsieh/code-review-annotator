@@ -175,6 +175,7 @@ Every project-scoped endpoint takes a `project=<abs-dir>` query parameter identi
 | `POST` | `/api/tool-calls/start` | **Hook endpoint** — PreToolUse: `{ toolUseId, sessionId, tool, file, before, startedAt? }` |
 | `POST` | `/api/tool-calls/complete` | **Hook endpoint** — PostToolUse: `{ toolUseId, after, completedAt? }` |
 | `GET` | `/api/git/refs` | `{ isGitRepo, refs[] }` — branches + recent commits + special refs (`WORKTREE`, `INDEX`). |
+| `GET` | `/api/git/graph?limit=80` | `{ isGitRepo, commits[], headSha, headRef }` — commit topology across all branches for the visual range picker. Each commit has `{ sha, parents, author, date, subject, refs, isHead }`. |
 | `POST` | `/api/git/check-ancestor` | `{ fromRef, toRef }` → `{ ancestor: boolean \| null, mergeBase: sha \| null }`. `ancestor: null` means one side is `WORKTREE`/`INDEX`. |
 | `GET` | `/api/view/files?view=browse` | `[{ file, status }]` — all worktree files. |
 | `GET` | `/api/view/files?view=git-range&from=&to=` | `[{ file, status }]` — changed files between refs. |

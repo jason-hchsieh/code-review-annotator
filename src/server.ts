@@ -4,7 +4,7 @@ import * as path from 'node:path'
 import { CommentSide, LogStore, ReviewComment, ToolCall, ToolKind, ViewContext, ViewSource, computeBlobSha, sliceLines } from './log.ts'
 import { listProjects, setHttpPort, clearHttpPort, RegistryProject } from './registry.ts'
 import { startProjectWatcher, WatcherEvent } from './watcher.ts'
-import { isAncestor, isGitRepo, listChangedFiles, listRefs, listWorktreeFiles, mergeBase, readBlob, resolveRef } from './git.ts'
+import { isAncestor, isGitRepo, listChangedFiles, listGraphCommits, listRefs, listWorktreeFiles, mergeBase, readBlob, resolveRef } from './git.ts'
 
 const TOOL_KINDS: ReadonlyArray<ToolKind> = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
 
@@ -260,6 +260,11 @@ export function startHttpServer(port: number) {
 
       if (method === 'GET' && pathname === '/api/git/refs') {
         return json(res, 200, { isGitRepo: isGitRepo(dir), refs: listRefs(dir) })
+      }
+
+      if (method === 'GET' && pathname === '/api/git/graph') {
+        const limit = Math.max(10, Math.min(300, Number(query.get('limit') ?? '80') || 80))
+        return json(res, 200, { isGitRepo: isGitRepo(dir), ...listGraphCommits(dir, limit) })
       }
 
       if (method === 'POST' && pathname === '/api/git/check-ancestor') {
