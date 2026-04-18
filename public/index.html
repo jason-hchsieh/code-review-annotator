@@ -164,25 +164,25 @@ body > * { position: relative; z-index: 1; }
   padding: 4px 12px 8px; flex-shrink: 0;
   display: flex; align-items: center; gap: 6px;
 }
-#session-select {
+.session-bar input {
   flex: 1; min-width: 0;
   background: var(--bg); border: 1px solid var(--border); color: var(--text);
   padding: 5px 8px; border-radius: 4px; font-size: 12px;
-  outline: none; cursor: pointer;
-  font-family: var(--font-ui);
+  outline: none; font-family: var(--font-mono);
 }
-#session-select:focus { border-color: var(--accent); }
-#session-select option { background: var(--bg2); color: var(--text); }
-#session-delete, .btn-new-session {
-  background: var(--bg); border: 1px solid var(--border); color: var(--text-muted);
+.session-bar input:focus { border-color: var(--accent); }
+.session-bar-arrow {
+  color: var(--text-dim); font-family: var(--font-mono); font-size: 12px;
+  flex-shrink: 0;
+}
+.btn-new-session {
+  background: var(--bg); border: 1px solid var(--accent); color: var(--accent);
   padding: 5px 10px; border-radius: 4px; font-size: 11.5px; font-weight: 500;
   cursor: pointer; outline: none; flex-shrink: 0;
   font-family: var(--font-ui);
   transition: all 0.12s var(--ease);
 }
-.btn-new-session { color: var(--accent); border-color: var(--accent); }
 .btn-new-session:hover { background: var(--accent-soft); }
-#session-delete:hover { background: var(--bg3); color: var(--danger); border-color: var(--danger); }
 
 .session-meta {
   padding: 0 16px 8px; font-size: 11px; color: var(--text-dim);
@@ -352,6 +352,12 @@ body > * { position: relative; z-index: 1; }
 }
 .comment-side-ref {
   color: var(--text-dim); font-size: 11px; font-family: var(--font-mono);
+}
+.comment-migrated-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  background: var(--bg3); color: var(--text-muted);
+  border: 1px solid var(--border); font-size: 10px; letter-spacing: 0.3px;
+  font-family: var(--font-mono); text-transform: uppercase; cursor: help;
 }
 .comment-thread-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 .comment-action-btn {
@@ -539,12 +545,13 @@ body > * { position: relative; z-index: 1; }
       <span class="sidebar-title" id="sidebar-title">Tool calls</span>
       <span class="sidebar-count" id="tl-count">0</span>
     </div>
-    <div class="session-bar" id="session-bar" style="display:none">
-      <select id="session-select" aria-label="Review session"></select>
-      <button class="btn-new-session" id="btn-new-session" title="New review session">+ New</button>
-      <button id="session-delete" title="Delete session">×</button>
+    <div class="session-bar" id="view-bar" style="display:none">
+      <input id="gr-from" list="git-refs-list" placeholder="from (main, HEAD, SHA…)" spellcheck="false" />
+      <span class="session-bar-arrow">→</span>
+      <input id="gr-to" list="git-refs-list" placeholder="to (HEAD, WORKTREE…)" spellcheck="false" />
+      <button class="btn-new-session" id="gr-apply" title="Load diff">Load</button>
     </div>
-    <div class="session-meta" id="session-meta" style="display:none"></div>
+    <div class="session-meta" id="view-meta" style="display:none"></div>
     <div class="sidebar-search"><input id="tl-search" type="text" placeholder="filter by file…" /></div>
     <div id="timeline"><div class="timeline-empty">No tool calls captured yet.<br>Run Claude Code with the plugin installed — each Edit / Write will show up here.</div></div>
   </aside>
@@ -564,41 +571,6 @@ body > * { position: relative; z-index: 1; }
 
 <!-- Git refs used by new-session dialog -->
 <datalist id="git-refs-list"></datalist>
-
-<!-- New session modal -->
-<div class="modal-overlay" id="session-modal">
-  <div class="modal">
-    <div class="modal-title" id="session-modal-title">New review session</div>
-    <div id="session-modal-body">
-      <div class="form-row" id="session-kind-row">
-        <label>Kind</label>
-        <select id="session-kind">
-          <option value="git-range">Git diff (between two refs)</option>
-          <option value="browse">Worktree browse</option>
-        </select>
-      </div>
-      <div id="git-range-fields">
-        <div class="form-row">
-          <label>From ref</label>
-          <input id="session-from-ref" list="git-refs-list" placeholder="e.g. main, HEAD, INDEX, 1a2b3c…" spellcheck="false" />
-        </div>
-        <div class="form-row">
-          <label>To ref</label>
-          <input id="session-to-ref" list="git-refs-list" placeholder="e.g. HEAD, WORKTREE, branch name, SHA" spellcheck="false" />
-        </div>
-        <div id="ancestry-status" style="display:none"></div>
-      </div>
-      <div class="form-row">
-        <label>Label (optional)</label>
-        <input id="session-label" placeholder="auto" spellcheck="false" />
-      </div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-cancel" id="session-cancel">Cancel</button>
-      <button class="btn-primary" id="session-create">Create</button>
-    </div>
-  </div>
-</div>
 
 <!-- Export modal -->
 <div class="modal-overlay" id="export-modal">
@@ -621,17 +593,39 @@ const state = {
   // tool-call mode
   toolCalls: [],
   selectedCallId: null,
-  // session modes (git-range / browse)
-  sessions: [],
-  selectedSessionId: null,
-  sessionFiles: [],
+  // stateless view modes (git-range / browse)
+  gitRange: { fromRef: '', toRef: '' },
+  viewFiles: [],
   selectedFile: null,
-  sessionFileData: null, // { file, before, after, isBrowse }
+  viewFileData: null, // { file, before, after, beforeSha, afterSha, isBrowse }
   // shared
   comments: [],
   selection: null, // { side, startLine, endLine }
   liveStream: null,
   gitRefs: [],
+}
+
+// ─── URL hash sync ───
+// View state lives in the URL hash so links are shareable and reloads preserve
+// the current perspective. Format: #view=git-range&from=main&to=HEAD
+function readViewFromHash() {
+  const h = new URLSearchParams((location.hash || '').replace(/^#/, ''))
+  const mode = h.get('view') ?? 'tool-call'
+  return {
+    mode: (mode === 'git-range' || mode === 'browse' || mode === 'tool-call') ? mode : 'tool-call',
+    gitRange: { fromRef: h.get('from') ?? '', toRef: h.get('to') ?? '' },
+  }
+}
+
+function writeViewToHash() {
+  const params = new URLSearchParams()
+  params.set('view', state.mode)
+  if (state.mode === 'git-range') {
+    if (state.gitRange.fromRef) params.set('from', state.gitRange.fromRef)
+    if (state.gitRange.toRef) params.set('to', state.gitRange.toRef)
+  }
+  const h = '#' + params.toString()
+  if (location.hash !== h) history.replaceState(null, '', h)
 }
 
 const $ = (sel) => document.querySelector(sel)
@@ -695,11 +689,78 @@ function abbreviate(ref) {
   return ref
 }
 
-function currentTarget(extra = {}) {
-  if (state.mode === 'tool-call') {
-    return { kind: 'tool-call', id: state.selectedCallId, file: '' }
+// ─── Comment → view matching (blob-aware) ───
+// Views are pure projections: a comment surfaces if its viewContext matches the view
+// and its file matches the rendered file. Post-Phase 0, every comment has viewContext
+// (the load-time normalizer backfills it).
+
+function commentMatchesToolCall(c, call) {
+  return c.viewContext?.source === 'tool-call' && c.viewContext.toolCallId === call.id
+}
+
+function commentMatchesView(c, mode, gitRange, file) {
+  const vc = c.viewContext
+  if (!vc) return false
+  if (mode === 'browse') {
+    return vc.source === 'browse' && (c.file ?? '') === file
   }
-  return { kind: state.mode, id: state.selectedSessionId, file: state.selectedFile ?? '' }
+  if (mode === 'git-range') {
+    if (vc.source !== 'git-range') return false
+    if ((c.file ?? '') !== file) return false
+    if ((vc.fromRef ?? '') !== (gitRange?.fromRef ?? '')) return false
+    if ((vc.toRef ?? '') !== (gitRange?.toRef ?? '')) return false
+    return true
+  }
+  return false
+}
+
+/** Pick the display side for a comment by matching its blobSha against the current view's before/after blobs.
+ * Returns { side, migrated } — migrated=true when the blob didn't match and we fell back to viewContext.side. */
+function resolveCommentSide(c, beforeSha, afterSha) {
+  const fallback = c.viewContext?.side ?? 'after'
+  if (c.blobSha) {
+    if (beforeSha && c.blobSha === beforeSha) return { side: 'before', migrated: false }
+    if (afterSha && c.blobSha === afterSha) return { side: 'after', migrated: false }
+    return { side: fallback, migrated: true }
+  }
+  return { side: fallback, migrated: false }
+}
+
+/** Inclusive, 1-indexed slice. Matches the server's `sliceLines`. */
+function sliceLinesClient(content, start, end) {
+  if (!content) return ''
+  const lines = content.split('\n')
+  const s = Math.max(1, Math.min(start, lines.length))
+  const e = Math.max(s, Math.min(end, lines.length))
+  return lines.slice(s - 1, e).join('\n')
+}
+
+/** Build the POST /api/comments body in new shape. `viewData` carries the rendered content + SHAs. */
+function buildCommentPayload(target, viewData, sel, text) {
+  const isBefore = sel.side === 'before'
+  const isCurrent = sel.side === 'current'
+  const content = isBefore ? (viewData?.before ?? '') : (viewData?.after ?? '')
+  const blobSha = isBefore ? (viewData?.beforeSha ?? '') : (viewData?.afterSha ?? '')
+  const anchorText = sliceLinesClient(content, sel.startLine, sel.endLine)
+  const viewContext = {
+    source: target.kind,
+    side: sel.side,
+  }
+  if (target.kind === 'tool-call') viewContext.toolCallId = target.id
+  else if (target.kind === 'git-range') {
+    viewContext.fromRef = state.gitRange.fromRef
+    viewContext.toRef = state.gitRange.toRef
+  }
+  if (isCurrent) viewContext.side = 'current'
+  return {
+    file: viewData?.file ?? target.file ?? '',
+    startLine: sel.startLine,
+    endLine: sel.endLine,
+    blobSha,
+    anchorText,
+    viewContext,
+    body: text,
+  }
 }
 
 // ─── Projects ───
@@ -728,66 +789,37 @@ function applyModeUi() {
     btn.classList.toggle('active', btn.dataset.mode === state.mode)
   }
   const sbTitle = $('#sidebar-title')
-  const sessionBar = $('#session-bar')
-  const sessionMeta = $('#session-meta')
+  const viewBar = $('#view-bar')
   if (state.mode === 'tool-call') {
     sbTitle.textContent = 'Tool calls'
-    sessionBar.style.display = 'none'
-    sessionMeta.style.display = 'none'
+    viewBar.style.display = 'none'
   } else if (state.mode === 'git-range') {
     sbTitle.textContent = 'Git diff — files'
-    sessionBar.style.display = 'flex'
-    renderSessionSelect('git-range')
-    renderSessionMeta()
+    viewBar.style.display = 'flex'
+    $('#gr-from').value = state.gitRange.fromRef ?? ''
+    $('#gr-to').value = state.gitRange.toRef ?? ''
   } else {
     sbTitle.textContent = 'Browse — files'
-    sessionBar.style.display = 'flex'
-    renderSessionSelect('browse')
-    renderSessionMeta()
+    viewBar.style.display = 'none'
   }
+  renderViewMeta()
+  writeViewToHash()
 }
 
-function renderSessionSelect(kind) {
-  const sel = $('#session-select')
-  sel.innerHTML = ''
-  const opts = state.sessions.filter(s => s.kind === kind)
-  if (opts.length === 0) {
-    const opt = document.createElement('option')
-    opt.value = ''; opt.textContent = '— no sessions — click + New —'
-    sel.appendChild(opt)
-    sel.disabled = true
-    state.selectedSessionId = null
-    $('#session-delete').disabled = true
-    return
-  }
-  sel.disabled = false
-  $('#session-delete').disabled = false
-  for (const s of opts) {
-    const opt = document.createElement('option')
-    opt.value = s.id
-    opt.textContent = s.label
-    sel.appendChild(opt)
-  }
-  const saved = localStorage.getItem(`cra-session-${kind}-${state.project?.dir ?? ''}`)
-  const pick = opts.find(s => s.id === saved) ?? opts[0]
-  sel.value = pick.id
-  state.selectedSessionId = pick.id
-}
-
-function renderSessionMeta() {
-  const meta = $('#session-meta')
-  const session = state.sessions.find(s => s.id === state.selectedSessionId)
-  if (!session) { meta.style.display = 'none'; return }
-  if (session.kind === 'browse') {
+function renderViewMeta() {
+  const meta = $('#view-meta')
+  if (state.mode === 'browse') {
     meta.textContent = 'worktree · tracked + untracked (excluding .gitignore)'
     meta.classList.remove('warn')
     meta.style.display = 'block'
-  } else {
-    const from = abbreviate(session.fromRef)
-    const to = abbreviate(session.toRef)
-    meta.innerHTML = `${escapeHtml(from)} → ${escapeHtml(to)}`
+  } else if (state.mode === 'git-range') {
+    const { fromRef, toRef } = state.gitRange
+    if (!fromRef || !toRef) { meta.style.display = 'none'; return }
+    meta.innerHTML = `${escapeHtml(abbreviate(fromRef))} → ${escapeHtml(abbreviate(toRef))}`
     meta.classList.remove('warn')
     meta.style.display = 'block'
+  } else {
+    meta.style.display = 'none'
   }
 }
 
@@ -799,7 +831,7 @@ async function switchMode(mode) {
   state.mode = mode
   state.selection = null
   state.selectedFile = null
-  state.sessionFileData = null
+  state.viewFileData = null
   state.selectedCallId = null
   applyModeUi()
   await refreshData()
@@ -816,28 +848,35 @@ async function refreshData() {
     state.toolCalls = calls
     renderTimeline()
   } else {
-    state.sessions = await api('GET', '/api/sessions')
-    if (!state.sessions.find(s => s.id === state.selectedSessionId && s.kind === state.mode)) {
-      state.selectedSessionId = null
-    }
-    applyModeUi()
-    await refreshSessionFiles()
+    await refreshViewFiles()
   }
   updateExportBtn()
 }
 
-async function refreshSessionFiles() {
-  if (!state.selectedSessionId) {
-    state.sessionFiles = []
-    renderTimeline()
-    return
-  }
-  localStorage.setItem(`cra-session-${state.mode}-${state.project?.dir ?? ''}`, state.selectedSessionId)
-  try {
-    state.sessionFiles = await api('GET', `/api/sessions/${state.selectedSessionId}/files`)
-  } catch (err) {
-    state.sessionFiles = []
-    toast(`Failed to load files: ${err.message}`)
+async function refreshViewFiles() {
+  if (state.mode === 'browse') {
+    try {
+      state.viewFiles = await api('GET', '/api/view/files?view=browse')
+    } catch (err) {
+      state.viewFiles = []
+      toast(`Failed to load files: ${err.message}`)
+    }
+  } else if (state.mode === 'git-range') {
+    const { fromRef, toRef } = state.gitRange
+    if (!fromRef || !toRef) {
+      state.viewFiles = []
+      renderTimeline()
+      return
+    }
+    try {
+      state.viewFiles = await api('GET',
+        `/api/view/files?view=git-range&from=${encodeURIComponent(fromRef)}&to=${encodeURIComponent(toRef)}`)
+    } catch (err) {
+      state.viewFiles = []
+      toast(`Failed to load files: ${err.message}`)
+    }
+  } else {
+    state.viewFiles = []
   }
   renderTimeline()
 }
@@ -863,21 +902,19 @@ function renderTimeline() {
     }
     for (const call of items) tl.appendChild(renderToolCallRow(call))
   } else {
-    if (!state.selectedSessionId) {
+    if (state.mode === 'git-range' && (!state.gitRange.fromRef || !state.gitRange.toRef)) {
       $('#tl-count').textContent = 0
       const empty = document.createElement('div'); empty.className = 'timeline-empty'
-      empty.textContent = state.mode === 'git-range'
-        ? 'No git-diff session yet. Click + New to compare two refs.'
-        : 'No browse session yet. Click + New to browse the worktree.'
+      empty.textContent = 'Enter two refs above (e.g. main → HEAD) and press Load.'
       tl.appendChild(empty); return
     }
     const items = filter
-      ? state.sessionFiles.filter(f => f.file.toLowerCase().includes(filter))
-      : state.sessionFiles
+      ? state.viewFiles.filter(f => f.file.toLowerCase().includes(filter))
+      : state.viewFiles
     $('#tl-count').textContent = items.length
     if (items.length === 0) {
       const empty = document.createElement('div'); empty.className = 'timeline-empty'
-      empty.textContent = state.sessionFiles.length === 0
+      empty.textContent = state.viewFiles.length === 0
         ? (state.mode === 'browse' ? 'Worktree is empty (or ignored).' : 'No file changes in this range.')
         : 'No files match that filter.'
       tl.appendChild(empty); return
@@ -906,7 +943,7 @@ function renderToolCallRow(call) {
     badges.appendChild(sb)
   }
   const openComments = state.comments.filter(c =>
-    c.target?.kind === 'tool-call' && c.target.id === call.id && c.status === 'open'
+    commentMatchesToolCall(c, call) && c.status === 'open'
   ).length
   if (openComments > 0) {
     const dot = document.createElement('span'); dot.className = 'comment-dot'
@@ -936,8 +973,7 @@ function renderFileRow(f) {
   const meta = document.createElement('div'); meta.className = 'timeline-item-meta'
   const badges = document.createElement('div'); badges.className = 'timeline-badges'
   const openComments = state.comments.filter(c =>
-    c.target?.kind === state.mode && c.target?.id === state.selectedSessionId &&
-    c.target?.file === f.file && c.status === 'open'
+    commentMatchesView(c, state.mode, state.gitRange, f.file) && c.status === 'open'
   ).length
   if (openComments > 0) {
     const dot = document.createElement('span'); dot.className = 'comment-dot'
@@ -957,11 +993,17 @@ function selectCall(id) {
 async function selectFile(file) {
   state.selectedFile = file; state.selection = null
   try {
-    state.sessionFileData = await api('GET',
-      `/api/sessions/${state.selectedSessionId}/file?path=${encodeURIComponent(file)}`)
+    if (state.mode === 'browse') {
+      state.viewFileData = await api('GET',
+        `/api/view/file?view=browse&path=${encodeURIComponent(file)}`)
+    } else if (state.mode === 'git-range') {
+      const { fromRef, toRef } = state.gitRange
+      state.viewFileData = await api('GET',
+        `/api/view/file?view=git-range&path=${encodeURIComponent(file)}&from=${encodeURIComponent(fromRef)}&to=${encodeURIComponent(toRef)}`)
+    }
   } catch (err) {
     toast(`Failed to load file: ${err.message}`)
-    state.sessionFileData = null
+    state.viewFileData = null
   }
   renderContent(); renderTimeline()
 }
@@ -983,30 +1025,32 @@ function renderContent() {
     if (call.status === 'pending') metaParts.push('(pending)')
     else if (call.status === 'orphan') metaParts.push('(orphaned — post-hook never ran)')
     $('#ch-meta').textContent = metaParts.join(' · ')
-    const comments = state.comments.filter(c => c.target?.kind === 'tool-call' && c.target.id === call.id)
-    renderDiff(call.before, call.after ?? '', call.file,
+    const comments = state.comments.filter(c => commentMatchesToolCall(c, call))
+    renderDiff(call.before, call.after ?? '', call.beforeSha, call.afterSha ?? '', call.file,
       { kind: 'tool-call', id: call.id, file: '' }, comments)
   } else {
-    if (!state.sessionFileData) {
-      emptyEl.textContent = state.selectedSessionId
-        ? 'Pick a file from the list.'
-        : 'Create or select a review session to begin.'
+    if (!state.viewFileData) {
+      if (state.mode === 'git-range' && (!state.gitRange.fromRef || !state.gitRange.toRef)) {
+        emptyEl.textContent = 'Enter two refs and press Load to see the diff.'
+      } else {
+        emptyEl.textContent = 'Pick a file from the list.'
+      }
       emptyEl.style.display='flex'; hdr.style.display='none'; table.style.display='none'; return
     }
-    const data = state.sessionFileData
+    const data = state.viewFileData
     emptyEl.style.display='none'; hdr.style.display='flex'; table.style.display='table'
-    const session = state.sessions.find(s => s.id === state.selectedSessionId)
-    $('#ch-tool').textContent = session?.kind === 'browse' ? 'BROWSE' : 'DIFF'
-    $('#ch-tool').className = `tool-badge ${session?.kind === 'browse' ? 'modified' : 'Edit'}`
+    $('#ch-tool').textContent = state.mode === 'browse' ? 'BROWSE' : 'DIFF'
+    $('#ch-tool').className = `tool-badge ${state.mode === 'browse' ? 'modified' : 'Edit'}`
     $('#ch-file').textContent = data.file
-    $('#ch-meta').textContent = session?.kind === 'browse'
+    $('#ch-meta').textContent = state.mode === 'browse'
       ? 'worktree'
-      : `${abbreviate(session?.fromRef)} → ${abbreviate(session?.toRef)}`
+      : `${abbreviate(state.gitRange.fromRef)} → ${abbreviate(state.gitRange.toRef)}`
     const comments = state.comments.filter(c =>
-      c.target?.kind === state.mode && c.target?.id === state.selectedSessionId &&
-      c.target?.file === data.file)
-    if (data.isBrowse) renderBrowse(data.after, data.file, { kind: 'browse', id: state.selectedSessionId, file: data.file }, comments)
-    else renderDiff(data.before, data.after, data.file, { kind: 'git-range', id: state.selectedSessionId, file: data.file }, comments)
+      commentMatchesView(c, state.mode, state.gitRange, data.file))
+    if (data.isBrowse) renderBrowse(data.after, data.afterSha ?? '', data.file,
+      { kind: 'browse', id: '', file: data.file }, comments)
+    else renderDiff(data.before, data.after, data.beforeSha ?? '', data.afterSha ?? '', data.file,
+      { kind: 'git-range', id: '', file: data.file }, comments)
   }
 }
 
@@ -1044,15 +1088,21 @@ function buildHunks(before, after) {
   return out
 }
 
-function renderDiff(before, after, file, target, comments) {
+function renderDiff(before, after, beforeSha, afterSha, file, target, comments) {
   const tbody = $('#diff-table tbody')
   tbody.innerHTML = ''
   const rows = buildHunks(before, after ?? '')
   const lang = detectLang(file)
 
+  // Blob-aware side resolution: each comment is anchored by blobSha.
+  // When the SHA matches before/after we know which side to render on;
+  // otherwise we fall back to viewContext.side and tag the thread as migrated.
+  const migratedIds = new Set()
   const commentsByAnchor = new Map()
   for (const c of comments) {
-    const key = `${c.side}:${c.endLine}`
+    const { side, migrated } = resolveCommentSide(c, beforeSha, afterSha)
+    if (migrated) migratedIds.add(c.id)
+    const key = `${side}:${c.endLine}`
     if (!commentsByAnchor.has(key)) commentsByAnchor.set(key, [])
     commentsByAnchor.get(key).push(c)
   }
@@ -1084,25 +1134,28 @@ function renderDiff(before, after, file, target, comments) {
 
     if (row.beforeLine !== null) {
       const list = commentsByAnchor.get(`before:${row.beforeLine}`)
-      if (list) for (const c of list) appendCommentThread(tbody, c)
+      if (list) for (const c of list) appendCommentThread(tbody, c, { migrated: migratedIds.has(c.id) })
     }
     if (row.afterLine !== null) {
       const list = commentsByAnchor.get(`after:${row.afterLine}`)
-      if (list) for (const c of list) appendCommentThread(tbody, c)
+      if (list) for (const c of list) appendCommentThread(tbody, c, { migrated: migratedIds.has(c.id) })
     }
   }
 
-  if (state.selection) appendCommentForm(tbody, target)
+  if (state.selection) appendCommentForm(tbody, target, { before, after, beforeSha, afterSha, file })
 }
 
-function renderBrowse(content, file, target, comments) {
+function renderBrowse(content, contentSha, file, target, comments) {
   const tbody = $('#diff-table tbody')
   tbody.innerHTML = ''
   const lang = detectLang(file)
   const lines = (content ?? '').split('\n')
   if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
+  const migratedIds = new Set()
   const commentsByAnchor = new Map()
   for (const c of comments) {
+    // Browse has one side ('current'); blob match against the sole visible blob.
+    if (c.blobSha && contentSha && c.blobSha !== contentSha) migratedIds.add(c.id)
     const key = `current:${c.endLine}`
     if (!commentsByAnchor.has(key)) commentsByAnchor.set(key, [])
     commentsByAnchor.get(key).push(c)
@@ -1123,9 +1176,9 @@ function renderBrowse(content, file, target, comments) {
     }
     tr.addEventListener('click', (e) => handleLineClick(e, { afterLine: n, beforeLine: null }, 'current', target))
     const list = commentsByAnchor.get(`current:${n}`)
-    if (list) for (const c of list) appendCommentThread(tbody, c)
+    if (list) for (const c of list) appendCommentThread(tbody, c, { migrated: migratedIds.has(c.id) })
   }
-  if (state.selection) appendCommentForm(tbody, target)
+  if (state.selection) appendCommentForm(tbody, target, { before: '', after: content, beforeSha: '', afterSha: contentSha, file })
 }
 
 function handleLineClick(e, row, side, target) {
@@ -1145,7 +1198,7 @@ function handleLineClick(e, row, side, target) {
   renderContent()
 }
 
-function appendCommentForm(tbody, target) {
+function appendCommentForm(tbody, target, viewData) {
   const tr = tbody.insertRow(); tr.id = 'comment-form-row'
   const td = tr.insertCell(); td.colSpan = 4
   const wrap = document.createElement('div'); wrap.className = 'comment-form'
@@ -1161,12 +1214,8 @@ function appendCommentForm(tbody, target) {
   const submit = document.createElement('button'); submit.className = 'btn-primary'; submit.textContent = 'Add comment'
   submit.addEventListener('click', async () => {
     const text = ta.value.trim(); if (!text) return
-    const created = await api('POST', '/api/comments', {
-      target,
-      side: sel.side,
-      startLine: sel.startLine, endLine: sel.endLine,
-      body: text,
-    })
+    const payload = buildCommentPayload(target, viewData, sel, text)
+    const created = await api('POST', '/api/comments', payload)
     state.selection = null
     state.comments.push(created)
     renderContent(); renderTimeline(); updateExportBtn()
@@ -1182,7 +1231,7 @@ function appendCommentForm(tbody, target) {
 }
 
 // ─── Comment threads ───
-function appendCommentThread(tbody, comment) {
+function appendCommentThread(tbody, comment, opts = {}) {
   const row = tbody.insertRow(); row.className = 'comment-thread-row'
   const td = row.insertCell(); td.colSpan = 4
   const startsCollapsed = comment.status === 'resolved'
@@ -1194,8 +1243,17 @@ function appendCommentThread(tbody, comment) {
   const dot = document.createElement('span'); dot.className = 'comment-status-dot'; hdr.appendChild(dot)
   const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
   const ref = document.createElement('span'); ref.className = 'comment-line-ref'; ref.textContent = lineRef
-  const sideEl = document.createElement('span'); sideEl.className = 'comment-side-ref'; sideEl.textContent = `(${comment.side})`
+  const sideLabel = comment.viewContext?.side ?? ''
+  const sideEl = document.createElement('span'); sideEl.className = 'comment-side-ref'; sideEl.textContent = sideLabel ? `(${sideLabel})` : ''
   hdr.appendChild(ref); hdr.appendChild(sideEl)
+  if (opts.migrated) {
+    const badge = document.createElement('span')
+    badge.className = 'comment-migrated-badge'
+    badge.textContent = 'migrated'
+    const origin = comment.blobSha ? `originally written against blob ${comment.blobSha.slice(0, 8)}` : 'content changed since comment was written'
+    badge.title = origin
+    hdr.appendChild(badge)
+  }
 
   const actions = document.createElement('div'); actions.className = 'comment-thread-actions'
   if (comment.status === 'open') {
@@ -1366,7 +1424,12 @@ document.addEventListener('click', () => { if (openKebab) { openKebab.classList.
 $('#btn-export').addEventListener('click', async () => {
   let query = 'mode=both'
   if (state.mode === 'tool-call' && state.selectedCallId) query += `&toolCallId=${state.selectedCallId}`
-  if (state.mode !== 'tool-call' && state.selectedSessionId) query += `&sessionId=${state.selectedSessionId}&targetKind=${state.mode}`
+  if (state.mode === 'browse') query += `&view=browse`
+  if (state.mode === 'git-range') {
+    query += `&view=git-range`
+    if (state.gitRange.fromRef) query += `&from=${encodeURIComponent(state.gitRange.fromRef)}`
+    if (state.gitRange.toRef) query += `&to=${encodeURIComponent(state.gitRange.toRef)}`
+  }
   const { prompt } = await api('GET', `/api/export?${query}`)
   $('#export-textarea').value = prompt
   $('#export-modal').classList.add('open')
@@ -1379,7 +1442,7 @@ $('#export-copy').addEventListener('click', async () => {
   } catch { toast('Copy failed; select and copy manually') }
 })
 
-// ─── New session modal ───
+// ─── Git refs (datalist for ref pickers) ───
 async function loadGitRefs() {
   if (!state.project) return
   try {
@@ -1401,104 +1464,26 @@ async function loadGitRefs() {
   }
 }
 
-function openSessionModal() {
-  const modal = $('#session-modal')
-  $('#session-kind').value = state.mode === 'browse' ? 'browse' : 'git-range'
-  $('#session-from-ref').value = state.mode === 'git-range' ? 'main' : ''
-  $('#session-to-ref').value = state.mode === 'git-range' ? 'HEAD' : ''
-  $('#session-label').value = ''
-  $('#ancestry-status').style.display = 'none'
-  updateSessionModalFields()
-  modal.classList.add('open')
-  setTimeout(() => $('#session-from-ref').focus(), 20)
-}
-function closeSessionModal() { $('#session-modal').classList.remove('open') }
-
-function updateSessionModalFields() {
-  const kind = $('#session-kind').value
-  $('#git-range-fields').style.display = kind === 'git-range' ? 'block' : 'none'
-}
-
-async function checkAncestry() {
-  const from = $('#session-from-ref').value.trim()
-  const to = $('#session-to-ref').value.trim()
-  const status = $('#ancestry-status')
-  if (!from || !to) { status.style.display = 'none'; return }
-  try {
-    const r = await api('POST', '/api/git/check-ancestor', { fromRef: from, toRef: to })
-    if (r.ancestor === true) {
-      status.className = 'ancestry-ok'
-      status.textContent = `${from} is an ancestor of ${to} ✓`
-      status.style.display = 'block'
-    } else if (r.ancestor === false) {
-      status.className = 'ancestry-warn'
-      status.textContent = `⚠️ ${from} is NOT an ancestor of ${to}. Non-ancestor diffs are outside this tool's design; the A..B range will still compute, but expect weird results.`
-      status.style.display = 'block'
-    } else {
-      status.className = 'ancestry-ok'
-      status.textContent = r.note ?? ''
-      status.style.display = 'block'
-    }
-  } catch (err) {
-    status.className = 'ancestry-warn'
-    status.textContent = `Could not verify: ${err.message}`
-    status.style.display = 'block'
-  }
-}
-
-$('#session-kind').addEventListener('change', updateSessionModalFields)
-$('#session-from-ref').addEventListener('change', checkAncestry)
-$('#session-to-ref').addEventListener('change', checkAncestry)
-$('#session-cancel').addEventListener('click', closeSessionModal)
-$('#session-create').addEventListener('click', async () => {
-  const kind = $('#session-kind').value
-  const label = $('#session-label').value.trim()
-  try {
-    if (kind === 'git-range') {
-      const fromRef = $('#session-from-ref').value.trim()
-      const toRef = $('#session-to-ref').value.trim()
-      if (!fromRef || !toRef) { toast('Both refs required'); return }
-      const session = await api('POST', '/api/sessions', { kind, fromRef, toRef, label })
-      state.sessions.push(session)
-      state.mode = 'git-range'
-      state.selectedSessionId = session.id
-    } else {
-      const session = await api('POST', '/api/sessions', { kind: 'browse', label })
-      state.sessions.push(session)
-      state.mode = 'browse'
-      state.selectedSessionId = session.id
-    }
-    closeSessionModal()
-    applyModeUi()
-    await refreshSessionFiles()
-    renderContent()
-  } catch (err) {
-    toast(`Failed: ${err.message}`)
-  }
-})
-$('#btn-new-session').addEventListener('click', openSessionModal)
-
-$('#session-select').addEventListener('change', async (e) => {
-  state.selectedSessionId = e.target.value || null
+// ─── Git-range ref picker ───
+async function applyGitRange() {
+  const fromRef = $('#gr-from').value.trim()
+  const toRef = $('#gr-to').value.trim()
+  if (!fromRef || !toRef) { toast('Both refs required'); return }
+  state.gitRange = { fromRef, toRef }
   state.selectedFile = null
-  state.sessionFileData = null
-  renderSessionMeta()
-  await refreshSessionFiles()
+  state.viewFileData = null
+  renderViewMeta()
+  writeViewToHash()
+  await refreshViewFiles()
   renderContent()
-})
+}
 
-$('#session-delete').addEventListener('click', async () => {
-  if (!state.selectedSessionId) return
-  if (!confirm('Delete this session? (Comments stay attached and become orphaned.)')) return
-  await api('DELETE', `/api/sessions/${state.selectedSessionId}`)
-  state.sessions = state.sessions.filter(s => s.id !== state.selectedSessionId)
-  state.selectedSessionId = null
-  state.selectedFile = null
-  state.sessionFileData = null
-  applyModeUi()
-  renderContent()
-  renderTimeline()
-})
+$('#gr-apply').addEventListener('click', applyGitRange)
+for (const id of ['#gr-from', '#gr-to']) {
+  $(id).addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); applyGitRange() }
+  })
+}
 
 // ─── SSE ───
 function startLiveStream() {
@@ -1532,7 +1517,7 @@ $('#project-select').addEventListener('change', async (e) => {
   localStorage.setItem('cra-project', dir)
   const projects = await (await fetch('/api/projects')).json()
   state.project = projects.find(p => p.dir === dir)
-  state.selectedCallId = null; state.selectedSessionId = null; state.selectedFile = null
+  state.selectedCallId = null; state.selectedFile = null; state.viewFileData = null
   await loadGitRefs()
   await refreshData()
   renderContent()
@@ -1544,9 +1529,12 @@ $('#tl-search').addEventListener('input', () => renderTimeline())
 ;(async function main() {
   await loadProjects()
   if (state.project) {
+    const v = readViewFromHash()
+    state.mode = v.mode
+    state.gitRange = v.gitRange
     await loadGitRefs()
-    await refreshData()
     applyModeUi()
+    await refreshData()
     renderContent()
     startLiveStream()
   }

@@ -45,13 +45,13 @@ The tool has two runtime modes, both sharing the same core modules. A central **
 
 ### Review modes
 
-The UI has a header mode switcher with three independent modes. Comments live separately in each mode — switching the mode does not move comments between them, and each comment carries a `target: { kind, id, file }` tag identifying where it was written.
+The UI has a header mode switcher with three modes. A comment's **anchor** is `(file, line-range, blobSha, anchorText)` — independent of mode. The mode the reviewer was in when writing is recorded on `viewContext` as metadata only; switching view does not move comments. Modes other than tool-call are stateless URL-hash views (`#view=git-range&from=…&to=…`) — there is no persisted "session" record.
 
 1. **Tool calls** (default / always-on) — each `Edit` / `Write` / `MultiEdit` / `NotebookEdit` is captured by Pre/PostToolUse hooks as an independent before→after snapshot. The timeline lists every call; clicking one opens its diff. Snapshots are immutable so later edits to the same file produce new cards, never mutate old ones.
-2. **Git diff** — user-created review sessions that compare any two refs: branch name / commit SHA / `HEAD` / `INDEX` (staged) / `WORKTREE` (current worktree incl. untracked). The session freezes each side's SHA at creation time for non-special refs; `WORKTREE` / `INDEX` re-resolve at request time. Non-ancestor ranges still compute `A..B` but the UI flags them with a warning — non-ancestor is outside the tool's design.
-3. **Browse** — user-created sessions listing every worktree file (tracked + untracked, respecting `.gitignore`). No diff; each file is shown as a single-column view with selectable lines for commenting. Comments use `side: 'current'`.
+2. **Git diff** — stateless view comparing any two refs: branch name / commit SHA / `HEAD` / `INDEX` (staged) / `WORKTREE` (current worktree incl. untracked). Refs are passed on the URL hash; nothing is persisted. Non-ancestor ranges still compute `A..B` but the UI flags them with a warning.
+3. **Browse** — stateless view listing every worktree file (tracked + untracked, respecting `.gitignore`). No diff; each file is shown as a single-column view with selectable lines for commenting. Comments use `viewContext.side: 'current'`.
 
-Sessions (git-range / browse) are persisted — creating one, then re-visiting later, brings its comments back. Deleting a session leaves its comments in storage as orphans (their `target.id` no longer resolves).
+Because comments are anchored by blob SHA, they surface wherever their blob appears — a comment written against a tool-call's `after` content will also show up in a git-diff view whose `toRef` happens to contain that same blob.
 
 ### Web UI mode (`startHttpServer` in `src/server.ts`)
 A plain `node:http` server (no framework) serving:
@@ -62,11 +62,10 @@ A plain `node:http` server (no framework) serving:
 On startup the HTTP server iterates `listProjects()` and writes its port into each project's registry entry via `setHttpPort(dir, port)`. `SIGINT` / `SIGTERM` / `beforeExit` clear those entries so hooks don't try to POST to a dead server.
 
 ### MCP mode (`startMcpServer` in `src/mcp.ts`)
-An MCP stdio server exposing 6 tools to Claude Code:
+An MCP stdio server exposing 5 tools to Claude Code:
 - `get_tool_calls` — list captured Edit/Write/MultiEdit/NotebookEdit snapshots (optionally filtered by file / status)
-- `get_review_sessions` — list user-created git-range / browse sessions
-- `get_review_comments` — open comments enriched with `target`, `file`, `sourceLines`, and either `toolCall` or `session` context. Filters by `toolCallId` / `sessionId` / `targetKind` / `file` / `status`.
-- `get_export_prompt` — fix / report / both prompt string. Filters by `toolCallId` / `sessionId` / `targetKind`.
+- `get_review_comments` — open comments enriched with `file`, `viewContext`, `anchorText`, `blobSha`, `sourceLines`, and (for `viewContext.source='tool-call'`) a compact `toolCall` summary. Filters: `toolCallId` / `viewSource` / `fromRef` / `toRef` / `file` / `status`.
+- `get_export_prompt` — fix / report / both prompt string. Filters: `toolCallId` / `viewSource` / `fromRef` / `toRef` / `mode`.
 - `mark_resolved` — close a comment by id
 - `reply_to_comment` — add a reply authored as `claude`
 
@@ -85,7 +84,7 @@ The script **always exits 0** on any failure (server down, no matching project, 
 
 | File | Responsibility |
 |------|---------------|
-| `src/log.ts` | `LogStore` — all state. Reads/writes `.review-log.json` in the target repo root. Manages tool-call lifecycle (`pending` → `complete` / `orphan`), `ReviewSession` records (git-range / browse), comments (`open` ↔ `resolved`) and reply threads. `normalizeComment()` migrates pre-v0.14 `{ toolCallId }` comments to `{ target: { kind, id, file } }` on load. Atomic tmp+rename writes. The constructor only reads; it never writes on load, so the HTTP handler can safely create a fresh store per request without self-triggering the SSE watcher. |
+| `src/log.ts` | `LogStore` — all state. Reads/writes `.review-log.json` in the target repo root. Manages tool-call lifecycle (`pending` → `complete` / `orphan`), comments (`open` ↔ `resolved`), and reply threads. Each comment anchors by `(file, line-range, blobSha, anchorText)`; `viewContext` records which view the reviewer wrote in. `computeBlobSha(content)` matches `git hash-object`. `normalizeComment()` migrates pre-v0.15 logs (comments had `{ target, side, toolCallId }`, and a separate `sessions[]` table) to the new shape on load and drops the legacy fields on next write. Atomic tmp+rename writes. The constructor only reads; it never writes on load, so the HTTP handler can safely create a fresh store per request without self-triggering the SSE watcher. |
 | `src/git.ts` | Git helpers for the session modes. `resolveRef`, `listRefs` (branches + recent commits + `WORKTREE`/`INDEX`), `isAncestor`, `mergeBase`, `listChangedFiles(fromRef, toRef)` (handles all combinations of commit / `WORKTREE` / `INDEX`; includes untracked as 'A' when the to-side is `WORKTREE`), `readBlob(ref, file)`, `listWorktreeFiles()` (uses `git ls-files --cached --others --exclude-standard` — no ignored files). Shells out to `git` via `execFileSync`; no libgit2 dependency. |
 | `src/registry.ts` | Central project registry. Atomic writes. `registerProject(dir)` upserts by abs path. `setHttpPort` / `clearHttpPort` let the HTTP server advertise its listening port. `listProjects()` filters entries whose `dir` no longer exists. |
 | `src/watcher.ts` | `startProjectWatcher(dir, onEvent)` — 1.5 s interval comparing `.review-log.json` `mtime+size`; invokes `onEvent({ type: 'log' })` on change. Returns a stop function. |
@@ -104,30 +103,24 @@ The script **always exits 0** on any failure (server down, no matching project, 
     file,             // path relative to project root
     before,           // full file contents before the edit
     after,            // full file contents after the edit (null while pending)
+    beforeSha,        // git blob SHA of before
+    afterSha,         // git blob SHA of after (null while pending)
     status,           // pending | complete | orphan
     startedAt,
     completedAt,
   }],
-  sessions: [{        // user-created review sessions (git-range / browse)
-    id,
-    kind,             // 'git-range' | 'browse'
-    label,
-    fromRef,          // e.g. 'main' | 'HEAD' | 'INDEX' | SHA — null for browse
-    toRef,            // same; browse is always 'WORKTREE'
-    fromSha,          // resolved SHA at creation time; null for special refs
-    toSha,
-    createdAt,
-  }],
   comments: [{
     id,
-    target: {         // anchors the comment to its mode
-      kind,           // 'tool-call' | 'git-range' | 'browse'
-      id,             // toolCall.id or session.id
-      file,           // relative path (for session targets; empty for tool-call)
-    },
-    toolCallId,       // mirror of target.id for tool-call targets; '' otherwise (back-compat)
-    side,             // 'before' | 'after' | 'current'
+    file,             // relative path (always populated)
     startLine, endLine,
+    blobSha,          // git-hash-object of the file contents the comment was written against
+    anchorText,       // verbatim text at the anchor at write time (fuzzy-relocate fallback)
+    viewContext: {    // metadata: which view was the reviewer in. Does NOT affect anchoring.
+      source,         // 'tool-call' | 'git-range' | 'browse'
+      side,           // 'before' | 'after' | 'current'
+      toolCallId,     // only when source='tool-call'
+      fromRef, toRef, // only when source='git-range'
+    },
     body, status,     // open | resolved
     createdAt,
     replies: [{ id, author: 'claude' | 'human', body, createdAt }]
@@ -135,7 +128,7 @@ The script **always exits 0** on any failure (server down, no matching project, 
 }
 ```
 
-**Migration:** pre-v0.14 logs store comments as `{ toolCallId, side, ... }` with no `target`. `LogStore.load()` calls `normalizeComment()` which rewrites them to the new shape in memory; the file is re-serialized with the new shape on the next write.
+**Migration:** pre-v0.15 logs had a `sessions[]` table and comments with `{ target: { kind, id, file }, side, toolCallId }`. `LogStore.load()` / `normalizeComment()` backfill `viewContext` / `file` / `blobSha` / `anchorText` from those legacy fields in memory; the file is re-serialized without the legacy fields (and without `sessions[]`) on the next write.
 
 ### CLI flags
 

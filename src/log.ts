@@ -1,10 +1,46 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { createHash } from 'node:crypto'
 import { nanoid } from 'nanoid'
 
 export type ToolKind = 'Edit' | 'Write' | 'MultiEdit' | 'NotebookEdit'
-export type TargetKind = 'tool-call' | 'git-range' | 'browse'
 export type CommentSide = 'before' | 'after' | 'current'
+export type ViewSource = 'tool-call' | 'git-range' | 'browse'
+
+/**
+ * Computes the git blob SHA-1 for the given UTF-8 content. Matches
+ * `git hash-object` so a comment's `blobSha` can be cross-referenced
+ * with real git blobs when the same content exists in the repo.
+ */
+export function computeBlobSha(content: string): string {
+  const buf = Buffer.from(content, 'utf-8')
+  const header = `blob ${buf.length}\0`
+  const hash = createHash('sha1')
+  hash.update(header)
+  hash.update(buf)
+  return hash.digest('hex')
+}
+
+/** Slice 1-indexed line range, inclusive. Clamps to file bounds. Returns '' on empty content. */
+export function sliceLines(content: string, startLine: number, endLine: number): string {
+  if (!content) return ''
+  const lines = content.split('\n')
+  const s = Math.max(1, Math.min(startLine, lines.length))
+  const e = Math.max(s, Math.min(endLine, lines.length))
+  return lines.slice(s - 1, e).join('\n')
+}
+
+export interface ViewContext {
+  source: ViewSource
+  /** Only for source='tool-call'. */
+  toolCallId?: string
+  /** Only for source='git-range'. User-picked ref at write time. */
+  fromRef?: string
+  /** Only for source='git-range'. */
+  toRef?: string
+  /** Which side of the diff / worktree this comment was written against. */
+  side?: CommentSide
+}
 
 export interface ToolCall {
   id: string
@@ -14,31 +50,24 @@ export interface ToolCall {
   file: string
   before: string
   after: string | null
+  /** git blob SHA of `before` content. */
+  beforeSha: string
+  /** git blob SHA of `after` content. Null while pending. */
+  afterSha: string | null
   status: 'pending' | 'complete' | 'orphan'
   startedAt: string
   completedAt: string | null
 }
 
-export interface ReviewSession {
+/**
+ * Legacy session shape, kept only for load-time migration of pre-Phase-3 logs.
+ * The sessions table is no longer persisted or exposed via any API.
+ */
+interface LegacySession {
   id: string
-  kind: 'git-range' | 'browse'
-  label: string
-  /** For git-range: the from-side ref as the user picked it (branch name / HEAD / SHA / WORKTREE / INDEX). Null for browse. */
-  fromRef: string | null
-  /** The to-side ref as the user picked it. For browse mode this is always 'WORKTREE'. */
-  toRef: string
-  /** Resolved SHA at creation time for non-special refs. Null if the ref is WORKTREE/INDEX or resolution failed. */
-  fromSha: string | null
-  toSha: string | null
-  createdAt: string
-}
-
-export interface CommentTarget {
-  kind: TargetKind
-  /** For tool-call: the toolCall.id. For git-range / browse: the session.id. */
-  id: string
-  /** For git-range / browse: the path of the file being commented on. Empty string for tool-call (file is on the toolCall). */
-  file?: string
+  kind?: 'git-range' | 'browse'
+  fromRef?: string | null
+  toRef?: string
 }
 
 export interface ReviewReply {
@@ -50,12 +79,16 @@ export interface ReviewReply {
 
 export interface ReviewComment {
   id: string
-  target: CommentTarget
-  /** Kept for backward compatibility with the pre-v0.14 data model and the MCP response shape. For tool-call targets this equals target.id; otherwise empty string. */
-  toolCallId: string
-  side: CommentSide
+  /** Relative path. */
+  file: string
   startLine: number
   endLine: number
+  /** git blob SHA of the file content this comment was written against. Empty if unknown (legacy). */
+  blobSha: string
+  /** Verbatim content of the referenced lines at write time. Fuzzy-relocate fallback when blobSha stops matching. */
+  anchorText: string
+  /** The viewing context the comment was written in. Does NOT affect anchor — it's metadata for Claude. */
+  viewContext: ViewContext
   body: string
   status: 'open' | 'resolved'
   createdAt: string
@@ -64,14 +97,13 @@ export interface ReviewComment {
 
 export interface ReviewLog {
   toolCalls: ToolCall[]
-  sessions: ReviewSession[]
   comments: ReviewComment[]
 }
 
 const LOG_FILE = '.review-log.json'
 
 function emptyLog(): ReviewLog {
-  return { toolCalls: [], sessions: [], comments: [] }
+  return { toolCalls: [], comments: [] }
 }
 
 function atomicWrite(file: string, data: string): void {
@@ -80,24 +112,97 @@ function atomicWrite(file: string, data: string): void {
   fs.renameSync(tmp, file)
 }
 
-function normalizeComment(raw: any): ReviewComment | null {
+function normalizeToolCall(raw: any): ToolCall | null {
   if (!raw || typeof raw !== 'object') return null
-  // Migrate legacy shape: { toolCallId, side: 'before'|'after', ... } without target.
-  let target: CommentTarget | undefined = raw.target
-  if (!target) {
-    if (typeof raw.toolCallId === 'string' && raw.toolCallId) {
-      target = { kind: 'tool-call', id: raw.toolCallId, file: '' }
-    } else {
-      return null
-    }
-  }
+  const before = typeof raw.before === 'string' ? raw.before : ''
+  const after = typeof raw.after === 'string' ? raw.after : null
+  const beforeSha = typeof raw.beforeSha === 'string' && raw.beforeSha
+    ? raw.beforeSha
+    : computeBlobSha(before)
+  const afterSha = typeof raw.afterSha === 'string' && raw.afterSha
+    ? raw.afterSha
+    : (after !== null ? computeBlobSha(after) : null)
   return {
     id: String(raw.id),
-    target,
-    toolCallId: target.kind === 'tool-call' ? target.id : '',
-    side: (raw.side as CommentSide) ?? 'after',
-    startLine: Number(raw.startLine ?? 1),
-    endLine: Number(raw.endLine ?? raw.startLine ?? 1),
+    toolUseId: String(raw.toolUseId ?? ''),
+    sessionId: String(raw.sessionId ?? ''),
+    tool: raw.tool as ToolKind,
+    file: String(raw.file ?? ''),
+    before,
+    after,
+    beforeSha,
+    afterSha,
+    status: raw.status ?? 'pending',
+    startedAt: String(raw.startedAt ?? new Date().toISOString()),
+    completedAt: raw.completedAt ?? null,
+  }
+}
+
+interface NormalizeCtx {
+  toolCalls: ToolCall[]
+  /** Legacy session data read from the file once, only for backfilling viewContext on pre-Phase-3 comments. */
+  legacySessions: LegacySession[]
+}
+
+function normalizeComment(raw: any, ctx: NormalizeCtx): ReviewComment | null {
+  if (!raw || typeof raw !== 'object') return null
+
+  const startLine = Number(raw.startLine ?? 1)
+  const endLine = Number(raw.endLine ?? raw.startLine ?? 1)
+  const side = (raw.side as CommentSide) ?? 'after'
+
+  let file = typeof raw.file === 'string' && raw.file ? raw.file : ''
+  let blobSha = typeof raw.blobSha === 'string' ? raw.blobSha : ''
+  let anchorText = typeof raw.anchorText === 'string' ? raw.anchorText : ''
+  let viewContext: ViewContext | undefined = raw.viewContext && typeof raw.viewContext === 'object'
+    ? raw.viewContext as ViewContext
+    : undefined
+
+  // Backfill viewContext + file/blobSha/anchorText from pre-Phase-4 legacy shape
+  // ({ target: { kind, id, file }, side, toolCallId }) when present on disk.
+  const legacyTarget = raw.target as { kind?: string; id?: string; file?: string } | undefined
+  const legacyKind: string | undefined = legacyTarget?.kind
+    ?? (typeof raw.toolCallId === 'string' && raw.toolCallId ? 'tool-call' : undefined)
+  const legacyId: string = legacyTarget?.id ?? (typeof raw.toolCallId === 'string' ? raw.toolCallId : '')
+
+  if (legacyKind === 'tool-call') {
+    const call = ctx.toolCalls.find(c => c.id === legacyId)
+    if (call) {
+      if (!file) file = call.file
+      if (!blobSha) blobSha = side === 'before' ? call.beforeSha : (call.afterSha ?? '')
+      if (!anchorText) {
+        const content = side === 'before' ? call.before : (call.after ?? '')
+        anchorText = sliceLines(content, startLine, endLine)
+      }
+    }
+    if (!viewContext) viewContext = { source: 'tool-call', toolCallId: legacyId, side }
+  } else if (legacyKind === 'git-range') {
+    if (!file) file = legacyTarget?.file ?? ''
+    if (!viewContext) {
+      const session = ctx.legacySessions.find(s => s.id === legacyId)
+      viewContext = {
+        source: 'git-range',
+        fromRef: session?.fromRef ?? undefined,
+        toRef: session?.toRef ?? undefined,
+        side,
+      }
+    }
+  } else if (legacyKind === 'browse') {
+    if (!file) file = legacyTarget?.file ?? ''
+    if (!viewContext) viewContext = { source: 'browse', side: 'current' }
+  }
+
+  // Post-Phase-4 comments must have viewContext — anything without it is unrecoverable.
+  if (!viewContext) return null
+
+  return {
+    id: String(raw.id),
+    file,
+    startLine,
+    endLine,
+    blobSha,
+    anchorText,
+    viewContext,
     body: String(raw.body ?? ''),
     status: raw.status === 'resolved' ? 'resolved' : 'open',
     createdAt: String(raw.createdAt ?? new Date().toISOString()),
@@ -119,13 +224,17 @@ export class LogStore {
     try {
       const raw = fs.readFileSync(this.storePath, 'utf-8')
       const data = JSON.parse(raw) as Record<string, unknown>
-      const toolCalls = Array.isArray(data.toolCalls) ? (data.toolCalls as ToolCall[]) : []
-      const sessions = Array.isArray(data.sessions) ? (data.sessions as ReviewSession[]) : []
+      const rawToolCalls = Array.isArray(data.toolCalls) ? data.toolCalls : []
+      const toolCalls = rawToolCalls
+        .map(normalizeToolCall)
+        .filter((c): c is ToolCall => c !== null)
+      const legacySessions = Array.isArray(data.sessions) ? (data.sessions as LegacySession[]) : []
       const rawComments = Array.isArray(data.comments) ? data.comments : []
+      const ctx: NormalizeCtx = { toolCalls, legacySessions }
       const comments = rawComments
-        .map(normalizeComment)
+        .map(c => normalizeComment(c, ctx))
         .filter((c): c is ReviewComment => c !== null)
-      return { toolCalls, sessions, comments }
+      return { toolCalls, comments }
     } catch {
       return emptyLog()
     }
@@ -170,6 +279,8 @@ export class LogStore {
       file: input.file,
       before: input.before,
       after: null,
+      beforeSha: computeBlobSha(input.before),
+      afterSha: null,
       status: 'pending',
       startedAt: input.startedAt ?? new Date().toISOString(),
       completedAt: null,
@@ -183,6 +294,7 @@ export class LogStore {
     const call = this.getToolCallByUseId(toolUseId)
     if (!call) return null
     call.after = after
+    call.afterSha = computeBlobSha(after)
     call.status = 'complete'
     call.completedAt = completedAt ?? new Date().toISOString()
     this.save()
@@ -202,64 +314,33 @@ export class LogStore {
     return changed
   }
 
-  // ─── Sessions ───
-
-  getSessions(): ReviewSession[] {
-    return this.log.sessions
-  }
-
-  getSession(id: string): ReviewSession | undefined {
-    return this.log.sessions.find(s => s.id === id)
-  }
-
-  addSession(input: Omit<ReviewSession, 'id' | 'createdAt'>): ReviewSession {
-    const session: ReviewSession = {
-      id: nanoid(),
-      createdAt: new Date().toISOString(),
-      ...input,
-    }
-    this.log.sessions.push(session)
-    this.save()
-    return session
-  }
-
-  updateSession(id: string, patch: Partial<Pick<ReviewSession, 'label'>>): ReviewSession | null {
-    const s = this.getSession(id)
-    if (!s) return null
-    if (patch.label !== undefined) s.label = patch.label
-    this.save()
-    return s
-  }
-
-  deleteSession(id: string): boolean {
-    const idx = this.log.sessions.findIndex(s => s.id === id)
-    if (idx === -1) return false
-    this.log.sessions.splice(idx, 1)
-    this.save()
-    return true
-  }
-
   // ─── Comments ───
 
   getComments(opts: {
     toolCallId?: string
-    sessionId?: string
-    targetKind?: TargetKind
     file?: string
     status?: ReviewComment['status']
+    /** Filter by viewContext.source. */
+    viewSource?: ViewSource
+    /** Match viewContext.fromRef / toRef for source='git-range'. */
+    fromRef?: string
+    toRef?: string
   } = {}): ReviewComment[] {
     let comments = this.log.comments
     if (opts.toolCallId) {
-      comments = comments.filter(c => c.target.kind === 'tool-call' && c.target.id === opts.toolCallId)
+      comments = comments.filter(c => c.viewContext.toolCallId === opts.toolCallId)
     }
-    if (opts.sessionId) {
-      comments = comments.filter(c => c.target.kind !== 'tool-call' && c.target.id === opts.sessionId)
+    if (opts.viewSource) {
+      comments = comments.filter(c => c.viewContext.source === opts.viewSource)
     }
-    if (opts.targetKind) {
-      comments = comments.filter(c => c.target.kind === opts.targetKind)
+    if (opts.fromRef !== undefined) {
+      comments = comments.filter(c => (c.viewContext.fromRef ?? '') === opts.fromRef)
+    }
+    if (opts.toRef !== undefined) {
+      comments = comments.filter(c => (c.viewContext.toRef ?? '') === opts.toRef)
     }
     if (opts.file) {
-      comments = comments.filter(c => (c.target.file ?? '') === opts.file)
+      comments = comments.filter(c => c.file === opts.file)
     }
     if (opts.status) comments = comments.filter(c => c.status === opts.status)
     return comments
@@ -270,24 +351,22 @@ export class LogStore {
   }
 
   addComment(input: {
-    target: CommentTarget
-    side: CommentSide
+    file: string
     startLine: number
     endLine: number
+    blobSha: string
+    anchorText: string
+    viewContext: ViewContext
     body: string
   }): ReviewComment {
-    const target: CommentTarget = {
-      kind: input.target.kind,
-      id: input.target.id,
-      file: input.target.file ?? '',
-    }
     const comment: ReviewComment = {
       id: nanoid(),
-      target,
-      toolCallId: target.kind === 'tool-call' ? target.id : '',
-      side: input.side,
+      file: input.file,
       startLine: input.startLine,
       endLine: input.endLine,
+      blobSha: input.blobSha,
+      anchorText: input.anchorText,
+      viewContext: input.viewContext,
       body: input.body,
       status: 'open',
       createdAt: new Date().toISOString(),
