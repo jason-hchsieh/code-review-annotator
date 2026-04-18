@@ -2,10 +2,7 @@
   "mcpServers": {
     "code-review": {
       "command": "${CLAUDE_PLUGIN_ROOT}/scripts/run-mcp.sh",
-      "args": [],
-      "env": {
-        "CLAUDE_PROJECT_DIR": "${CLAUDE_PROJECT_DIR}"
-      }
+      "args": []
     }
   }
 }
