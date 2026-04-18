@@ -1,24 +1,17 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { LogStore, ReviewComment, ToolCall } from './log.ts'
+import { Anchor, CommentScope, LogStore, ReviewComment, ToolCall } from './log.ts'
 import { registerProject } from './registry.ts'
 import { readBlob } from './git.ts'
+
+const SCOPES: ReadonlyArray<CommentScope> = ['line', 'file', 'multi-file', 'view']
 
 function sliceTextLines(text: string, startLine: number, endLine: number): string[] {
   const all = text.split('\n')
   const s = Math.max(1, startLine) - 1
   const e = Math.min(all.length, endLine)
   return all.slice(s, e)
-}
-
-function fileForComment(comment: ReviewComment, store: LogStore): string {
-  if (comment.file) return comment.file
-  const vc = comment.viewContext
-  if (vc.source === 'tool-call' && vc.toolCallId) {
-    return store.getToolCall(vc.toolCallId)?.file ?? '(unknown)'
-  }
-  return '(unknown)'
 }
 
 function contextLabel(comment: ReviewComment, store: LogStore): string {
@@ -31,6 +24,11 @@ function contextLabel(comment: ReviewComment, store: LogStore): string {
   return `${vc.fromRef ?? '?'}→${vc.toRef ?? '?'}`
 }
 
+function lineRefOf(a: Anchor): string {
+  if (a.startLine == null) return ''
+  return a.startLine === a.endLine ? `L${a.startLine}` : `L${a.startLine}–L${a.endLine}`
+}
+
 function exportPrompt(
   store: LogStore,
   comments: ReviewComment[],
@@ -38,22 +36,61 @@ function exportPrompt(
 ): string {
   if (comments.length === 0) return '// No open comments found.'
 
-  const byFile = new Map<string, ReviewComment[]>()
-  for (const c of comments) {
-    const file = fileForComment(c, store)
-    if (!byFile.has(file)) byFile.set(file, [])
-    byFile.get(file)!.push(c)
+  const byScope: Record<CommentScope, ReviewComment[]> = {
+    line: [], file: [], 'multi-file': [], view: [],
   }
+  for (const c of comments) byScope[c.scope].push(c)
 
   const lines: string[] = []
 
   if (mode === 'fix' || mode === 'both') {
     lines.push('Please address the following review comments on edits you made:\n')
-    for (const [file, entries] of byFile.entries()) {
-      lines.push(`### ${file}`)
-      for (const comment of entries) {
-        const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
-        lines.push(`- [${contextLabel(comment, store)}, ${comment.viewContext.side ?? '?'}, ${lineRef}] ${comment.body}`)
+
+    if (byScope.line.length > 0) {
+      lines.push('## Line-level comments')
+      const byFile = new Map<string, ReviewComment[]>()
+      for (const c of byScope.line) {
+        const f = c.anchors[0]?.file ?? '(unknown)'
+        if (!byFile.has(f)) byFile.set(f, [])
+        byFile.get(f)!.push(c)
+      }
+      for (const [file, entries] of byFile.entries()) {
+        lines.push(`### ${file}`)
+        for (const c of entries) {
+          const a = c.anchors[0]
+          lines.push(`- [${contextLabel(c, store)}, ${c.viewContext.side ?? '?'}, ${lineRefOf(a)}] ${c.body}`)
+        }
+        lines.push('')
+      }
+    }
+
+    if (byScope.file.length > 0) {
+      lines.push('## File-level comments')
+      lines.push('_These apply to the whole file. Decide scope of change yourself._\n')
+      for (const c of byScope.file) {
+        const f = c.anchors[0]?.file ?? '(unknown)'
+        lines.push(`### ${f}`)
+        lines.push(`- [${contextLabel(c, store)}] ${c.body}`)
+        lines.push('')
+      }
+    }
+
+    if (byScope['multi-file'].length > 0) {
+      lines.push('## Multi-file comments')
+      lines.push('_These span several files at once. Read all of them before editing._\n')
+      for (const c of byScope['multi-file']) {
+        const files = c.anchors.map(a => a.file).join(', ')
+        lines.push(`- **Files**: ${files}`)
+        lines.push(`  [${contextLabel(c, store)}] ${c.body}`)
+        lines.push('')
+      }
+    }
+
+    if (byScope.view.length > 0) {
+      lines.push('## Review-level comments')
+      lines.push('_These are about the review as a whole — architecture, missing tests, coverage. Plan before editing._\n')
+      for (const c of byScope.view) {
+        lines.push(`- [${contextLabel(c, store)}] ${c.body}`)
       }
       lines.push('')
     }
@@ -62,11 +99,19 @@ function exportPrompt(
   if (mode === 'report' || mode === 'both') {
     if (mode === 'both') lines.push('---\n')
     lines.push('## Review Summary\n')
-    for (const [file, entries] of byFile.entries()) {
-      lines.push(`### ${file}`)
-      for (const comment of entries) {
-        const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
-        lines.push(`- **[${contextLabel(comment, store)} ${lineRef} ${comment.viewContext.side ?? '?'}]**: ${comment.body}`)
+    for (const scope of SCOPES) {
+      const entries = byScope[scope]
+      if (entries.length === 0) continue
+      lines.push(`### ${scope === 'line' ? 'Line' : scope === 'file' ? 'File-level' : scope === 'multi-file' ? 'Multi-file' : 'Review-level'} (${entries.length})`)
+      for (const c of entries) {
+        const scopeRef = scope === 'line'
+          ? `${c.anchors[0]?.file ?? ''} ${lineRefOf(c.anchors[0])}`
+          : scope === 'file'
+            ? (c.anchors[0]?.file ?? '')
+            : scope === 'multi-file'
+              ? c.anchors.map(a => a.file).join(' + ')
+              : '(view)'
+        lines.push(`- **[${contextLabel(c, store)} | ${scopeRef}]**: ${c.body}`)
       }
       lines.push('')
     }
@@ -75,23 +120,21 @@ function exportPrompt(
   return lines.join('\n')
 }
 
-function sourceForComment(comment: ReviewComment, store: LogStore, dir: string): string {
-  // Prefer the stored anchorText (captured at write time — exact text the reviewer pointed at).
-  if (comment.anchorText) return comment.anchorText
-
-  const vc = comment.viewContext
+function sourceForAnchor(c: ReviewComment, anchor: Anchor, store: LogStore, dir: string): string {
+  if (anchor.anchorText) return anchor.anchorText
+  const vc = c.viewContext
   if (vc.source === 'tool-call') {
     const call = vc.toolCallId ? store.getToolCall(vc.toolCallId) : undefined
     if (!call) return ''
     return vc.side === 'before' ? call.before : (call.after ?? '')
   }
   if (vc.source === 'browse') {
-    return comment.file ? readBlob(dir, 'WORKTREE', comment.file) : ''
+    return anchor.file ? readBlob(dir, 'WORKTREE', anchor.file) : ''
   }
   if (vc.source === 'git-range') {
-    if (!comment.file) return ''
+    if (!anchor.file) return ''
     const ref = vc.side === 'before' ? (vc.fromRef ?? '') : (vc.toRef ?? '')
-    return ref ? readBlob(dir, ref, comment.file) : ''
+    return ref ? readBlob(dir, ref, anchor.file) : ''
   }
   return ''
 }
@@ -106,7 +149,7 @@ export function startMcpServer(dir: string) {
   }
 
   const server = new Server(
-    { name: 'code-review-annotator', version: '0.17.0' },
+    { name: 'code-review-annotator', version: '0.19.0' },
     { capabilities: { tools: {} } },
   )
 
@@ -125,26 +168,36 @@ export function startMcpServer(dir: string) {
       },
       {
         name: 'get_review_comments',
-        description: 'Get review comments. Each comment is anchored to (file, line-range, blob-sha) and carries a viewContext indicating the perspective it was written in: source="tool-call" (written against a captured Edit / Write), source="git-range" (written while viewing a diff between two refs — fromRef/toRef on viewContext), or source="browse" (written against the worktree). side is "before"/"after" for diffs or "current" for browse. The response includes the source lines at the anchor so Claude can see what the reviewer pointed at. Defaults to open comments.',
+        description: `Get review comments. Every comment has a 'scope' telling you how broad the target is:
+- 'line': targets a specific line range. anchors[0] has file, blobSha, startLine, endLine, anchorText.
+- 'file': targets a whole file. anchors[0] has file + blobSha, no line range. Interpret as "something about this file overall" (rename, split, delete, add tests, etc.).
+- 'multi-file': targets multiple files at once. anchors has one entry per file. Read all of them before choosing where to edit — the instruction applies across the set.
+- 'view': targets the review as a whole (architecture, missing tests, cross-cutting concerns). anchors is empty; the target is the viewContext (which tool call, which git range, or the browse view).
+
+Every comment also carries a viewContext saying which UI perspective it was written in: source='tool-call' (carrying toolCallId), 'git-range' (carrying fromRef/toRef), or 'browse'. side='before'/'after' for diffs, 'current' for browse.
+
+The response includes sourceLines per anchor when applicable (scope='line') so you can see the exact text the reviewer pointed at. Defaults to open comments.`,
         inputSchema: {
           type: 'object',
           properties: {
             toolCallId: { type: 'string', description: 'Filter to comments written against a specific tool-call id' },
+            scope: { type: 'string', enum: ['line', 'file', 'multi-file', 'view'], description: 'Filter by comment scope' },
             viewSource: { type: 'string', enum: ['tool-call', 'git-range', 'browse'], description: 'Filter by viewContext.source' },
             fromRef: { type: 'string', description: 'For viewSource=git-range: match viewContext.fromRef' },
             toRef: { type: 'string', description: 'For viewSource=git-range: match viewContext.toRef' },
-            file: { type: 'string', description: 'Filter by file path (relative to project root)' },
+            file: { type: 'string', description: 'Filter to comments whose anchors include this file (matches line/file/multi-file scopes)' },
             status: { type: 'string', enum: ['open', 'resolved'], description: 'Filter by status. Defaults to open.' },
           },
         },
       },
       {
         name: 'get_export_prompt',
-        description: 'Generate a prompt describing the open review comments, suitable for feeding into another Claude Code session to fix them.',
+        description: 'Generate a prompt describing the open review comments, grouped by scope (line / file / multi-file / view), suitable for feeding into another Claude Code session to fix them.',
         inputSchema: {
           type: 'object',
           properties: {
             toolCallId: { type: 'string', description: 'Filter to a specific tool-call id' },
+            scope: { type: 'string', enum: ['line', 'file', 'multi-file', 'view'], description: 'Filter by scope' },
             viewSource: { type: 'string', enum: ['tool-call', 'git-range', 'browse'], description: 'Filter by viewContext.source' },
             fromRef: { type: 'string', description: 'For viewSource=git-range: match viewContext.fromRef' },
             toRef: { type: 'string', description: 'For viewSource=git-range: match viewContext.toRef' },
@@ -158,9 +211,7 @@ export function startMcpServer(dir: string) {
         description: 'Mark a review comment as resolved.',
         inputSchema: {
           type: 'object',
-          properties: {
-            id: { type: 'string', description: 'Comment ID' },
-          },
+          properties: { id: { type: 'string', description: 'Comment ID' } },
           required: ['id'],
         },
       },
@@ -205,6 +256,7 @@ export function startMcpServer(dir: string) {
     if (name === 'get_review_comments') {
       const comments = store.getComments({
         toolCallId: a.toolCallId as string | undefined,
+        scope: a.scope as CommentScope | undefined,
         viewSource: a.viewSource as 'tool-call' | 'git-range' | 'browse' | undefined,
         fromRef: a.fromRef as string | undefined,
         toRef: a.toRef as string | undefined,
@@ -212,22 +264,28 @@ export function startMcpServer(dir: string) {
         status: (a.status as 'open' | 'resolved') ?? 'open',
       })
       const enriched = comments.map((c) => {
-        const source = sourceForComment(c, store, dir)
-        const sourceLines = sliceTextLines(source, c.startLine, c.endLine)
-        const file = fileForComment(c, store)
         const base: Record<string, unknown> = {
           id: c.id,
+          scope: c.scope,
           status: c.status,
           body: c.body,
-          startLine: c.startLine,
-          endLine: c.endLine,
-          file,
           viewContext: c.viewContext,
-          anchorText: c.anchorText,
-          blobSha: c.blobSha,
           createdAt: c.createdAt,
           replies: c.replies,
-          sourceLines,
+          anchors: c.anchors.map(anchor => {
+            const entry: Record<string, unknown> = {
+              file: anchor.file,
+              blobSha: anchor.blobSha,
+            }
+            if (anchor.startLine != null) {
+              entry.startLine = anchor.startLine
+              entry.endLine = anchor.endLine
+              entry.anchorText = anchor.anchorText ?? ''
+              const source = sourceForAnchor(c, anchor, store, dir)
+              entry.sourceLines = sliceTextLines(source, anchor.startLine, anchor.endLine ?? anchor.startLine)
+            }
+            return entry
+          }),
         }
         if (c.viewContext.source === 'tool-call' && c.viewContext.toolCallId) {
           const call = store.getToolCall(c.viewContext.toolCallId)
@@ -240,11 +298,12 @@ export function startMcpServer(dir: string) {
 
     if (name === 'get_export_prompt') {
       const toolCallId = a.toolCallId as string | undefined
+      const scope = a.scope as CommentScope | undefined
       const viewSource = a.viewSource as 'tool-call' | 'git-range' | 'browse' | undefined
       const fromRef = a.fromRef as string | undefined
       const toRef = a.toRef as string | undefined
       const mode = (a.mode as 'fix' | 'report' | 'both') ?? 'both'
-      const comments = store.getComments({ status: 'open', toolCallId, viewSource, fromRef, toRef })
+      const comments = store.getComments({ status: 'open', toolCallId, scope, viewSource, fromRef, toRef })
       const prompt = exportPrompt(store, comments, mode)
       return { content: [{ type: 'text', text: prompt }] }
     }

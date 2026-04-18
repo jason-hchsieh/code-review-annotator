@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid'
 export type ToolKind = 'Edit' | 'Write' | 'MultiEdit' | 'NotebookEdit'
 export type CommentSide = 'before' | 'after' | 'current'
 export type ViewSource = 'tool-call' | 'git-range' | 'browse'
+export type CommentScope = 'line' | 'file' | 'multi-file' | 'view'
 
 /**
  * Computes the git blob SHA-1 for the given UTF-8 content. Matches
@@ -59,17 +60,6 @@ export interface ToolCall {
   completedAt: string | null
 }
 
-/**
- * Legacy session shape, kept only for load-time migration of pre-Phase-3 logs.
- * The sessions table is no longer persisted or exposed via any API.
- */
-interface LegacySession {
-  id: string
-  kind?: 'git-range' | 'browse'
-  fromRef?: string | null
-  toRef?: string
-}
-
 export interface ReviewReply {
   id: string
   author: 'claude' | 'human'
@@ -77,17 +67,27 @@ export interface ReviewReply {
   createdAt: string
 }
 
+/** One pinned location on a file. Line range + anchorText only for scope='line'. */
+export interface Anchor {
+  file: string
+  blobSha: string
+  startLine?: number
+  endLine?: number
+  /** Verbatim content at the line range (only for scope='line'). */
+  anchorText?: string
+}
+
 export interface ReviewComment {
   id: string
-  /** Relative path. */
-  file: string
-  startLine: number
-  endLine: number
-  /** git blob SHA of the file content this comment was written against. Empty if unknown (legacy). */
-  blobSha: string
-  /** Verbatim content of the referenced lines at write time. Fuzzy-relocate fallback when blobSha stops matching. */
-  anchorText: string
-  /** The viewing context the comment was written in. Does NOT affect anchor — it's metadata for Claude. */
+  /**
+   * - 'line': one anchor with startLine/endLine/anchorText
+   * - 'file': one anchor, whole file (no line range)
+   * - 'multi-file': N anchors, one per file
+   * - 'view': empty anchors; target is the viewContext itself
+   */
+  scope: CommentScope
+  anchors: Anchor[]
+  /** The viewing context the comment was written in. */
   viewContext: ViewContext
   body: string
   status: 'open' | 'resolved'
@@ -138,70 +138,61 @@ function normalizeToolCall(raw: any): ToolCall | null {
   }
 }
 
-interface NormalizeCtx {
-  toolCalls: ToolCall[]
-  /** Legacy session data read from the file once, only for backfilling viewContext on pre-Phase-3 comments. */
-  legacySessions: LegacySession[]
-}
-
-function normalizeComment(raw: any, ctx: NormalizeCtx): ReviewComment | null {
+/**
+ * Accepts both:
+ *   - new shape: { scope, anchors, viewContext, ... }
+ *   - pre-0.19 shape: { file, startLine, endLine, blobSha, anchorText, viewContext, ... }
+ * and coerces to new shape. Pre-0.15 shapes (target/sessions) are no longer supported.
+ */
+function normalizeComment(raw: any): ReviewComment | null {
   if (!raw || typeof raw !== 'object') return null
 
-  const startLine = Number(raw.startLine ?? 1)
-  const endLine = Number(raw.endLine ?? raw.startLine ?? 1)
-  const side = (raw.side as CommentSide) ?? 'after'
-
-  let file = typeof raw.file === 'string' && raw.file ? raw.file : ''
-  let blobSha = typeof raw.blobSha === 'string' ? raw.blobSha : ''
-  let anchorText = typeof raw.anchorText === 'string' ? raw.anchorText : ''
-  let viewContext: ViewContext | undefined = raw.viewContext && typeof raw.viewContext === 'object'
+  const viewContext = raw.viewContext && typeof raw.viewContext === 'object'
     ? raw.viewContext as ViewContext
-    : undefined
+    : null
+  if (!viewContext) return null
 
-  // Backfill viewContext + file/blobSha/anchorText from pre-Phase-4 legacy shape
-  // ({ target: { kind, id, file }, side, toolCallId }) when present on disk.
-  const legacyTarget = raw.target as { kind?: string; id?: string; file?: string } | undefined
-  const legacyKind: string | undefined = legacyTarget?.kind
-    ?? (typeof raw.toolCallId === 'string' && raw.toolCallId ? 'tool-call' : undefined)
-  const legacyId: string = legacyTarget?.id ?? (typeof raw.toolCallId === 'string' ? raw.toolCallId : '')
+  let scope: CommentScope = raw.scope as CommentScope
+  let anchors: Anchor[] = Array.isArray(raw.anchors) ? raw.anchors : []
 
-  if (legacyKind === 'tool-call') {
-    const call = ctx.toolCalls.find(c => c.id === legacyId)
-    if (call) {
-      if (!file) file = call.file
-      if (!blobSha) blobSha = side === 'before' ? call.beforeSha : (call.afterSha ?? '')
-      if (!anchorText) {
-        const content = side === 'before' ? call.before : (call.after ?? '')
-        anchorText = sliceLines(content, startLine, endLine)
-      }
-    }
-    if (!viewContext) viewContext = { source: 'tool-call', toolCallId: legacyId, side }
-  } else if (legacyKind === 'git-range') {
-    if (!file) file = legacyTarget?.file ?? ''
-    if (!viewContext) {
-      const session = ctx.legacySessions.find(s => s.id === legacyId)
-      viewContext = {
-        source: 'git-range',
-        fromRef: session?.fromRef ?? undefined,
-        toRef: session?.toRef ?? undefined,
-        side,
-      }
-    }
-  } else if (legacyKind === 'browse') {
-    if (!file) file = legacyTarget?.file ?? ''
-    if (!viewContext) viewContext = { source: 'browse', side: 'current' }
+  // Pre-0.19: flat top-level file/startLine/endLine/blobSha/anchorText.
+  if (!scope && typeof raw.file === 'string' && raw.file) {
+    scope = 'line'
+    anchors = [{
+      file: raw.file,
+      blobSha: typeof raw.blobSha === 'string' ? raw.blobSha : '',
+      startLine: Number(raw.startLine ?? 1),
+      endLine: Number(raw.endLine ?? raw.startLine ?? 1),
+      anchorText: typeof raw.anchorText === 'string' ? raw.anchorText : '',
+    }]
   }
 
-  // Post-Phase-4 comments must have viewContext — anything without it is unrecoverable.
-  if (!viewContext) return null
+  if (!scope || !['line', 'file', 'multi-file', 'view'].includes(scope)) return null
+  if (scope === 'view') anchors = []
+  if ((scope === 'line' || scope === 'file') && anchors.length !== 1) {
+    if (anchors.length === 0) return null
+    anchors = [anchors[0]]
+  }
+  if (scope === 'multi-file' && anchors.length < 1) return null
+
+  // Normalize anchor fields per scope.
+  anchors = anchors.map(a => {
+    const base: Anchor = {
+      file: String(a.file ?? ''),
+      blobSha: typeof a.blobSha === 'string' ? a.blobSha : '',
+    }
+    if (scope === 'line') {
+      base.startLine = Number(a.startLine ?? 1)
+      base.endLine = Number(a.endLine ?? a.startLine ?? 1)
+      base.anchorText = typeof a.anchorText === 'string' ? a.anchorText : ''
+    }
+    return base
+  })
 
   return {
     id: String(raw.id),
-    file,
-    startLine,
-    endLine,
-    blobSha,
-    anchorText,
+    scope,
+    anchors,
     viewContext,
     body: String(raw.body ?? ''),
     status: raw.status === 'resolved' ? 'resolved' : 'open',
@@ -228,11 +219,9 @@ export class LogStore {
       const toolCalls = rawToolCalls
         .map(normalizeToolCall)
         .filter((c): c is ToolCall => c !== null)
-      const legacySessions = Array.isArray(data.sessions) ? (data.sessions as LegacySession[]) : []
       const rawComments = Array.isArray(data.comments) ? data.comments : []
-      const ctx: NormalizeCtx = { toolCalls, legacySessions }
       const comments = rawComments
-        .map(c => normalizeComment(c, ctx))
+        .map(normalizeComment)
         .filter((c): c is ReviewComment => c !== null)
       return { toolCalls, comments }
     } catch {
@@ -320,6 +309,7 @@ export class LogStore {
     toolCallId?: string
     file?: string
     status?: ReviewComment['status']
+    scope?: CommentScope
     /** Filter by viewContext.source. */
     viewSource?: ViewSource
     /** Match viewContext.fromRef / toRef for source='git-range'. */
@@ -329,6 +319,9 @@ export class LogStore {
     let comments = this.log.comments
     if (opts.toolCallId) {
       comments = comments.filter(c => c.viewContext.toolCallId === opts.toolCallId)
+    }
+    if (opts.scope) {
+      comments = comments.filter(c => c.scope === opts.scope)
     }
     if (opts.viewSource) {
       comments = comments.filter(c => c.viewContext.source === opts.viewSource)
@@ -340,7 +333,7 @@ export class LogStore {
       comments = comments.filter(c => (c.viewContext.toRef ?? '') === opts.toRef)
     }
     if (opts.file) {
-      comments = comments.filter(c => c.file === opts.file)
+      comments = comments.filter(c => c.anchors.some(a => a.file === opts.file))
     }
     if (opts.status) comments = comments.filter(c => c.status === opts.status)
     return comments
@@ -351,21 +344,15 @@ export class LogStore {
   }
 
   addComment(input: {
-    file: string
-    startLine: number
-    endLine: number
-    blobSha: string
-    anchorText: string
+    scope: CommentScope
+    anchors: Anchor[]
     viewContext: ViewContext
     body: string
   }): ReviewComment {
     const comment: ReviewComment = {
       id: nanoid(),
-      file: input.file,
-      startLine: input.startLine,
-      endLine: input.endLine,
-      blobSha: input.blobSha,
-      anchorText: input.anchorText,
+      scope: input.scope,
+      anchors: input.anchors,
       viewContext: input.viewContext,
       body: input.body,
       status: 'open',

@@ -43,9 +43,19 @@ Use semver: patch for bug fixes, minor for new features.
 
 The tool has two runtime modes, both sharing the same core modules. A central **project registry** at `$XDG_CONFIG_HOME/code-review-annotator/projects.json` (default `~/.config/...`) lets a single HTTP server serve many projects / worktrees — each MCP server registers its `--dir` on startup, and the browser UI lists every registered project in a dropdown. The HTTP server also writes its port into every registered project's entry on startup and clears it on shutdown, so the Pre/PostToolUse hook scripts can discover where to send captures. Stale entries (dir missing) are filtered on read; the file is safe to hand-edit.
 
+### Comment scopes
+
+A comment has a **scope** declaring what it targets:
+- `line` — a line range in one file. `anchors: [{ file, blobSha, startLine, endLine, anchorText }]`.
+- `file` — a whole file, no line range. `anchors: [{ file, blobSha }]`.
+- `multi-file` — a cross-cutting concern spanning N files (refactor across modules, shared bug). `anchors: [{ file, blobSha }, …]` (>= 2 entries).
+- `view` — review-level / architectural note, not pinned to any file. `anchors: []`.
+
+Validation is enforced server-side on POST. The export prompt groups by scope and prefixes each section with hints for Claude ("decide scope yourself" for file/multi-file, "plan before editing" for view).
+
 ### Review modes
 
-The UI has a header mode switcher with three modes. A comment's **anchor** is `(file, line-range, blobSha, anchorText)` — independent of mode. The mode the reviewer was in when writing is recorded on `viewContext` as metadata only; switching view does not move comments. Modes other than tool-call are stateless URL-hash views (`#view=git-range&from=…&to=…`) — there is no persisted "session" record.
+The UI has a header mode switcher with three modes. A comment's **anchor** identifies exactly what it targets (file + optional line range + blobSha + anchorText); this is independent of mode. The mode the reviewer was in when writing is recorded on `viewContext` as metadata only; switching view does not move comments. Modes other than tool-call are stateless URL-hash views (`#view=git-range&from=…&to=…`) — there is no persisted "session" record.
 
 1. **Tool calls** (default / always-on) — each `Edit` / `Write` / `MultiEdit` / `NotebookEdit` is captured by Pre/PostToolUse hooks as an independent before→after snapshot. The timeline lists every call; clicking one opens its diff. Snapshots are immutable so later edits to the same file produce new cards, never mutate old ones.
 2. **Git diff** — stateless view comparing any two refs: branch name / commit SHA / `HEAD` / `INDEX` (staged) / `WORKTREE` (current worktree incl. untracked). Refs are passed on the URL hash; nothing is persisted. Non-ancestor ranges still compute `A..B` but the UI flags them with a warning. A **"Pick visually" button** opens a modal graph picker (SVG commit graph across all branches, served by `/api/git/graph`; lanes assigned client-side). Selecting two nodes writes into `state.gitRange` via the same URL-hash flow. A persistent `from→to` chip in the view-bar re-opens the picker or clears the range; text inputs remain under an `advanced` disclosure for typed refs.
@@ -64,8 +74,8 @@ On startup the HTTP server iterates `listProjects()` and writes its port into ea
 ### MCP mode (`startMcpServer` in `src/mcp.ts`)
 An MCP stdio server exposing 5 tools to Claude Code:
 - `get_tool_calls` — list captured Edit/Write/MultiEdit/NotebookEdit snapshots (optionally filtered by file / status)
-- `get_review_comments` — open comments enriched with `file`, `viewContext`, `anchorText`, `blobSha`, `sourceLines`, and (for `viewContext.source='tool-call'`) a compact `toolCall` summary. Filters: `toolCallId` / `viewSource` / `fromRef` / `toRef` / `file` / `status`.
-- `get_export_prompt` — fix / report / both prompt string. Filters: `toolCallId` / `viewSource` / `fromRef` / `toRef` / `mode`.
+- `get_review_comments` — open comments carrying `scope` (`line`/`file`/`multi-file`/`view`), `anchors[]` (each with `file`, `blobSha` and — for `line` scope — `startLine`, `endLine`, `anchorText`, `sourceLines`), `viewContext`, and (for `viewContext.source='tool-call'`) a compact `toolCall` summary. Filters: `toolCallId` / `viewSource` / `fromRef` / `toRef` / `file` / `scope` / `status`.
+- `get_export_prompt` — fix / report / both prompt string, grouped by scope. Filters: `toolCallId` / `viewSource` / `fromRef` / `toRef` / `scope` / `mode`.
 - `mark_resolved` — close a comment by id
 - `reply_to_comment` — add a reply authored as `claude`
 
@@ -84,7 +94,7 @@ The script **always exits 0** on any failure (server down, no matching project, 
 
 | File | Responsibility |
 |------|---------------|
-| `src/log.ts` | `LogStore` — all state. Reads/writes `.review-log.json` in the target repo root. Manages tool-call lifecycle (`pending` → `complete` / `orphan`), comments (`open` ↔ `resolved`), and reply threads. Each comment anchors by `(file, line-range, blobSha, anchorText)`; `viewContext` records which view the reviewer wrote in. `computeBlobSha(content)` matches `git hash-object`. `normalizeComment()` migrates pre-v0.15 logs (comments had `{ target, side, toolCallId }`, and a separate `sessions[]` table) to the new shape on load and drops the legacy fields on next write. Atomic tmp+rename writes. The constructor only reads; it never writes on load, so the HTTP handler can safely create a fresh store per request without self-triggering the SSE watcher. |
+| `src/log.ts` | `LogStore` — all state. Reads/writes `.review-log.json` in the target repo root. Manages tool-call lifecycle (`pending` → `complete` / `orphan`), comments (`open` ↔ `resolved`), and reply threads. Each comment has a `scope` and an `anchors[]` array. `computeBlobSha(content)` matches `git hash-object`. `normalizeComment()` migrates v0.15–v0.18 flat-shape logs (single `file`/`startLine`/`endLine`/`blobSha`/`anchorText`) to `scope: 'line'` + one anchor, and drops the flat fields on next write. Atomic tmp+rename writes. The constructor only reads; it never writes on load, so the HTTP handler can safely create a fresh store per request without self-triggering the SSE watcher. |
 | `src/git.ts` | Git helpers for the session modes. `resolveRef`, `listRefs` (branches + recent commits + `WORKTREE`/`INDEX`), `listGraphCommits(limit)` (topology across `--all` with parents + refs-per-commit + HEAD — used by the visual range picker), `isAncestor`, `mergeBase`, `listChangedFiles(fromRef, toRef)` (handles all combinations of commit / `WORKTREE` / `INDEX`; includes untracked as 'A' when the to-side is `WORKTREE`), `readBlob(ref, file)`, `listWorktreeFiles()` (uses `git ls-files --cached --others --exclude-standard` — no ignored files). Shells out to `git` via `execFileSync`; no libgit2 dependency. |
 | `src/registry.ts` | Central project registry. Atomic writes. `registerProject(dir)` upserts by abs path. `setHttpPort` / `clearHttpPort` let the HTTP server advertise its listening port. `listProjects()` filters entries whose `dir` no longer exists. |
 | `src/watcher.ts` | `startProjectWatcher(dir, onEvent)` — 1.5 s interval comparing `.review-log.json` `mtime+size`; invokes `onEvent({ type: 'log' })` on change. Returns a stop function. |
@@ -111,10 +121,14 @@ The script **always exits 0** on any failure (server down, no matching project, 
   }],
   comments: [{
     id,
-    file,             // relative path (always populated)
-    startLine, endLine,
-    blobSha,          // git-hash-object of the file contents the comment was written against
-    anchorText,       // verbatim text at the anchor at write time (fuzzy-relocate fallback)
+    scope,            // 'line' | 'file' | 'multi-file' | 'view'
+    anchors: [{       // line: 1 anchor with line range
+      file,           //   file-scope: 1 anchor, no line range
+      blobSha,        //   multi-file: >= 2 anchors, no line ranges
+      startLine?,     //   view: 0 anchors
+      endLine?,
+      anchorText?,    // verbatim text at the anchor at write time (line scope only; fuzzy-relocate fallback)
+    }],
     viewContext: {    // metadata: which view was the reviewer in. Does NOT affect anchoring.
       source,         // 'tool-call' | 'git-range' | 'browse'
       side,           // 'before' | 'after' | 'current'
@@ -128,7 +142,7 @@ The script **always exits 0** on any failure (server down, no matching project, 
 }
 ```
 
-**Migration:** pre-v0.15 logs had a `sessions[]` table and comments with `{ target: { kind, id, file }, side, toolCallId }`. `LogStore.load()` / `normalizeComment()` backfill `viewContext` / `file` / `blobSha` / `anchorText` from those legacy fields in memory; the file is re-serialized without the legacy fields (and without `sessions[]`) on the next write.
+**Migration:** v0.15–v0.18 logs had flat comment shape (`file` / `startLine` / `endLine` / `blobSha` / `anchorText` at the top level). `LogStore.load()` / `normalizeComment()` rewrites them in memory to `scope: 'line'` + one anchor; the file is re-serialized without the flat fields on the next write.
 
 ### CLI flags
 

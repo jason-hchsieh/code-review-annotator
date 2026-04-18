@@ -1,12 +1,13 @@
 import * as http from 'node:http'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { CommentSide, LogStore, ReviewComment, ToolCall, ToolKind, ViewContext, ViewSource, computeBlobSha, sliceLines } from './log.ts'
+import { Anchor, CommentScope, CommentSide, LogStore, ReviewComment, ToolCall, ToolKind, ViewContext, ViewSource, computeBlobSha, sliceLines } from './log.ts'
 import { listProjects, setHttpPort, clearHttpPort, RegistryProject } from './registry.ts'
 import { startProjectWatcher, WatcherEvent } from './watcher.ts'
 import { isAncestor, isGitRepo, listChangedFiles, listGraphCommits, listRefs, listWorktreeFiles, mergeBase, readBlob, resolveRef } from './git.ts'
 
 const TOOL_KINDS: ReadonlyArray<ToolKind> = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
+const SCOPES: ReadonlyArray<CommentScope> = ['line', 'file', 'multi-file', 'view']
 
 function json(res: http.ServerResponse, status: number, data: unknown) {
   const body = JSON.stringify(data)
@@ -35,16 +36,7 @@ function projectName(dir: string): string {
   return parent ? `${parent}/${base}` : base
 }
 
-function fileForComment(comment: ReviewComment, store: LogStore): string {
-  if (comment.file) return comment.file
-  const vc = comment.viewContext
-  if (vc.source === 'tool-call' && vc.toolCallId) {
-    return store.getToolCall(vc.toolCallId)?.file ?? '(unknown)'
-  }
-  return '(unknown)'
-}
-
-function toolRefForComment(comment: ReviewComment, store: LogStore): string {
+function contextLabel(comment: ReviewComment, store: LogStore): string {
   const vc = comment.viewContext
   if (vc.source === 'tool-call') {
     const call = vc.toolCallId ? store.getToolCall(vc.toolCallId) : undefined
@@ -54,6 +46,15 @@ function toolRefForComment(comment: ReviewComment, store: LogStore): string {
   return `${vc.fromRef ?? '?'}→${vc.toRef ?? '?'}`
 }
 
+function lineRefOf(a: Anchor): string {
+  if (a.startLine == null) return ''
+  return a.startLine === a.endLine ? `L${a.startLine}` : `L${a.startLine}–L${a.endLine}`
+}
+
+/**
+ * Build an export prompt for Claude, grouped by scope so the agent knows
+ * which ones target specific lines vs. whole files vs. the whole review.
+ */
 function exportPrompt(
   store: LogStore,
   comments: ReviewComment[],
@@ -61,23 +62,65 @@ function exportPrompt(
 ): string {
   if (comments.length === 0) return '// No open comments found.'
 
-  const byFile = new Map<string, ReviewComment[]>()
-  for (const cm of comments) {
-    const file = fileForComment(cm, store)
-    if (!byFile.has(file)) byFile.set(file, [])
-    byFile.get(file)!.push(cm)
+  const byScope: Record<CommentScope, ReviewComment[]> = {
+    line: [], file: [], 'multi-file': [], view: [],
   }
+  for (const c of comments) byScope[c.scope].push(c)
 
   const lines: string[] = []
 
+  const section = (intro: string) => {
+    lines.push(intro)
+  }
+
   if (mode === 'fix' || mode === 'both') {
-    lines.push('Please address the following review comments:\n')
-    for (const [file, entries] of byFile.entries()) {
-      lines.push(`### ${file}`)
-      for (const comment of entries) {
-        const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
-        const ctx = toolRefForComment(comment, store)
-        lines.push(`- [${ctx}, ${comment.viewContext.side ?? '?'}, ${lineRef}] ${comment.body}`)
+    section('Please address the following review comments:\n')
+
+    if (byScope.line.length > 0) {
+      lines.push('## Line-level comments')
+      const byFile = new Map<string, ReviewComment[]>()
+      for (const c of byScope.line) {
+        const f = c.anchors[0]?.file ?? '(unknown)'
+        if (!byFile.has(f)) byFile.set(f, [])
+        byFile.get(f)!.push(c)
+      }
+      for (const [file, entries] of byFile.entries()) {
+        lines.push(`### ${file}`)
+        for (const c of entries) {
+          const a = c.anchors[0]
+          lines.push(`- [${contextLabel(c, store)}, ${c.viewContext.side ?? '?'}, ${lineRefOf(a)}] ${c.body}`)
+        }
+        lines.push('')
+      }
+    }
+
+    if (byScope.file.length > 0) {
+      lines.push('## File-level comments')
+      lines.push('_These apply to the whole file. Decide the scope of the change yourself._\n')
+      for (const c of byScope.file) {
+        const f = c.anchors[0]?.file ?? '(unknown)'
+        lines.push(`### ${f}`)
+        lines.push(`- [${contextLabel(c, store)}] ${c.body}`)
+        lines.push('')
+      }
+    }
+
+    if (byScope['multi-file'].length > 0) {
+      lines.push('## Multi-file comments')
+      lines.push('_These span several files at once. Read all of them before choosing where to edit._\n')
+      for (const c of byScope['multi-file']) {
+        const files = c.anchors.map(a => a.file).join(', ')
+        lines.push(`- **Files**: ${files}`)
+        lines.push(`  [${contextLabel(c, store)}] ${c.body}`)
+        lines.push('')
+      }
+    }
+
+    if (byScope.view.length > 0) {
+      lines.push('## Review-level comments')
+      lines.push('_These are about the review as a whole — architecture, missing tests, coverage. Plan before editing._\n')
+      for (const c of byScope.view) {
+        lines.push(`- [${contextLabel(c, store)}] ${c.body}`)
       }
       lines.push('')
     }
@@ -86,12 +129,19 @@ function exportPrompt(
   if (mode === 'report' || mode === 'both') {
     if (mode === 'both') lines.push('---\n')
     lines.push('## Review Summary\n')
-    for (const [file, entries] of byFile.entries()) {
-      lines.push(`### ${file}`)
-      for (const comment of entries) {
-        const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
-        const ctx = toolRefForComment(comment, store)
-        lines.push(`- **[${ctx} ${lineRef} ${comment.viewContext.side ?? '?'}]**: ${comment.body}`)
+    for (const scope of SCOPES) {
+      const entries = byScope[scope]
+      if (entries.length === 0) continue
+      lines.push(`### ${scope === 'line' ? 'Line' : scope === 'file' ? 'File-level' : scope === 'multi-file' ? 'Multi-file' : 'Review-level'} (${entries.length})`)
+      for (const c of entries) {
+        const scopeRef = scope === 'line'
+          ? `${c.anchors[0]?.file ?? ''} ${lineRefOf(c.anchors[0])}`
+          : scope === 'file'
+            ? (c.anchors[0]?.file ?? '')
+            : scope === 'multi-file'
+              ? c.anchors.map(a => a.file).join(' + ')
+              : '(view)'
+        lines.push(`- **[${contextLabel(c, store)} | ${scopeRef}]**: ${c.body}`)
       }
       lines.push('')
     }
@@ -285,7 +335,6 @@ export function startHttpServer(port: number) {
       }
 
       // ─── Stateless views ───
-      // Refs are passed on the query string each request. There is no persisted session.
 
       if (method === 'GET' && pathname === '/api/view/files') {
         const view = query.get('view')
@@ -400,6 +449,7 @@ export function startHttpServer(port: number) {
         const toolCallId = query.get('toolCallId') ?? undefined
         const file = query.get('file') ?? undefined
         const status = (query.get('status') as ReviewComment['status'] | null) ?? undefined
+        const scope = (query.get('scope') as CommentScope | null) ?? undefined
         const viewRaw = query.get('view')
         const viewSource: ViewSource | undefined = viewRaw && ['tool-call', 'git-range', 'browse'].includes(viewRaw)
           ? (viewRaw as ViewSource)
@@ -407,68 +457,88 @@ export function startHttpServer(port: number) {
         const fromRef = query.get('from') ?? undefined
         const toRef = query.get('to') ?? undefined
         return json(res, 200, store.getComments({
-          toolCallId, file, status,
+          toolCallId, file, status, scope,
           viewSource, fromRef, toRef,
         }))
       }
 
       if (method === 'POST' && pathname === '/api/comments') {
         const body = JSON.parse(await readBody(req)) as {
-          file?: string
-          blobSha?: string
-          anchorText?: string
+          scope?: CommentScope
+          anchors?: Array<Partial<Anchor>>
           viewContext?: ViewContext
-          // Tool-call legacy convenience — tool-call targets can still be looked up.
+          body?: string
+          // Convenience: tool-call single-line shortcut
           toolCallId?: string
           side?: CommentSide
           startLine?: number
           endLine?: number
-          body?: string
         }
-        if (!body.startLine || !body.body) {
-          return json(res, 400, { error: 'startLine, body required' })
-        }
-        const sLine = Number(body.startLine)
-        const eLine = Number(body.endLine ?? sLine)
+        if (!body.body) return json(res, 400, { error: 'body required' })
 
-        // New-shape path: caller provided viewContext + blobSha directly.
-        if (body.viewContext && body.file && typeof body.blobSha === 'string') {
-          const vc = body.viewContext
-          if (!vc.source || !['tool-call', 'git-range', 'browse'].includes(vc.source)) {
-            return json(res, 400, { error: 'viewContext.source invalid' })
-          }
-          const comment = store.addComment({
-            file: body.file,
-            startLine: sLine,
-            endLine: eLine,
-            blobSha: body.blobSha,
-            anchorText: typeof body.anchorText === 'string' ? body.anchorText : '',
-            viewContext: vc,
-            body: body.body,
-          })
-          return json(res, 201, comment)
-        }
-
-        // Convenience path: tool-call targets can be specified with just toolCallId + side.
-        if (body.toolCallId && body.side) {
+        // Convenience path: tool-call line comment via {toolCallId, side, startLine, endLine}
+        if (body.toolCallId && body.side && body.startLine) {
           const call = store.getToolCall(body.toolCallId)
           if (!call) return json(res, 404, { error: 'toolCallId not found' })
           const isBefore = body.side === 'before'
           const content = isBefore ? call.before : (call.after ?? '')
           const blobSha = isBefore ? call.beforeSha : (call.afterSha ?? computeBlobSha(content))
+          const sLine = Number(body.startLine)
+          const eLine = Number(body.endLine ?? sLine)
           const comment = store.addComment({
-            file: call.file,
-            startLine: sLine,
-            endLine: eLine,
-            blobSha,
-            anchorText: sliceLines(content, sLine, eLine),
+            scope: 'line',
+            anchors: [{
+              file: call.file,
+              blobSha,
+              startLine: sLine,
+              endLine: eLine,
+              anchorText: sliceLines(content, sLine, eLine),
+            }],
             viewContext: { source: 'tool-call', toolCallId: call.id, side: body.side },
             body: body.body,
           })
           return json(res, 201, comment)
         }
 
-        return json(res, 400, { error: 'either {viewContext,file,blobSha} or {toolCallId,side} required' })
+        // New-shape path.
+        if (!body.scope || !SCOPES.includes(body.scope)) {
+          return json(res, 400, { error: `scope must be one of ${SCOPES.join('|')}` })
+        }
+        if (!body.viewContext || !body.viewContext.source) {
+          return json(res, 400, { error: 'viewContext.source required' })
+        }
+        const anchors = Array.isArray(body.anchors) ? body.anchors : []
+
+        if (body.scope === 'view' && anchors.length !== 0) {
+          return json(res, 400, { error: 'scope=view must have empty anchors' })
+        }
+        if ((body.scope === 'line' || body.scope === 'file') && anchors.length !== 1) {
+          return json(res, 400, { error: `scope=${body.scope} requires exactly 1 anchor` })
+        }
+        if (body.scope === 'multi-file' && anchors.length < 2) {
+          return json(res, 400, { error: 'scope=multi-file requires >= 2 anchors' })
+        }
+
+        const normalized: Anchor[] = anchors.map(a => {
+          const base: Anchor = {
+            file: String(a.file ?? ''),
+            blobSha: typeof a.blobSha === 'string' ? a.blobSha : '',
+          }
+          if (body.scope === 'line') {
+            base.startLine = Number(a.startLine ?? 1)
+            base.endLine = Number(a.endLine ?? a.startLine ?? 1)
+            base.anchorText = typeof a.anchorText === 'string' ? a.anchorText : ''
+          }
+          return base
+        })
+
+        const comment = store.addComment({
+          scope: body.scope,
+          anchors: normalized,
+          viewContext: body.viewContext,
+          body: body.body,
+        })
+        return json(res, 201, comment)
       }
 
       const commentMatch = pathname.match(/^\/api\/comments\/([^/]+)$/)
@@ -517,13 +587,14 @@ export function startHttpServer(port: number) {
       if (method === 'GET' && pathname === '/api/export') {
         const mode = (query.get('mode') as 'fix' | 'report' | 'both' | null) ?? 'both'
         const toolCallId = query.get('toolCallId') ?? undefined
+        const scope = (query.get('scope') as CommentScope | null) ?? undefined
         const viewRaw = query.get('view')
         const viewSource: ViewSource | undefined = viewRaw && ['tool-call', 'git-range', 'browse'].includes(viewRaw)
           ? (viewRaw as ViewSource)
           : undefined
         const fromRef = query.get('from') ?? undefined
         const toRef = query.get('to') ?? undefined
-        const comments = store.getComments({ status: 'open', toolCallId, viewSource, fromRef, toRef })
+        const comments = store.getComments({ status: 'open', toolCallId, scope, viewSource, fromRef, toRef })
         const prompt = exportPrompt(store, comments, mode)
         return json(res, 200, { prompt })
       }
@@ -537,7 +608,6 @@ export function startHttpServer(port: number) {
 
   server.listen(port)
 
-  // Advertise port to the registry for hook scripts to discover.
   const advertised: string[] = []
   for (const p of listProjects()) {
     setHttpPort(p.dir, port)
