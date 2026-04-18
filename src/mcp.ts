@@ -1,11 +1,11 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { LogStore, ReviewComment, ReviewSession, TargetKind, ToolCall } from './log.ts'
+import { LogStore, ReviewComment, ToolCall } from './log.ts'
 import { registerProject } from './registry.ts'
 import { readBlob } from './git.ts'
 
-function sliceLines(text: string, startLine: number, endLine: number): string[] {
+function sliceTextLines(text: string, startLine: number, endLine: number): string[] {
   const all = text.split('\n')
   const s = Math.max(1, startLine) - 1
   const e = Math.min(all.length, endLine)
@@ -13,20 +13,22 @@ function sliceLines(text: string, startLine: number, endLine: number): string[] 
 }
 
 function fileForComment(comment: ReviewComment, store: LogStore): string {
-  if (comment.target.kind === 'tool-call') {
-    return store.getToolCall(comment.target.id)?.file ?? '(unknown)'
+  if (comment.file) return comment.file
+  const vc = comment.viewContext
+  if (vc.source === 'tool-call' && vc.toolCallId) {
+    return store.getToolCall(vc.toolCallId)?.file ?? '(unknown)'
   }
-  return comment.target.file ?? '(unknown)'
+  return '(unknown)'
 }
 
 function contextLabel(comment: ReviewComment, store: LogStore): string {
-  if (comment.target.kind === 'tool-call') {
-    const call = store.getToolCall(comment.target.id)
+  const vc = comment.viewContext
+  if (vc.source === 'tool-call') {
+    const call = vc.toolCallId ? store.getToolCall(vc.toolCallId) : undefined
     return call?.tool ?? 'tool'
   }
-  const s = store.getSession(comment.target.id)
-  if (!s) return comment.target.kind
-  return s.kind === 'browse' ? 'Browse' : `${s.fromRef}→${s.toRef}`
+  if (vc.source === 'browse') return 'Browse'
+  return `${vc.fromRef ?? '?'}→${vc.toRef ?? '?'}`
 }
 
 function exportPrompt(
@@ -51,7 +53,7 @@ function exportPrompt(
       lines.push(`### ${file}`)
       for (const comment of entries) {
         const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
-        lines.push(`- [${contextLabel(comment, store)}, ${comment.side}, ${lineRef}] ${comment.body}`)
+        lines.push(`- [${contextLabel(comment, store)}, ${comment.viewContext.side ?? '?'}, ${lineRef}] ${comment.body}`)
       }
       lines.push('')
     }
@@ -64,7 +66,7 @@ function exportPrompt(
       lines.push(`### ${file}`)
       for (const comment of entries) {
         const lineRef = comment.startLine === comment.endLine ? `L${comment.startLine}` : `L${comment.startLine}–L${comment.endLine}`
-        lines.push(`- **[${contextLabel(comment, store)} ${lineRef} ${comment.side}]**: ${comment.body}`)
+        lines.push(`- **[${contextLabel(comment, store)} ${lineRef} ${comment.viewContext.side ?? '?'}]**: ${comment.body}`)
       }
       lines.push('')
     }
@@ -74,22 +76,24 @@ function exportPrompt(
 }
 
 function sourceForComment(comment: ReviewComment, store: LogStore, dir: string): string {
-  if (comment.target.kind === 'tool-call') {
-    const call = store.getToolCall(comment.target.id)
+  // Prefer the stored anchorText (captured at write time — exact text the reviewer pointed at).
+  if (comment.anchorText) return comment.anchorText
+
+  const vc = comment.viewContext
+  if (vc.source === 'tool-call') {
+    const call = vc.toolCallId ? store.getToolCall(vc.toolCallId) : undefined
     if (!call) return ''
-    return comment.side === 'before' ? call.before : (call.after ?? '')
+    return vc.side === 'before' ? call.before : (call.after ?? '')
   }
-  const session = store.getSession(comment.target.id)
-  if (!session || !comment.target.file) return ''
-  if (session.kind === 'browse') {
-    return readBlob(dir, 'WORKTREE', comment.target.file)
+  if (vc.source === 'browse') {
+    return comment.file ? readBlob(dir, 'WORKTREE', comment.file) : ''
   }
-  // git-range
-  const ref = comment.side === 'before'
-    ? (session.fromSha ?? session.fromRef ?? '')
-    : (session.toSha ?? session.toRef ?? '')
-  if (!ref) return ''
-  return readBlob(dir, ref, comment.target.file)
+  if (vc.source === 'git-range') {
+    if (!comment.file) return ''
+    const ref = vc.side === 'before' ? (vc.fromRef ?? '') : (vc.toRef ?? '')
+    return ref ? readBlob(dir, ref, comment.file) : ''
+  }
+  return ''
 }
 
 export function startMcpServer(dir: string) {
@@ -102,7 +106,7 @@ export function startMcpServer(dir: string) {
   }
 
   const server = new Server(
-    { name: 'code-review-annotator', version: '0.14.0' },
+    { name: 'code-review-annotator', version: '0.17.0' },
     { capabilities: { tools: {} } },
   )
 
@@ -120,20 +124,16 @@ export function startMcpServer(dir: string) {
         },
       },
       {
-        name: 'get_review_sessions',
-        description: 'List user-created review sessions (git-range diffs and worktree browse sessions). Each session has its own set of comments independent of the tool-call timeline.',
-        inputSchema: { type: 'object', properties: {} },
-      },
-      {
         name: 'get_review_comments',
-        description: 'Get review comments across all modes. Each comment is anchored to a target: kind="tool-call" (anchored to a captured Edit / Write), kind="git-range" (anchored to a file in a user-defined git diff session), or kind="browse" (anchored to a file in a worktree browse session). side is "before" / "after" for diffs or "current" for browse. The response includes the source lines at the anchor so Claude can see what the reviewer pointed at. Defaults to open comments.',
+        description: 'Get review comments. Each comment is anchored to (file, line-range, blob-sha) and carries a viewContext indicating the perspective it was written in: source="tool-call" (written against a captured Edit / Write), source="git-range" (written while viewing a diff between two refs — fromRef/toRef on viewContext), or source="browse" (written against the worktree). side is "before"/"after" for diffs or "current" for browse. The response includes the source lines at the anchor so Claude can see what the reviewer pointed at. Defaults to open comments.',
         inputSchema: {
           type: 'object',
           properties: {
-            toolCallId: { type: 'string', description: 'Filter to comments anchored to a specific tool-call id' },
-            sessionId: { type: 'string', description: 'Filter to comments anchored to a specific review-session id' },
-            targetKind: { type: 'string', enum: ['tool-call', 'git-range', 'browse'], description: 'Filter by target kind' },
-            file: { type: 'string', description: 'Filter by file (git-range / browse comments only)' },
+            toolCallId: { type: 'string', description: 'Filter to comments written against a specific tool-call id' },
+            viewSource: { type: 'string', enum: ['tool-call', 'git-range', 'browse'], description: 'Filter by viewContext.source' },
+            fromRef: { type: 'string', description: 'For viewSource=git-range: match viewContext.fromRef' },
+            toRef: { type: 'string', description: 'For viewSource=git-range: match viewContext.toRef' },
+            file: { type: 'string', description: 'Filter by file path (relative to project root)' },
             status: { type: 'string', enum: ['open', 'resolved'], description: 'Filter by status. Defaults to open.' },
           },
         },
@@ -145,8 +145,9 @@ export function startMcpServer(dir: string) {
           type: 'object',
           properties: {
             toolCallId: { type: 'string', description: 'Filter to a specific tool-call id' },
-            sessionId: { type: 'string', description: 'Filter to a specific session id' },
-            targetKind: { type: 'string', enum: ['tool-call', 'git-range', 'browse'], description: 'Filter by target kind' },
+            viewSource: { type: 'string', enum: ['tool-call', 'git-range', 'browse'], description: 'Filter by viewContext.source' },
+            fromRef: { type: 'string', description: 'For viewSource=git-range: match viewContext.fromRef' },
+            toRef: { type: 'string', description: 'For viewSource=git-range: match viewContext.toRef' },
             mode: { type: 'string', enum: ['fix', 'report', 'both'], description: 'Prompt mode' },
           },
           required: ['mode'],
@@ -201,43 +202,36 @@ export function startMcpServer(dir: string) {
       return { content: [{ type: 'text', text: JSON.stringify(compact, null, 2) }] }
     }
 
-    if (name === 'get_review_sessions') {
-      const sessions: ReviewSession[] = store.getSessions()
-      return { content: [{ type: 'text', text: JSON.stringify(sessions, null, 2) }] }
-    }
-
     if (name === 'get_review_comments') {
       const comments = store.getComments({
         toolCallId: a.toolCallId as string | undefined,
-        sessionId: a.sessionId as string | undefined,
-        targetKind: a.targetKind as TargetKind | undefined,
+        viewSource: a.viewSource as 'tool-call' | 'git-range' | 'browse' | undefined,
+        fromRef: a.fromRef as string | undefined,
+        toRef: a.toRef as string | undefined,
         file: a.file as string | undefined,
         status: (a.status as 'open' | 'resolved') ?? 'open',
       })
       const enriched = comments.map((c) => {
         const source = sourceForComment(c, store, dir)
-        const sourceLines = sliceLines(source, c.startLine, c.endLine)
+        const sourceLines = sliceTextLines(source, c.startLine, c.endLine)
         const file = fileForComment(c, store)
         const base: Record<string, unknown> = {
           id: c.id,
-          target: c.target,
-          toolCallId: c.target.kind === 'tool-call' ? c.target.id : undefined,
           status: c.status,
           body: c.body,
-          side: c.side,
           startLine: c.startLine,
           endLine: c.endLine,
           file,
+          viewContext: c.viewContext,
+          anchorText: c.anchorText,
+          blobSha: c.blobSha,
           createdAt: c.createdAt,
           replies: c.replies,
           sourceLines,
         }
-        if (c.target.kind === 'tool-call') {
-          const call = store.getToolCall(c.target.id)
+        if (c.viewContext.source === 'tool-call' && c.viewContext.toolCallId) {
+          const call = store.getToolCall(c.viewContext.toolCallId)
           base.toolCall = call ? { tool: call.tool, file: call.file, startedAt: call.startedAt, status: call.status } : null
-        } else {
-          const session = store.getSession(c.target.id)
-          base.session = session ?? null
         }
         return base
       })
@@ -246,10 +240,11 @@ export function startMcpServer(dir: string) {
 
     if (name === 'get_export_prompt') {
       const toolCallId = a.toolCallId as string | undefined
-      const sessionId = a.sessionId as string | undefined
-      const targetKind = a.targetKind as TargetKind | undefined
+      const viewSource = a.viewSource as 'tool-call' | 'git-range' | 'browse' | undefined
+      const fromRef = a.fromRef as string | undefined
+      const toRef = a.toRef as string | undefined
       const mode = (a.mode as 'fix' | 'report' | 'both') ?? 'both'
-      const comments = store.getComments({ status: 'open', toolCallId, sessionId, targetKind })
+      const comments = store.getComments({ status: 'open', toolCallId, viewSource, fromRef, toRef })
       const prompt = exportPrompt(store, comments, mode)
       return { content: [{ type: 'text', text: prompt }] }
     }

@@ -1,6 +1,6 @@
 ---
 name: review-workflow
-description: Read inline code review comments left by a human reviewer in the browser, then apply the requested fixes. Comments may be anchored to captured tool calls (Edit / Write / MultiEdit / NotebookEdit), to a user-defined git-range diff session, or to a worktree browse session. Use when the user asks to "fix review comments", "apply review feedback", "read the review", or "address comments". Requires the code-review MCP server to be connected.
+description: Read inline code review comments left by a human reviewer in the browser, then apply the requested fixes. Comments are anchored to (file, line-range, blobSha, anchorText) and carry a viewContext saying which view the reviewer was in (tool-call / git-range / browse). Use when the user asks to "fix review comments", "apply review feedback", "read the review", or "address comments". Requires the code-review MCP server to be connected.
 ---
 
 # Code Review Workflow
@@ -9,39 +9,39 @@ Use this skill when the user wants you to read and act on inline code review com
 
 ## Model
 
-Comments can come from three modes. Each comment carries a `target` identifying which mode it belongs to:
+A comment's **anchor** is `(file, startLine–endLine, blobSha, anchorText)` — it identifies exactly which text the reviewer pointed at, independent of any view. The `viewContext` on a comment is metadata describing which UI perspective the reviewer was in when writing, with three sources:
 
-- **tool-call** — anchored to a captured `Edit` / `Write` / `MultiEdit` / `NotebookEdit` that you ran. `target = { kind: 'tool-call', id: toolCallId, file: '' }`. `side` is `"before"` or `"after"`.
-- **git-range** — anchored to a file in a user-defined git diff session (two refs — can be branch / SHA / `HEAD` / `INDEX` / `WORKTREE`). `target = { kind: 'git-range', id: sessionId, file: 'path' }`. `side` is `"before"` or `"after"`.
-- **browse** — anchored to a file in a worktree browse session (no diff). `target = { kind: 'browse', id: sessionId, file: 'path' }`. `side` is `"current"`.
+- **tool-call** — reviewer was looking at a captured `Edit` / `Write` / `MultiEdit` / `NotebookEdit`. `viewContext = { source: 'tool-call', side: 'before' | 'after', toolCallId }`.
+- **git-range** — reviewer was looking at a diff between two refs (branch / SHA / `HEAD` / `INDEX` / `WORKTREE`). `viewContext = { source: 'git-range', side: 'before' | 'after', fromRef, toRef }`.
+- **browse** — reviewer was looking at a worktree file directly (no diff). `viewContext = { source: 'browse', side: 'current' }`.
 
-Line numbers are 1-based file line numbers at the relevant snapshot (before / after / worktree), not diff positions.
+Line numbers are 1-based file line numbers inside the referenced snapshot (before / after / worktree), not diff positions.
 
 ## Steps
 
 1. **Fetch open comments**:
    ```
-   get_review_comments()                                       // all open comments across modes
-   get_review_comments({ targetKind: 'tool-call' })            // only tool-call comments
-   get_review_comments({ sessionId: "..." })                   // one git-range / browse session
-   get_review_comments({ toolCallId: "..." })                  // one tool call
-   get_review_comments({ file: "src/foo.ts" })                 // one file across session comments
+   get_review_comments()                                       // all open comments
+   get_review_comments({ viewSource: 'tool-call' })            // only tool-call comments
+   get_review_comments({ toolCallId: "..." })                  // one tool call's comments
+   get_review_comments({ viewSource: 'git-range', fromRef: 'main', toRef: 'HEAD' })
+   get_review_comments({ viewSource: 'browse' })
+   get_review_comments({ file: "src/foo.ts" })                 // one file
    get_review_comments({ status: "resolved" })
    ```
-   Each comment includes `id`, `target`, `side`, `startLine`, `endLine`, `body`, `status`, `replies`, `file`, and `sourceLines` (the actual lines the reviewer pointed at). Tool-call comments additionally include `toolCall` (tool/file/startedAt/status); session comments include `session`.
+   Each comment includes `id`, `file`, `startLine`, `endLine`, `viewContext`, `anchorText`, `blobSha`, `body`, `status`, `replies`, and `sourceLines` (the lines the reviewer pointed at). Tool-call comments additionally include a compact `toolCall` summary.
 
 2. **Understand the scope** (optional):
    ```
    get_tool_calls()                         // all captured tool calls
    get_tool_calls({ file: "src/foo.ts" })   // calls on one file
    get_tool_calls({ status: "complete" })   // pending | complete | orphan
-   get_review_sessions()                    // all user-defined review sessions
    ```
 
 3. **Apply fixes** — for each open comment:
-   - Read `sourceLines` to see exactly what the reviewer was pointing at.
+   - Read `sourceLines` / `anchorText` to see exactly what the reviewer was pointing at.
    - `side: "after"` / `"current"` — lines may still be at the same line numbers in the current file, but not guaranteed — the file can have drifted since the snapshot was taken. Use Read to confirm before editing.
-   - `side: "before"` — references the file as it was **before** your edit ran (tool-call mode) or at the from-ref (git-range mode). The comment is usually asking you to revert or alter something you introduced; for git-range, it may be commentary on historical code.
+   - `side: "before"` — references the file as it was **before** your edit ran (tool-call view) or at the `fromRef` (git-range view). The comment is usually asking you to revert or alter something you introduced; for git-range, it may be commentary on historical code.
    - Apply the change.
 
 4. **Reply on the thread** explaining what you changed:
@@ -62,11 +62,11 @@ Line numbers are 1-based file line numbers at the relevant snapshot (before / af
 
 ## Tips
 
-- `startLine` / `endLine` are **file line numbers inside the captured snapshot** (1-based), not diff positions.
+- `startLine` / `endLine` are **file line numbers inside the referenced snapshot** (1-based), not diff positions.
 - Group comments by file and fix them together before moving on, to minimise line-number drift.
 - If you disagree with a comment, reply explaining why and leave it `open` — don't silently resolve.
 - Existing `replies` on a comment may include earlier back-and-forth — read them before replying again.
 - A tool call with `status: "orphan"` means the PostToolUse hook never fired (e.g. the tool errored or Claude Code was killed mid-edit). The `after` snapshot may be missing.
-- **Browse mode** (`side: "current"`) points at a live worktree file — always Read before editing; the file may have changed since the comment was left.
-- **Git-range mode** with a from/to of `WORKTREE` or `INDEX` is re-resolved per request: `sourceLines` reflect the file as it currently is, not a frozen snapshot. Commit SHAs (or branches/`HEAD`) are frozen at session creation.
-- A git-range session whose from-ref and to-ref have no ancestor relationship still produces a diff, but the reviewer was warned — treat comments as advisory, not as a strict merge target.
+- **Browse-view comments** (`viewContext.side: "current"`) point at a live worktree file — always Read before editing; the file may have changed since the comment was left.
+- **Git-range comments** whose `fromRef` / `toRef` is `WORKTREE` or `INDEX` are re-resolved per request: `sourceLines` reflect the file as it currently is, not a frozen snapshot. Commit SHAs / branches / `HEAD` are stable points in history.
+- A comment's anchor is by blob SHA, so it follows the content. If the reviewer's original content has since been rewritten (the `blobSha` no longer matches any current side), the UI flags the comment as "migrated" — double-check `anchorText` against the current file before editing.
