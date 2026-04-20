@@ -23,7 +23,9 @@ There is no build step, no test suite, and no lint script. The project runs dire
 Any code change must be cross-checked against the following, because they describe the same surface and drift silently:
 
 - `README.md` — install instructions, MCP tool table, REST API table, data-model example
-- `skills/review-workflow/SKILL.md` — the fix loop Claude Code follows; update when MCP tool names, params, or the workflow order change
+- `skills/review-workflow/SKILL.md` — the fix loop Claude Code follows (fetch → apply → verify → reply → resolve); update when MCP tool names, params, or the workflow order change
+- `skills/triage-and-plan/SKILL.md` — pre-fix planner for large backlogs; update if the bucketing axes (scope / risk / theme) or the phase model change
+- `skills/review-status/SKILL.md` — read-only "where am I" snapshot; update when the comment / tool-call shape returned by MCP changes
 - `CLAUDE.md` (this file) — tool list, data model, core-module responsibilities
 - `.mcp.json` / `scripts/run-mcp.sh` — the command that launches the MCP server; update when CLI flags or entry points change
 - `hooks/hooks.json` / `scripts/hook.js` — the Pre/PostToolUse capture path; update when the tool-call wire format changes

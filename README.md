@@ -306,7 +306,10 @@ When installed as a Claude Code plugin:
 - `hooks/hooks.json` registers the Pre/PostToolUse capture hooks
 - `scripts/run-mcp.sh` is spawned by Claude Code at session start. On first run it copies `package.json` to `${CLAUDE_PLUGIN_DATA}` and runs `npm ci` there — keeps `node_modules` out of the plugin cache and survives plugin updates. It re-installs automatically when `package.json` changes between plugin versions.
 - `scripts/hook.js` is spawned by the Pre/PostToolUse hooks. It reads the hook JSON from stdin, looks up the HTTP server's port in the shared registry, and POSTs the snapshot. Silent exit 0 on any failure (server down, no matching project) so Claude Code is never blocked.
-- The `review-workflow` skill teaches Claude Code the fix loop: `get_review_comments` → apply edits → run the project's verify command (typecheck / test / lint) → `reply_to_comment` → `mark_resolved` (or, on verify failure, reply with the failure and leave the comment open)
+- Three Claude Code skills cover the review loop end-to-end:
+  - `review-workflow` — the fix loop: `get_review_comments` → apply edits → run the project's verify command (typecheck / test / lint) → `reply_to_comment` → `mark_resolved` (or, on verify failure, reply with the failure and leave the comment open)
+  - `triage-and-plan` — read-only planner for large backlogs (≥ 5 open). Buckets comments by scope / risk / theme and proposes a phased plan; waits for approval before any edits
+  - `review-status` — read-only one-screen summary: open vs resolved counts, hottest files, orphan tool calls, threads waiting for the human, view-scope items needing a decision
 
 ---
 
