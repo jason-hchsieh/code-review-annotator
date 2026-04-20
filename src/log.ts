@@ -204,10 +204,12 @@ function normalizeComment(raw: any): ReviewComment | null {
 export class LogStore {
   private storePath: string
   private log: ReviewLog
+  private lastSignature: string
 
   constructor(dir: string) {
     this.storePath = path.join(dir, LOG_FILE)
     this.log = this.load()
+    this.lastSignature = this.computeSignature()
   }
 
   private load(): ReviewLog {
@@ -229,13 +231,37 @@ export class LogStore {
     }
   }
 
+  private computeSignature(): string {
+    try {
+      const st = fs.statSync(this.storePath)
+      return `${st.mtimeMs}:${st.size}`
+    } catch {
+      return 'missing'
+    }
+  }
+
+  /**
+   * Reload from disk if the file changed externally since our last read.
+   * Called at the top of every public method so a long-lived instance stays
+   * in sync with writes from other processes (e.g. the HTTP server writing
+   * UI-created comments while the MCP server holds a long-lived store).
+   */
+  private syncFromDisk(): void {
+    const sig = this.computeSignature()
+    if (sig === this.lastSignature) return
+    this.log = this.load()
+    this.lastSignature = sig
+  }
+
   private save(): void {
     atomicWrite(this.storePath, JSON.stringify(this.log, null, 2))
+    this.lastSignature = this.computeSignature()
   }
 
   // ─── Tool calls ───
 
   getToolCalls(opts: { file?: string; status?: ToolCall['status'] } = {}): ToolCall[] {
+    this.syncFromDisk()
     let calls = this.log.toolCalls
     if (opts.file) calls = calls.filter(c => c.file === opts.file)
     if (opts.status) calls = calls.filter(c => c.status === opts.status)
@@ -243,10 +269,12 @@ export class LogStore {
   }
 
   getToolCall(id: string): ToolCall | undefined {
+    this.syncFromDisk()
     return this.log.toolCalls.find(c => c.id === id)
   }
 
   getToolCallByUseId(toolUseId: string): ToolCall | undefined {
+    this.syncFromDisk()
     return this.log.toolCalls.find(c => c.toolUseId === toolUseId)
   }
 
@@ -258,6 +286,7 @@ export class LogStore {
     before: string
     startedAt?: string
   }): ToolCall {
+    this.syncFromDisk()
     const existing = this.getToolCallByUseId(input.toolUseId)
     if (existing) return existing
     const call: ToolCall = {
@@ -280,6 +309,7 @@ export class LogStore {
   }
 
   completeToolCall(toolUseId: string, after: string, completedAt?: string): ToolCall | null {
+    this.syncFromDisk()
     const call = this.getToolCallByUseId(toolUseId)
     if (!call) return null
     call.after = after
@@ -291,6 +321,7 @@ export class LogStore {
   }
 
   markOrphans(maxAgeMs: number = 5 * 60_000): number {
+    this.syncFromDisk()
     const cutoff = Date.now() - maxAgeMs
     let changed = 0
     for (const call of this.log.toolCalls) {
@@ -316,6 +347,7 @@ export class LogStore {
     fromRef?: string
     toRef?: string
   } = {}): ReviewComment[] {
+    this.syncFromDisk()
     let comments = this.log.comments
     if (opts.toolCallId) {
       comments = comments.filter(c => c.viewContext.toolCallId === opts.toolCallId)
@@ -340,6 +372,7 @@ export class LogStore {
   }
 
   getComment(id: string): ReviewComment | undefined {
+    this.syncFromDisk()
     return this.log.comments.find(c => c.id === id)
   }
 
@@ -349,6 +382,7 @@ export class LogStore {
     viewContext: ViewContext
     body: string
   }): ReviewComment {
+    this.syncFromDisk()
     const comment: ReviewComment = {
       id: nanoid(),
       scope: input.scope,
@@ -365,6 +399,7 @@ export class LogStore {
   }
 
   updateComment(id: string, patch: Partial<Pick<ReviewComment, 'body' | 'status'>>): ReviewComment | null {
+    this.syncFromDisk()
     const c = this.getComment(id)
     if (!c) return null
     if (patch.body !== undefined) c.body = patch.body
@@ -374,6 +409,7 @@ export class LogStore {
   }
 
   deleteComment(id: string): boolean {
+    this.syncFromDisk()
     const idx = this.log.comments.findIndex(c => c.id === id)
     if (idx === -1) return false
     this.log.comments.splice(idx, 1)
@@ -384,6 +420,7 @@ export class LogStore {
   // ─── Replies ───
 
   addReply(commentId: string, input: { body: string; author: 'claude' | 'human' }): ReviewReply | null {
+    this.syncFromDisk()
     const c = this.getComment(commentId)
     if (!c) return null
     const reply: ReviewReply = {
@@ -398,6 +435,7 @@ export class LogStore {
   }
 
   updateReply(commentId: string, replyId: string, body: string): ReviewReply | null {
+    this.syncFromDisk()
     const c = this.getComment(commentId)
     if (!c) return null
     const r = c.replies.find(x => x.id === replyId)
@@ -408,6 +446,7 @@ export class LogStore {
   }
 
   deleteReply(commentId: string, replyId: string): boolean {
+    this.syncFromDisk()
     const c = this.getComment(commentId)
     if (!c) return false
     const idx = c.replies.findIndex(x => x.id === replyId)
