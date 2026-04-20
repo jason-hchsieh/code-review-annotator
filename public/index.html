@@ -1825,6 +1825,15 @@ const state = {
   //    don't all show as new.
   seenReplyIds: new Set(),
   dismissedReplyIds: new Set(),
+  // Offline notification surfaces — active when the tab is hidden/unfocused
+  // and the in-page bell isn't visible. Both reset on reload so we don't
+  // re-fire stale notifications.
+  //  - nativeNotifiedIds: reply IDs we've already pushed as a desktop
+  //    Notification, so SSE refreshes don't repeat them.
+  //  - originalTitle: baseline document.title, for restoring after the
+  //    `(N)` unread badge is cleared.
+  nativeNotifiedIds: new Set(),
+  originalTitle: document.title,
 }
 
 const EXPAND_STEP = 20
@@ -2442,7 +2451,59 @@ function updateNotifications() {
     btn.classList.remove('has-unread')
     btn.title = 'No new replies'
   }
+  updateTitleBadge(unread.length)
+  maybeFireDesktopNotifications(unread)
   if ($('#notif-panel')?.classList.contains('open')) renderNotifPanel()
+}
+
+// Prepend `(N)` to the tab title when unread > 0. Visible in the browser
+// tab strip and OS taskbar even when the window is minimized, so the user
+// notices new Claude replies without the in-page bell being on screen.
+function updateTitleBadge(unreadCount) {
+  const base = state.originalTitle || 'Code Review Annotator'
+  document.title = unreadCount > 0 ? `(${unreadCount > 99 ? '99+' : unreadCount}) ${base}` : base
+}
+
+// Fire an OS-level desktop Notification for each newly-arrived Claude
+// reply, but only when the tab is hidden/unfocused — if the user is
+// already looking at the page the in-page bell is enough. Permission is
+// requested separately via a user gesture on the bell button.
+function maybeFireDesktopNotifications(unread) {
+  if (typeof Notification === 'undefined') return
+  if (Notification.permission !== 'granted') return
+  // When the user is actively looking at the tab, skip — the bell flashes.
+  const tabActive = !document.hidden && document.hasFocus()
+  if (tabActive) {
+    // Reconcile: treat currently-visible unread as "already notified" so
+    // hiding the tab later doesn't re-fire backlog as desktop pop-ups.
+    for (const { reply } of unread) state.nativeNotifiedIds.add(reply.id)
+    return
+  }
+  for (const { comment, reply } of unread) {
+    if (state.nativeNotifiedIds.has(reply.id)) continue
+    state.nativeNotifiedIds.add(reply.id)
+    const anchor = comment.anchors?.[0]
+    const lineRef = (anchor?.startLine != null && anchor?.endLine != null)
+      ? (anchor.startLine === anchor.endLine ? `:L${anchor.startLine}` : `:L${anchor.startLine}-${anchor.endLine}`)
+      : ''
+    const where = anchor?.file ? `${anchor.file}${lineRef}` : (comment.scope === 'view' ? 'review-level note' : 'comment')
+    try {
+      const n = new Notification('Claude replied', {
+        body: `${where}\n${(reply.body ?? '').slice(0, 200)}`,
+        tag: `cra-reply-${reply.id}`,
+        renotify: false,
+      })
+      n.onclick = () => {
+        window.focus()
+        n.close()
+        openNotification(comment, reply)
+      }
+    } catch {
+      // Some platforms (iOS Safari, locked-down browsers) throw on
+      // construction even when permission === 'granted'. Swallow — the
+      // title badge still surfaces the unread count.
+    }
+  }
 }
 
 function renderNotifPanel() {
@@ -4634,7 +4695,16 @@ $('#cross-comment-nav-filter').addEventListener('change', (e) => {
 })
 
 // ─── Notification bell wiring ───
-$('#btn-notif').addEventListener('click', (e) => { e.stopPropagation(); toggleNotifPanel() })
+$('#btn-notif').addEventListener('click', (e) => {
+  e.stopPropagation()
+  // Ask for desktop-notification permission the first time the user
+  // interacts with the bell. Browsers require a user gesture, so we can't
+  // do this on page load. Silent on denial — title badge still works.
+  if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+    Notification.requestPermission().catch(() => {})
+  }
+  toggleNotifPanel()
+})
 $('#notif-panel').addEventListener('click', (e) => e.stopPropagation())
 $('#btn-notif-mark-all').addEventListener('click', () => {
   // Mark all non-dismissed replies as read. Keeps them visible in the
