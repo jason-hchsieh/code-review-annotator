@@ -9,6 +9,16 @@ import { isAncestor, isGitRepo, listChangedFiles, listGraphCommits, listRefs, li
 const TOOL_KINDS: ReadonlyArray<ToolKind> = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
 const SCOPES: ReadonlyArray<CommentScope> = ['line', 'file', 'multi-file', 'view']
 
+/** The UI expects `before`/`after` as strings on tool-call JSON. On disk they
+ *  live in the blob store keyed by SHA; inline them here for wire compatibility. */
+function callWithContent(store: LogStore, call: ToolCall) {
+  return {
+    ...call,
+    before: store.readBlob(call.beforeSha),
+    after: call.afterSha ? store.readBlob(call.afterSha) : null,
+  }
+}
+
 function json(res: http.ServerResponse, status: number, data: unknown) {
   const body = JSON.stringify(data)
   res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
@@ -395,14 +405,14 @@ export function startHttpServer(port: number) {
         const file = query.get('file') ?? undefined
         const status = (query.get('status') as ToolCall['status'] | null) ?? undefined
         const calls = store.getToolCalls({ file, status })
-        return json(res, 200, calls)
+        return json(res, 200, calls.map(c => callWithContent(store, c)))
       }
 
       const toolCallMatch = pathname.match(/^\/api\/tool-calls\/([^/]+)$/)
       if (method === 'GET' && toolCallMatch && toolCallMatch[1] !== 'start' && toolCallMatch[1] !== 'complete') {
         const call = store.getToolCall(toolCallMatch[1])
         if (!call) return json(res, 404, { error: 'not found' })
-        return json(res, 200, call)
+        return json(res, 200, callWithContent(store, call))
       }
 
       if (method === 'POST' && pathname === '/api/tool-calls/start') {
@@ -481,8 +491,8 @@ export function startHttpServer(port: number) {
           const call = store.getToolCall(body.toolCallId)
           if (!call) return json(res, 404, { error: 'toolCallId not found' })
           const isBefore = body.side === 'before'
-          const content = isBefore ? call.before : (call.after ?? '')
-          const blobSha = isBefore ? call.beforeSha : (call.afterSha ?? computeBlobSha(content))
+          const blobSha = isBefore ? call.beforeSha : (call.afterSha ?? '')
+          const content = store.readBlob(blobSha)
           const sLine = Number(body.startLine)
           const eLine = Number(body.endLine ?? sLine)
           const comment = store.addComment({

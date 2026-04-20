@@ -49,11 +49,9 @@ export interface ToolCall {
   sessionId: string
   tool: ToolKind
   file: string
-  before: string
-  after: string | null
-  /** git blob SHA of `before` content. */
+  /** git blob SHA of `before` content. Storage key into `.review-log-blobs/`. */
   beforeSha: string
-  /** git blob SHA of `after` content. Null while pending. */
+  /** git blob SHA of `after` content. Null while pending. Storage key into `.review-log-blobs/`. */
   afterSha: string | null
   status: 'pending' | 'complete' | 'orphan'
   startedAt: string
@@ -101,6 +99,7 @@ export interface ReviewLog {
 }
 
 const LOG_FILE = '.review-log.json'
+const BLOB_DIR = '.review-log-blobs'
 
 function emptyLog(): ReviewLog {
   return { toolCalls: [], comments: [] }
@@ -114,22 +113,22 @@ function atomicWrite(file: string, data: string): void {
 
 function normalizeToolCall(raw: any): ToolCall | null {
   if (!raw || typeof raw !== 'object') return null
-  const before = typeof raw.before === 'string' ? raw.before : ''
-  const after = typeof raw.after === 'string' ? raw.after : null
+  // Legacy shape (<=0.21) stored `before`/`after` strings inline. Prefer the
+  // stored SHA; fall back to recomputing from the inline string when migrating.
+  const legacyBefore = typeof raw.before === 'string' ? raw.before : ''
+  const legacyAfter = typeof raw.after === 'string' ? raw.after : null
   const beforeSha = typeof raw.beforeSha === 'string' && raw.beforeSha
     ? raw.beforeSha
-    : computeBlobSha(before)
+    : computeBlobSha(legacyBefore)
   const afterSha = typeof raw.afterSha === 'string' && raw.afterSha
     ? raw.afterSha
-    : (after !== null ? computeBlobSha(after) : null)
+    : (legacyAfter !== null ? computeBlobSha(legacyAfter) : null)
   return {
     id: String(raw.id),
     toolUseId: String(raw.toolUseId ?? ''),
     sessionId: String(raw.sessionId ?? ''),
     tool: raw.tool as ToolKind,
     file: String(raw.file ?? ''),
-    before,
-    after,
     beforeSha,
     afterSha,
     status: raw.status ?? 'pending',
@@ -202,14 +201,27 @@ function normalizeComment(raw: any): ReviewComment | null {
 }
 
 export class LogStore {
+  private dir: string
   private storePath: string
+  private blobPath: string
   private log: ReviewLog
   private lastSignature: string
+  /** Set by load() when it encounters legacy-shape tool calls and spills their
+   *  inline before/after into the blob store. The next save() clears the flag
+   *  and writes the log out in the new metadata-only shape. */
+  private needsSaveAfterMigrate: boolean
 
   constructor(dir: string) {
+    this.dir = dir
     this.storePath = path.join(dir, LOG_FILE)
+    this.blobPath = path.join(dir, BLOB_DIR)
+    this.needsSaveAfterMigrate = false
     this.log = this.load()
     this.lastSignature = this.computeSignature()
+    if (this.needsSaveAfterMigrate) {
+      this.save()
+      this.needsSaveAfterMigrate = false
+    }
   }
 
   private load(): ReviewLog {
@@ -218,6 +230,20 @@ export class LogStore {
       const raw = fs.readFileSync(this.storePath, 'utf-8')
       const data = JSON.parse(raw) as Record<string, unknown>
       const rawToolCalls = Array.isArray(data.toolCalls) ? data.toolCalls : []
+      // Migration: spill any legacy inline before/after strings into the blob
+      // store. normalizeToolCall drops those fields from the in-memory shape,
+      // so the next save() writes them out without the inline content.
+      for (const rawCall of rawToolCalls) {
+        if (!rawCall || typeof rawCall !== 'object') continue
+        if (typeof rawCall.before === 'string') {
+          this.writeBlob(rawCall.before)
+          this.needsSaveAfterMigrate = true
+        }
+        if (typeof rawCall.after === 'string') {
+          this.writeBlob(rawCall.after)
+          this.needsSaveAfterMigrate = true
+        }
+      }
       const toolCalls = rawToolCalls
         .map(normalizeToolCall)
         .filter((c): c is ToolCall => c !== null)
@@ -229,6 +255,28 @@ export class LogStore {
     } catch {
       return emptyLog()
     }
+  }
+
+  /** Read a blob's content by SHA. Returns '' if the blob is missing. */
+  readBlob(sha: string): string {
+    if (!sha) return ''
+    try {
+      return fs.readFileSync(path.join(this.blobPath, sha), 'utf-8')
+    } catch {
+      return ''
+    }
+  }
+
+  /** Write `content` to the blob store; return the SHA. Skips I/O when the
+   *  blob already exists (content-addressed store gives automatic dedup:
+   *  consecutive edits to the same file share one blob). */
+  private writeBlob(content: string): string {
+    const sha = computeBlobSha(content)
+    const file = path.join(this.blobPath, sha)
+    if (fs.existsSync(file)) return sha
+    fs.mkdirSync(this.blobPath, { recursive: true })
+    atomicWrite(file, content)
+    return sha
   }
 
   private computeSignature(): string {
@@ -295,9 +343,7 @@ export class LogStore {
       sessionId: input.sessionId,
       tool: input.tool,
       file: input.file,
-      before: input.before,
-      after: null,
-      beforeSha: computeBlobSha(input.before),
+      beforeSha: this.writeBlob(input.before),
       afterSha: null,
       status: 'pending',
       startedAt: input.startedAt ?? new Date().toISOString(),
@@ -312,8 +358,7 @@ export class LogStore {
     this.syncFromDisk()
     const call = this.getToolCallByUseId(toolUseId)
     if (!call) return null
-    call.after = after
-    call.afterSha = computeBlobSha(after)
+    call.afterSha = this.writeBlob(after)
     call.status = 'complete'
     call.completedAt = completedAt ?? new Date().toISOString()
     this.save()
