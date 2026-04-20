@@ -1474,6 +1474,7 @@ const state = {
   liveStream: null,
   gitRefs: [],
   collapsedFolders: new Set(), // tree-view folder paths that are collapsed
+  expandedSeenFolders: new Set(), // seen folder paths the user explicitly expanded (override default-collapsed)
   knownCallIds: null,    // null = first load, Set after — tracks what's been rendered before (for flash)
   flashIds: new Set(),   // ids to flash on next timeline render
   seenPaths: new Set(),  // file / folder paths marked as seen / unimportant (per project)
@@ -1592,9 +1593,21 @@ function isPathSeen(path) { return isPathMarked(path) || hasSeenAncestor(path) }
 function togglePathSeen(path) {
   // If marked directly → unmark. If implicitly seen via ancestor → explicit-mark the path
   // (so it stays seen even if the ancestor is later unmarked, matching user intent).
-  if (state.seenPaths.has(path)) state.seenPaths.delete(path)
-  else state.seenPaths.add(path)
+  if (state.seenPaths.has(path)) {
+    state.seenPaths.delete(path)
+  } else {
+    state.seenPaths.add(path)
+    // Seen folders should default-collapse; drop any prior manual-expand override.
+    state.expandedSeenFolders.delete(path)
+  }
   persistSeenPaths()
+}
+// A folder is effectively collapsed when either explicitly collapsed,
+// or marked as seen and not explicitly re-expanded.
+function isFolderCollapsed(path) {
+  if (state.collapsedFolders.has(path)) return true
+  if (isPathMarked(path) && !state.expandedSeenFolders.has(path)) return true
+  return false
 }
 function toggleCallSeen(id) {
   if (state.seenCalls.has(id)) state.seenCalls.delete(id)
@@ -2358,7 +2371,7 @@ function renderTreeInto(node, level, container) {
   for (const child of node.children) {
     if (child.type === 'folder') {
       container.appendChild(renderFolderRow(child, level))
-      if (!state.collapsedFolders.has(child.path)) {
+      if (!isFolderCollapsed(child.path)) {
         renderTreeInto(child, level + 1, container)
       }
     } else {
@@ -2368,7 +2381,7 @@ function renderTreeInto(node, level, container) {
 }
 
 function renderFolderRow(folder, level) {
-  const collapsed = state.collapsedFolders.has(folder.path)
+  const collapsed = isFolderCollapsed(folder.path)
   const marked = isPathMarked(folder.path)
   const ancestorMarked = hasSeenAncestor(folder.path)
   const row = document.createElement('div')
@@ -2389,8 +2402,15 @@ function renderFolderRow(folder, level) {
   row.appendChild(seenBtn)
 
   row.addEventListener('click', () => {
-    if (state.collapsedFolders.has(folder.path)) state.collapsedFolders.delete(folder.path)
-    else state.collapsedFolders.add(folder.path)
+    if (isFolderCollapsed(folder.path)) {
+      // expand
+      state.collapsedFolders.delete(folder.path)
+      if (isPathMarked(folder.path)) state.expandedSeenFolders.add(folder.path)
+    } else {
+      // collapse
+      state.collapsedFolders.add(folder.path)
+      state.expandedSeenFolders.delete(folder.path)
+    }
     renderTimeline()
   })
   return row
