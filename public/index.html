@@ -1050,13 +1050,19 @@ body > * { position: relative; z-index: 1; }
 .range-chip .clear:hover { color: var(--danger); }
 .view-bar-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; }
 .view-bar-tools .btn-graph {
-  background: var(--bg); border: 1px solid var(--accent); color: var(--accent);
-  padding: 5px 10px; border-radius: 4px; font-size: 11.5px; font-weight: 500;
+  background: var(--accent); border: 1px solid var(--accent); color: var(--btn-ink);
+  padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: 600;
   cursor: pointer; outline: none; flex-shrink: 0; font-family: var(--font-ui);
   transition: all 0.12s var(--ease);
-  display: inline-flex; align-items: center; gap: 5px;
+  display: inline-flex; align-items: center; gap: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
-.view-bar-tools .btn-graph:hover { background: var(--accent-soft); }
+.view-bar-tools .btn-graph:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+/* Dim the pick button when a range is already selected */
+.has-range .view-bar-tools .btn-graph {
+  background: transparent; color: var(--accent); box-shadow: none;
+  font-weight: 500; padding: 5px 10px;
+}
 .view-bar-tools .advanced-toggle {
   background: transparent; border: none; color: var(--text-dim);
   font-size: 11px; cursor: pointer; padding: 2px 6px;
@@ -1358,6 +1364,101 @@ body > * { position: relative; z-index: 1; }
   .mode-switch button { padding: 5px 5px; font-size: 10px; }
   #btn-export { padding: 5px 8px; font-size: 10.5px; }
 }
+
+/* ─── UX improvements ─── */
+
+/* 1. Sidebar status filter pills */
+.sidebar-filter {
+  display: flex; gap: 4px; padding: 0 12px 8px; flex-shrink: 0; flex-wrap: wrap;
+}
+.sidebar-filter-pill {
+  padding: 3px 9px; border-radius: 10px; font-size: 10.5px; font-weight: 500;
+  border: 1px solid var(--border); background: transparent; color: var(--text-dim);
+  cursor: pointer; font-family: var(--font-ui); transition: all 0.12s var(--ease);
+  white-space: nowrap;
+}
+.sidebar-filter-pill:hover { color: var(--text); border-color: var(--border-strong); }
+.sidebar-filter-pill.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+/* 3. Sidebar bottom comment progress */
+#sidebar-progress {
+  padding: 8px 14px; border-top: 1px solid var(--border); flex-shrink: 0;
+  display: none; align-items: center; gap: 8px;
+  background: linear-gradient(0deg, var(--bg2), transparent);
+}
+#sidebar-progress.visible { display: flex; }
+#sidebar-progress-bar-wrap {
+  flex: 1; height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden;
+}
+#sidebar-progress-bar {
+  height: 100%; border-radius: 2px; background: var(--accent);
+  transition: width 0.35s var(--ease);
+}
+#sidebar-progress.all-resolved #sidebar-progress-bar { background: var(--added-fg); }
+#sidebar-progress-text {
+  color: var(--text-dim); font-family: var(--font-mono); flex-shrink: 0; font-size: 10.5px;
+}
+#sidebar-progress.has-open #sidebar-progress-text { color: var(--accent); font-weight: 600; }
+
+/* 7. No-changes diff banner */
+#no-changes-banner {
+  display: none; align-items: center; gap: 8px; padding: 8px 16px;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  font-size: 12px; color: var(--text-dim); flex-shrink: 0;
+}
+#no-changes-banner.visible { display: flex; }
+#no-changes-banner svg { flex-shrink: 0; opacity: 0.6; }
+
+/* 8. Content fade on project switch */
+#content { transition: opacity 0.18s var(--ease); }
+#content.fading { opacity: 0; pointer-events: none; }
+
+/* 9. ? Keyboard shortcut button */
+#btn-shortcuts {
+  position: fixed; bottom: 16px; right: 16px; z-index: 50;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--bg2); border: 1px solid var(--border); color: var(--text-muted);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; cursor: pointer; font-family: var(--font-mono);
+  transition: all 0.15s var(--ease);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+#btn-shortcuts:hover { color: var(--accent); border-color: var(--accent); background: var(--bg3); }
+@media (max-width: 600px) { #btn-shortcuts { bottom: 12px; right: 12px; } }
+
+/* 9. Shortcuts modal */
+.shortcuts-overlay {
+  display: none; position: fixed; inset: 0; z-index: 60;
+  background: rgba(0,0,0,0.5); align-items: center; justify-content: center;
+}
+.shortcuts-overlay.open { display: flex; }
+.shortcuts-modal {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+  width: 460px; max-width: 94vw; max-height: 80vh; overflow: auto;
+  padding: 20px 24px;
+}
+.shortcuts-modal-title {
+  font-family: var(--font-display); font-style: italic; font-size: 17px;
+  margin-bottom: 16px; color: var(--text);
+}
+.shortcuts-section { margin-bottom: 14px; }
+.shortcuts-section-title {
+  font-size: 10.5px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 6px;
+}
+.shortcuts-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 5px 0; border-bottom: 1px solid var(--border);
+}
+.shortcuts-row:last-child { border-bottom: none; }
+.shortcuts-keys { display: flex; gap: 4px; flex-shrink: 0; min-width: 110px; flex-wrap: wrap; }
+.shortcuts-key {
+  background: var(--bg3); border: 1px solid var(--border-strong);
+  color: var(--text-muted); padding: 1px 6px; border-radius: 4px;
+  font-family: var(--font-mono); font-size: 10.5px;
+  box-shadow: 0 1px 0 var(--border-strong);
+}
+.shortcuts-desc { color: var(--text-muted); flex: 1; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -1454,8 +1555,17 @@ body > * { position: relative; z-index: 1; }
       </div>
     </div>
     <div class="session-meta" id="view-meta" style="display:none"></div>
+    <div class="sidebar-filter" id="sidebar-filter">
+      <button class="sidebar-filter-pill active" data-filter="all">All</button>
+      <button class="sidebar-filter-pill" data-filter="open">Open</button>
+      <button class="sidebar-filter-pill" data-filter="resolved">Resolved</button>
+    </div>
     <div class="sidebar-search"><input id="tl-search" type="text" placeholder="filter by file…" /></div>
     <div id="timeline"><div class="timeline-empty">No tool calls captured yet.<br>Run Claude Code with the plugin installed — each Edit / Write will show up here.</div></div>
+    <div id="sidebar-progress">
+      <div id="sidebar-progress-bar-wrap"><div id="sidebar-progress-bar" style="width:0%"></div></div>
+      <span id="sidebar-progress-text"></span>
+    </div>
     <div id="multi-select-bar" style="display:none">
       <span id="multi-select-count">0 files</span>
       <button id="btn-multi-cancel">Cancel</button>
@@ -1468,6 +1578,10 @@ body > * { position: relative; z-index: 1; }
   <section id="content">
     <div class="empty-state" id="empty-state">
       Pick a tool call from the timeline to review its before→after diff.
+    </div>
+    <div id="no-changes-banner">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm.75 4a.75.75 0 00-1.5 0v4a.75.75 0 001.5 0V5zm-.75 7a1 1 0 100-2 1 1 0 000 2z"/></svg>
+      <span>No changes detected — <strong id="no-changes-file"></strong> is identical before and after.</span>
     </div>
     <div id="scope-panel" class="empty"></div>
     <div id="call-header" style="display:none">
@@ -1564,6 +1678,63 @@ body > * { position: relative; z-index: 1; }
 
 <div id="toast"></div>
 
+<button id="btn-shortcuts" title="Keyboard shortcuts (?)">?</button>
+
+<div class="shortcuts-overlay" id="shortcuts-overlay">
+  <div class="shortcuts-modal">
+    <div class="shortcuts-modal-title">Keyboard Shortcuts</div>
+    <div class="shortcuts-section">
+      <div class="shortcuts-section-title">Comment Navigation</div>
+      <div class="shortcuts-row">
+        <div class="shortcuts-keys"><kbd class="shortcuts-key">n</kbd></div>
+        <div class="shortcuts-desc">Next comment in current file</div>
+      </div>
+      <div class="shortcuts-row">
+        <div class="shortcuts-keys"><kbd class="shortcuts-key">p</kbd></div>
+        <div class="shortcuts-desc">Previous comment in current file</div>
+      </div>
+      <div class="shortcuts-row">
+        <div class="shortcuts-keys"><kbd class="shortcuts-key">N</kbd><span style="color:var(--text-dim);font-size:10px">(Shift+n)</span></div>
+        <div class="shortcuts-desc">Next open comment across all files</div>
+      </div>
+      <div class="shortcuts-row">
+        <div class="shortcuts-keys"><kbd class="shortcuts-key">P</kbd><span style="color:var(--text-dim);font-size:10px">(Shift+p)</span></div>
+        <div class="shortcuts-desc">Previous open comment across all files</div>
+      </div>
+    </div>
+    <div class="shortcuts-section">
+      <div class="shortcuts-section-title">Forms & Modals</div>
+      <div class="shortcuts-row">
+        <div class="shortcuts-keys"><kbd class="shortcuts-key">⌘</kbd><kbd class="shortcuts-key">↵</kbd></div>
+        <div class="shortcuts-desc">Submit comment form</div>
+      </div>
+      <div class="shortcuts-row">
+        <div class="shortcuts-keys"><kbd class="shortcuts-key">Esc</kbd></div>
+        <div class="shortcuts-desc">Cancel form / close modal</div>
+      </div>
+      <div class="shortcuts-row">
+        <div class="shortcuts-keys"><kbd class="shortcuts-key">?</kbd></div>
+        <div class="shortcuts-desc">Toggle this help panel</div>
+      </div>
+    </div>
+    <div class="shortcuts-section">
+      <div class="shortcuts-section-title">Graph Picker</div>
+      <div class="shortcuts-row">
+        <div class="shortcuts-keys"><kbd class="shortcuts-key">Click</kbd></div>
+        <div class="shortcuts-desc">Set <em>from</em> ref</div>
+      </div>
+      <div class="shortcuts-row">
+        <div class="shortcuts-keys"><kbd class="shortcuts-key">⇧</kbd><kbd class="shortcuts-key">Click</kbd></div>
+        <div class="shortcuts-desc">Set <em>to</em> ref</div>
+      </div>
+      <div class="shortcuts-row">
+        <div class="shortcuts-keys"><kbd class="shortcuts-key">Esc</kbd></div>
+        <div class="shortcuts-desc">Close graph picker</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 const state = {
   project: null,
@@ -1576,6 +1747,7 @@ const state = {
   viewFiles: [],
   selectedFile: null,
   viewFileData: null, // { file, before, after, beforeSha, afterSha, isBrowse }
+  sidebarFilter: 'all', // 'all' | 'open' | 'resolved' — filter sidebar list by comment status
   // shared
   comments: [],
   selection: null, // { side, startLine, endLine } — line-level form
@@ -2420,9 +2592,51 @@ function updateExportBtn() {
   lastOpenCount = openCount
   openCountInitialized = true
   updateOpenCommentNav()
+  updateSidebarProgress()
+}
+
+function updateSidebarProgress() {
+  const progress = $('#sidebar-progress')
+  const bar = $('#sidebar-progress-bar')
+  const text = $('#sidebar-progress-text')
+  if (!progress || !bar || !text) return
+  const all = state.comments
+  if (all.length === 0) { progress.classList.remove('visible', 'has-open', 'all-resolved'); return }
+  const open = all.filter(c => c.status === 'open').length
+  const resolved = all.filter(c => c.status === 'resolved').length
+  const total = open + resolved
+  if (total === 0) { progress.classList.remove('visible', 'has-open', 'all-resolved'); return }
+  const pct = Math.round((resolved / total) * 100)
+  bar.style.width = pct + '%'
+  text.textContent = open > 0 ? `${open} open` : `${resolved} resolved`
+  progress.classList.toggle('has-open', open > 0)
+  progress.classList.toggle('all-resolved', open === 0 && resolved > 0)
+  progress.classList.add('visible')
 }
 
 // ─── Sidebar timeline ───
+// ─── Sidebar filter pills ───
+function updateSidebarFilterPills() {
+  document.querySelectorAll('.sidebar-filter-pill').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === state.sidebarFilter)
+  })
+}
+function fileHasCommentStatus(fileOrCallId, isToolCall) {
+  if (state.sidebarFilter === 'all') return true
+  let relevant
+  if (isToolCall) {
+    const call = state.toolCalls.find(c => c.id === fileOrCallId)
+    if (!call) return false
+    relevant = state.comments.filter(c => commentMatchesToolCall(c, call))
+  } else {
+    relevant = state.comments.filter(c =>
+      commentMatchesViewContext(c, state.mode, state.gitRange) && commentHasAnchorOn(c, fileOrCallId))
+  }
+  return state.sidebarFilter === 'open'
+    ? relevant.some(c => c.status === 'open')
+    : relevant.some(c => c.status === 'resolved')
+}
+
 function renderTimeline() {
   const tl = $('#timeline')
   const filter = $('#tl-search').value.trim().toLowerCase()
@@ -2430,6 +2644,7 @@ function renderTimeline() {
   if (state.mode === 'tool-call') {
     let items = filter ? state.toolCalls.filter(c => c.file.toLowerCase().includes(filter)) : state.toolCalls
     if (state.hideSeen) items = items.filter(c => !state.seenCalls.has(c.id) && !isPathSeen(c.file))
+    if (state.sidebarFilter !== 'all') items = items.filter(c => fileHasCommentStatus(c.id, true))
     if (state.toolCallSort === 'path-asc') {
       // Sort by file path (A→Z), tie-breaking on startedAt so repeated edits to the same
       // file stay in chronological order within their group.
@@ -2463,12 +2678,13 @@ function renderTimeline() {
         : (f) => isPathSeen(f.file)
       items = items.filter(f => !isSeen(f))
     }
+    if (state.sidebarFilter !== 'all') items = items.filter(f => fileHasCommentStatus(f.file, false))
     $('#tl-count').textContent = items.length
     if (items.length === 0) {
       const empty = document.createElement('div'); empty.className = 'timeline-empty'
       empty.textContent = state.viewFiles.length === 0
         ? (state.mode === 'browse' ? 'Worktree is empty (or ignored).' : 'No file changes in this range.')
-        : 'No files match that filter.'
+        : (state.sidebarFilter !== 'all' ? `No files with ${state.sidebarFilter} comments.` : 'No files match that filter.')
       tl.appendChild(empty); return
     }
     if (filter) {
@@ -2619,6 +2835,8 @@ function renderToolCallRow(call) {
   const badges = document.createElement('div'); badges.className = 'timeline-badges'
   if (call.status !== 'complete') {
     const sb = document.createElement('span'); sb.className = `status-badge ${call.status}`; sb.textContent = call.status
+    if (call.status === 'orphan') sb.title = 'The PostToolUse hook never received a response for this call — the "after" snapshot may be missing. This happens when Claude Code exits before the hook completes.'
+    else if (call.status === 'pending') sb.title = 'Waiting for the PostToolUse hook to complete — this call is still in progress.'
     badges.appendChild(sb)
   }
   const openComments = state.comments.filter(c =>
@@ -2717,6 +2935,24 @@ function selectCall(id) {
   state.scopeForm = null
   if (isMobile()) closeSidebar()
   renderContent(); renderTimeline(); updateExportBtn()
+  // Auto-jump to first open comment if any exist for this call
+  requestAnimationFrame(() => {
+    const ids = state.fileCommentNav.ids
+    const firstOpen = ids.find(cid => {
+      const c = state.comments.find(x => x.id === cid)
+      return c && c.status === 'open'
+    })
+    if (firstOpen) {
+      const idx = ids.indexOf(firstOpen)
+      if (idx >= 0) {
+        state.fileCommentNav.index = idx
+        const el = document.querySelector(`[data-comment-id="${firstOpen}"]`)
+        if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }) }
+        const countEl = $('#file-comment-nav-count')
+        if (countEl) countEl.textContent = `${idx + 1} / ${ids.length}`
+      }
+    }
+  })
 }
 async function selectFile(file) {
   state.selectedFile = file; state.selection = null; state.gapExpansions = new Map()
@@ -2736,6 +2972,24 @@ async function selectFile(file) {
     state.viewFileData = null
   }
   renderContent(); renderTimeline()
+  // Auto-jump to first open comment if any exist for this file
+  requestAnimationFrame(() => {
+    const ids = state.fileCommentNav.ids
+    const firstOpen = ids.find(cid => {
+      const c = state.comments.find(x => x.id === cid)
+      return c && c.status === 'open'
+    })
+    if (firstOpen) {
+      const idx = ids.indexOf(firstOpen)
+      if (idx >= 0) {
+        state.fileCommentNav.index = idx
+        const el = document.querySelector(`[data-comment-id="${firstOpen}"]`)
+        if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }) }
+        const countEl = $('#file-comment-nav-count')
+        if (countEl) countEl.textContent = `${idx + 1} / ${ids.length}`
+      }
+    }
+  })
 }
 
 async function refreshContent() { renderContent() }
@@ -2746,7 +3000,7 @@ function renderContent() {
   const table = $('#diff-table')
   if (state.mode === 'tool-call') {
     const call = state.toolCalls.find(c => c.id === state.selectedCallId)
-    if (!call) { emptyEl.textContent = 'Pick a tool call from the timeline.'; emptyEl.style.display='flex'; hdr.style.display='none'; table.style.display='none'; return }
+    if (!call) { emptyEl.textContent = 'Pick a tool call from the timeline.'; emptyEl.style.display='flex'; hdr.style.display='none'; table.style.display='none'; $('#no-changes-banner').classList.remove('visible'); return }
     emptyEl.style.display='none'; hdr.style.display='flex'; table.style.display='table'
     $('#ch-tool').textContent = call.tool
     $('#ch-tool').className = `tool-badge ${call.tool}`
@@ -2755,6 +3009,10 @@ function renderContent() {
     if (call.status === 'pending') metaParts.push('(pending)')
     else if (call.status === 'orphan') metaParts.push('(orphaned — post-hook never ran)')
     $('#ch-meta').textContent = metaParts.join(' · ')
+    const noChanges = call.status === 'complete' && call.before != null && call.after != null && call.before === call.after
+    const banner = $('#no-changes-banner')
+    if (noChanges) { banner.classList.add('visible'); const f = $('#no-changes-file'); if (f) f.textContent = call.file }
+    else banner.classList.remove('visible')
     const comments = state.comments.filter(c => commentMatchesToolCall(c, call))
     renderDiff(call.before, call.after ?? '', call.beforeSha, call.afterSha ?? '', call.file,
       { kind: 'tool-call', id: call.id, file: call.file }, comments)
@@ -2768,7 +3026,7 @@ function renderContent() {
       } else {
         emptyEl.textContent = 'Pick a file from the list.'
       }
-      emptyEl.style.display='flex'; hdr.style.display='none'; table.style.display='none'
+      emptyEl.style.display='flex'; hdr.style.display='none'; table.style.display='none'; $('#no-changes-banner').classList.remove('visible')
       renderScopePanel(state.mode === 'browse' ? { kind: 'browse', id: '', file: '' } : { kind: 'git-range', id: '', file: '' })
       $('#file-scope-panel').className = 'empty'; $('#file-scope-panel').innerHTML = ''
       return
@@ -2786,6 +3044,10 @@ function renderContent() {
       : { kind: 'git-range', id: '', file: data.file }
     const comments = state.comments.filter(c =>
       commentMatchesViewContext(c, state.mode, state.gitRange) && commentHasAnchorOn(c, data.file))
+    const noChanges2 = !data.isBrowse && data.before != null && data.after != null && data.before === data.after
+    const banner2 = $('#no-changes-banner')
+    if (noChanges2) { banner2.classList.add('visible'); const f = $('#no-changes-file'); if (f) f.textContent = data.file }
+    else banner2.classList.remove('visible')
     if (data.isBrowse) renderBrowse(data.after, data.afterSha ?? '', data.file, target, comments)
     else renderDiff(data.before, data.after, data.beforeSha ?? '', data.afterSha ?? '', data.file, target, comments)
     renderScopePanel(target)
@@ -3682,8 +3944,10 @@ $('#toggle-advanced').addEventListener('click', () => {
 // ─── Range chip in view-bar ───
 function renderRangeChip() {
   const slot = $('#range-chip-slot')
+  const viewBar = $('#view-bar')
   const { fromRef, toRef } = state.gitRange
-  if (!fromRef || !toRef) { slot.innerHTML = ''; return }
+  if (!fromRef || !toRef) { slot.innerHTML = ''; viewBar?.classList.remove('has-range'); return }
+  viewBar?.classList.add('has-range')
   slot.innerHTML = `
     <span class="range-chip" id="range-chip" title="Click to reopen the graph picker">
       <span>${escapeHtml(abbreviate(fromRef))}</span>
@@ -4275,6 +4539,31 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && $('#notif-panel')?.classList.contains('open')) closeNotifPanel()
 })
 
+// ─── Keyboard shortcuts modal (?) ───
+function openShortcutsModal() { $('#shortcuts-overlay').classList.add('open') }
+function closeShortcutsModal() { $('#shortcuts-overlay').classList.remove('open') }
+$('#btn-shortcuts').addEventListener('click', openShortcutsModal)
+$('#shortcuts-overlay').addEventListener('click', (e) => { if (e.target.id === 'shortcuts-overlay') closeShortcutsModal() })
+window.addEventListener('keydown', (e) => {
+  const t = e.target
+  const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+  if (!typing && !e.metaKey && !e.ctrlKey && !e.altKey && e.key === '?') {
+    e.preventDefault()
+    const overlay = $('#shortcuts-overlay')
+    if (overlay.classList.contains('open')) closeShortcutsModal(); else openShortcutsModal()
+  }
+  if (e.key === 'Escape' && $('#shortcuts-overlay')?.classList.contains('open')) closeShortcutsModal()
+})
+
+// ─── Sidebar filter pills ───
+for (const pill of document.querySelectorAll('.sidebar-filter-pill')) {
+  pill.addEventListener('click', () => {
+    state.sidebarFilter = pill.dataset.filter
+    updateSidebarFilterPills()
+    renderTimeline()
+  })
+}
+
 // ─── SSE ───
 function startLiveStream() {
   if (state.liveStream) { state.liveStream.close(); state.liveStream = null }
@@ -4356,6 +4645,9 @@ for (const btn of document.querySelectorAll('#mode-switch button')) {
 $('#project-select').addEventListener('change', async (e) => {
   const dir = e.target.value
   localStorage.setItem('cra-project', dir)
+  // Fade out content while switching
+  const contentEl = $('#content')
+  contentEl.classList.add('fading')
   const projects = await (await fetch('/api/projects')).json()
   state.project = projects.find(p => p.dir === dir)
   state.selectedCallId = null; state.selectedFile = null; state.viewFileData = null
@@ -4368,6 +4660,8 @@ $('#project-select').addEventListener('change', async (e) => {
   await refreshData()
   renderContent()
   startLiveStream()
+  // Fade content back in after project switch
+  requestAnimationFrame(() => { contentEl.classList.remove('fading') })
 })
 $('#tl-search').addEventListener('input', () => renderTimeline())
 

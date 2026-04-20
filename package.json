@@ -1,19 +1,21 @@
 {
   "name": "code-review-annotator",
-  "version": "0.30.0",
+  "version": "0.31.0",
   "description": "Inline code review tool with MCP integration for Claude Code",
   "type": "module",
   "bin": {
     "code-review-annotator": "src/cli.ts"
   },
   "scripts": {
-    "start": "tsx src/cli.ts"
+    "start": "tsx src/cli.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "nanoid": "^5.0.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
