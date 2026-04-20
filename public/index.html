@@ -675,9 +675,13 @@ body > * { position: relative; z-index: 1; }
   display: flex; flex-direction: column; gap: 6px;
 }
 .scope-card.status-resolved { border-left-color: var(--comment-resolved); opacity: 0.6; }
+.scope-card.collapsed .scope-card-collapsible { display: none; }
 .scope-card-head {
   display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-muted);
+  cursor: pointer; user-select: none;
 }
+.scope-card-head .comment-collapse-caret { color: var(--text-dim); }
+.scope-card.collapsed .scope-card-head .comment-collapse-caret { transform: rotate(-90deg); }
 .scope-card-files {
   font-family: var(--font-mono); font-size: 11.5px; color: var(--text);
   word-break: break-all; line-height: 1.55;
@@ -3567,6 +3571,9 @@ function appendCommentThread(tbody, comment, opts = {}) {
 // ─── Scope-level comments (file / multi-file / view) ───
 function scopeCardHead(comment) {
   const head = document.createElement('div'); head.className = 'scope-card-head'
+  head.title = 'Click to collapse / expand'
+  const caret = document.createElement('span'); caret.className = 'comment-collapse-caret'; caret.textContent = '▾'
+  head.appendChild(caret)
   const badge = document.createElement('span')
   badge.className = 'scope-kind-badge ' + (comment.scope === 'multi-file' ? 'multi' : comment.scope === 'view' ? 'view' : comment.scope === 'file' ? 'file' : '')
   badge.textContent = comment.scope === 'multi-file' ? `multi-file · ${comment.anchors.length}` : comment.scope
@@ -3596,9 +3603,17 @@ function scopeCardActions(comment) {
 }
 
 function buildScopeCard(comment, currentFile = null) {
-  const card = document.createElement('div'); card.className = 'scope-card status-' + comment.status
+  const startsCollapsed = comment.status === 'resolved'
+  const card = document.createElement('div')
+  card.className = 'scope-card status-' + comment.status + (startsCollapsed ? ' collapsed' : '')
   card.dataset.commentId = comment.id
-  card.appendChild(scopeCardHead(comment))
+  const head = scopeCardHead(comment)
+  head.addEventListener('click', (e) => {
+    if (e.target.closest('button, a, input, textarea')) return
+    card.classList.toggle('collapsed')
+  })
+  card.appendChild(head)
+  const collapsible = document.createElement('div'); collapsible.className = 'scope-card-collapsible'
   if (comment.scope === 'multi-file' || comment.scope === 'file') {
     const files = document.createElement('div'); files.className = 'scope-card-files'
     for (const a of comment.anchors) {
@@ -3607,10 +3622,10 @@ function buildScopeCard(comment, currentFile = null) {
       chip.textContent = a.file
       files.appendChild(chip)
     }
-    card.appendChild(files)
+    collapsible.appendChild(files)
   }
   const body = document.createElement('div'); body.className = 'scope-card-body'; renderMarkdown(body, comment.body)
-  card.appendChild(body)
+  collapsible.appendChild(body)
   if (comment.replies?.length) {
     const reps = document.createElement('div'); reps.className = 'scope-card-replies'
     for (const r of comment.replies) {
@@ -3622,10 +3637,11 @@ function buildScopeCard(comment, currentFile = null) {
       const b = document.createElement('div'); renderMarkdown(b, r.body)
       rEl.appendChild(meta); rEl.appendChild(b); reps.appendChild(rEl)
     }
-    card.appendChild(reps)
+    collapsible.appendChild(reps)
   }
-  card.appendChild(buildScopeReplyForm(comment))
-  card.appendChild(scopeCardActions(comment))
+  collapsible.appendChild(buildScopeReplyForm(comment))
+  collapsible.appendChild(scopeCardActions(comment))
+  card.appendChild(collapsible)
   return card
 }
 
