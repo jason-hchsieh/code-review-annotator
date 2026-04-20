@@ -94,7 +94,7 @@ The script **always exits 0** on any failure (server down, no matching project, 
 
 | File | Responsibility |
 |------|---------------|
-| `src/log.ts` | `LogStore` — all state. Reads/writes `.review-log.json` in the target repo root. Manages tool-call lifecycle (`pending` → `complete` / `orphan`), comments (`open` ↔ `resolved`), and reply threads. Each comment has a `scope` and an `anchors[]` array. `computeBlobSha(content)` matches `git hash-object`. `normalizeComment()` migrates v0.15–v0.18 flat-shape logs (single `file`/`startLine`/`endLine`/`blobSha`/`anchorText`) to `scope: 'line'` + one anchor, and drops the flat fields on next write. Atomic tmp+rename writes. Every public method calls `syncFromDisk()` first — a `mtime+size` signature check that reloads only if the file changed externally — so long-lived instances (the MCP server) stay in sync with writes from other processes (the HTTP server posting UI-created comments). The constructor only reads; it never writes on load. |
+| `src/log.ts` | `LogStore` — all state. Reads/writes `.review-log.json` (thin metadata) in the target repo root, and a sibling content-addressed blob store at `.review-log-blobs/<sha>` for tool-call `before` / `after` file contents. `startToolCall` / `completeToolCall` call `writeBlob(content)` (dedups on existing SHA); readers call `store.readBlob(sha)` to pull content back. Manages tool-call lifecycle (`pending` → `complete` / `orphan`), comments (`open` ↔ `resolved`), and reply threads. Each comment has a `scope` and an `anchors[]` array. `computeBlobSha(content)` matches `git hash-object`. `normalizeComment()` migrates v0.15–v0.18 flat-shape logs (single `file`/`startLine`/`endLine`/`blobSha`/`anchorText`) to `scope: 'line'` + one anchor, and drops the flat fields on next write. `load()` spills legacy inline `before`/`after` strings (≤0.21) into the blob store and rewrites the log in metadata-only shape on the next save. Atomic tmp+rename writes. Every public method calls `syncFromDisk()` first — a `mtime+size` signature check that reloads only if the file changed externally — so long-lived instances (the MCP server) stay in sync with writes from other processes (the HTTP server posting UI-created comments). |
 | `src/git.ts` | Git helpers for the session modes. `resolveRef`, `listRefs` (branches + recent commits + `WORKTREE`/`INDEX`), `listGraphCommits(limit)` (topology across `--all` with parents + refs-per-commit + HEAD — used by the visual range picker), `isAncestor`, `mergeBase`, `listChangedFiles(fromRef, toRef)` (handles all combinations of commit / `WORKTREE` / `INDEX`; includes untracked as 'A' when the to-side is `WORKTREE`), `readBlob(ref, file)`, `listWorktreeFiles()` (uses `git ls-files --cached --others --exclude-standard` — no ignored files). Shells out to `git` via `execFileSync`; no libgit2 dependency. |
 | `src/registry.ts` | Central project registry. Atomic writes. `registerProject(dir)` upserts by abs path. `setHttpPort` / `clearHttpPort` let the HTTP server advertise its listening port. `listProjects()` filters entries whose `dir` no longer exists. |
 | `src/watcher.ts` | `startProjectWatcher(dir, onEvent)` — 1.5 s interval comparing `.review-log.json` `mtime+size`; invokes `onEvent({ type: 'log' })` on change. Returns a stop function. |
@@ -102,7 +102,7 @@ The script **always exits 0** on any failure (server down, no matching project, 
 
 ### Data model
 
-`.review-log.json` is written to the **target project's root** (not this repo). It stores:
+`.review-log.json` is written to the **target project's root** (not this repo). It stores metadata only; tool-call `before` / `after` file contents live in a sibling `.review-log-blobs/<sha>` directory, keyed by git blob SHA. The HTTP wire format for `/api/tool-calls` still inlines `before`/`after` strings for UI compatibility — server serializers read from the blob store on the fly.
 ```
 {
   toolCalls: [{
@@ -111,10 +111,8 @@ The script **always exits 0** on any failure (server down, no matching project, 
     sessionId,
     tool,             // Edit | Write | MultiEdit | NotebookEdit
     file,             // path relative to project root
-    before,           // full file contents before the edit
-    after,            // full file contents after the edit (null while pending)
-    beforeSha,        // git blob SHA of before
-    afterSha,         // git blob SHA of after (null while pending)
+    beforeSha,        // git blob SHA — content at .review-log-blobs/<beforeSha>
+    afterSha,         // git blob SHA — content at .review-log-blobs/<afterSha> (null while pending)
     status,           // pending | complete | orphan
     startedAt,
     completedAt,
@@ -142,7 +140,7 @@ The script **always exits 0** on any failure (server down, no matching project, 
 }
 ```
 
-**Migration:** v0.15–v0.18 logs had flat comment shape (`file` / `startLine` / `endLine` / `blobSha` / `anchorText` at the top level). `LogStore.load()` / `normalizeComment()` rewrites them in memory to `scope: 'line'` + one anchor; the file is re-serialized without the flat fields on the next write.
+**Migration:** v0.15–v0.18 logs had flat comment shape (`file` / `startLine` / `endLine` / `blobSha` / `anchorText` at the top level). `LogStore.load()` / `normalizeComment()` rewrites them in memory to `scope: 'line'` + one anchor; the file is re-serialized without the flat fields on the next write. v0.21 and earlier stored `before` / `after` strings inline on each tool call; `LogStore.load()` spills those strings to the blob store on first read and the next save drops the inline fields.
 
 ### CLI flags
 

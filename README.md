@@ -203,7 +203,10 @@ The browser UI opens an `EventSource` against `/api/events` and auto-refetches t
 
 ## Data
 
-State is persisted to `.review-log.json` in the project root. Add it to `.gitignore`.
+State is split across two sibling paths in the project root. Add both to `.gitignore`.
+
+- `.review-log.json` — thin metadata: tool-call entries (ids, files, SHAs, timestamps), comments, replies.
+- `.review-log-blobs/<sha>` — content-addressed blob store. Each unique `before` / `after` file content is written once, keyed by its git blob SHA. Consecutive edits to the same file naturally dedupe (one blob shared by N tool calls).
 
 ```jsonc
 {
@@ -214,10 +217,8 @@ State is persisted to `.review-log.json` in the project root. Add it to `.gitign
       "sessionId": "sess_...",
       "tool": "Edit",
       "file": "src/parser.ts",
-      "before": "...full file contents before...",
-      "after":  "...full file contents after...",
-      "beforeSha": "1a2b3c…",      // git hash-object of before
-      "afterSha":  "4d5e6f…",      // git hash-object of after
+      "beforeSha": "1a2b3c…",      // git hash-object of before — content stored at .review-log-blobs/1a2b3c…
+      "afterSha":  "4d5e6f…",      // git hash-object of after  — content stored at .review-log-blobs/4d5e6f…
       "status": "complete",
       "startedAt":   "2026-04-17T09:00:00.000Z",
       "completedAt": "2026-04-17T09:00:00.240Z"

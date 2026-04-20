@@ -126,7 +126,8 @@ function sourceForAnchor(c: ReviewComment, anchor: Anchor, store: LogStore, dir:
   if (vc.source === 'tool-call') {
     const call = vc.toolCallId ? store.getToolCall(vc.toolCallId) : undefined
     if (!call) return ''
-    return vc.side === 'before' ? call.before : (call.after ?? '')
+    const sha = vc.side === 'before' ? call.beforeSha : (call.afterSha ?? '')
+    return store.readBlob(sha)
   }
   if (vc.source === 'browse') {
     return anchor.file ? readBlob(dir, 'WORKTREE', anchor.file) : ''
@@ -247,8 +248,6 @@ The response includes sourceLines per anchor when applicable (scope='line') so y
         status: c.status,
         startedAt: c.startedAt,
         completedAt: c.completedAt,
-        beforeLines: c.before === '' ? 0 : c.before.split('\n').length,
-        afterLines: c.after === null ? null : (c.after === '' ? 0 : c.after.split('\n').length),
       }))
       return { content: [{ type: 'text', text: JSON.stringify(compact, null, 2) }] }
     }
