@@ -339,6 +339,16 @@ body > * { position: relative; z-index: 1; }
   color: var(--text-muted); font-family: var(--font-mono); font-size: 11px;
   min-width: 40px; text-align: center; user-select: none;
 }
+.file-comment-nav-filter {
+  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+  height: 22px; padding: 0 18px 0 6px; border-radius: 3px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 10.5px; line-height: 1;
+  outline: none; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23a8a294' d='M2 4l3 3 3-3z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 4px center;
+  transition: all 0.12s var(--ease);
+}
+.file-comment-nav-filter:hover { color: var(--text); border-color: var(--border-strong); }
 @keyframes comment-flash {
   0%   { box-shadow: 0 0 0 0 var(--accent),    0 0 0 0   var(--accent-soft); }
   50%  { box-shadow: 0 0 0 2px var(--accent),  0 0 14px 4px var(--accent-soft); }
@@ -1488,10 +1498,15 @@ body > * { position: relative; z-index: 1; }
     <button data-mode="browse">Browse</button>
   </div>
   <div class="spacer"></div>
-  <div class="file-comment-nav" id="open-comment-nav" style="display:none" title="Jump between open comments across files in the current view (Shift+n / Shift+p)">
-    <button class="file-comment-nav-btn" id="btn-open-comment-prev" title="Previous open comment (Shift+p)" aria-label="Previous open comment">↑</button>
+  <div class="file-comment-nav" id="open-comment-nav" style="display:none" title="Jump between comments across files in the current view (Shift+n / Shift+p)">
+    <button class="file-comment-nav-btn" id="btn-open-comment-prev" title="Previous comment (Shift+p)" aria-label="Previous comment">↑</button>
     <span class="file-comment-nav-count" id="open-comment-nav-count">0 / 0</span>
-    <button class="file-comment-nav-btn" id="btn-open-comment-next" title="Next open comment (Shift+n)" aria-label="Next open comment">↓</button>
+    <button class="file-comment-nav-btn" id="btn-open-comment-next" title="Next comment (Shift+n)" aria-label="Next comment">↓</button>
+    <select class="file-comment-nav-filter" id="cross-comment-nav-filter" aria-label="Cross-file nav filter" title="Which comments Shift+n / Shift+p walks through">
+      <option value="open">open</option>
+      <option value="resolved">resolved</option>
+      <option value="all">all</option>
+    </select>
   </div>
   <div class="notif-wrap">
     <button id="btn-notif" aria-label="Notifications" title="Replies from Claude" aria-haspopup="true" aria-expanded="false">
@@ -1597,6 +1612,11 @@ body > * { position: relative; z-index: 1; }
         <button class="file-comment-nav-btn" id="btn-file-comment-prev" title="Previous comment on this file (p)" aria-label="Previous comment">↑</button>
         <span class="file-comment-nav-count" id="file-comment-nav-count">0 / 0</span>
         <button class="file-comment-nav-btn" id="btn-file-comment-next" title="Next comment on this file (n)" aria-label="Next comment">↓</button>
+        <select class="file-comment-nav-filter" id="file-comment-nav-filter" aria-label="In-file nav filter" title="Which comments n / p walks through">
+          <option value="all">all</option>
+          <option value="open">open</option>
+          <option value="resolved">resolved</option>
+        </select>
       </div>
       <div class="scope-menu-wrap">
         <button class="btn-scope-menu" id="btn-scope-menu" title="Create a file / multi-file / view-level comment">+ Comment ▾</button>
@@ -1691,19 +1711,19 @@ body > * { position: relative; z-index: 1; }
       <div class="shortcuts-section-title">Comment Navigation</div>
       <div class="shortcuts-row">
         <div class="shortcuts-keys"><kbd class="shortcuts-key">n</kbd></div>
-        <div class="shortcuts-desc">Next comment in current file</div>
+        <div class="shortcuts-desc">Next comment in current file (filter: open / resolved / all)</div>
       </div>
       <div class="shortcuts-row">
         <div class="shortcuts-keys"><kbd class="shortcuts-key">p</kbd></div>
-        <div class="shortcuts-desc">Previous comment in current file</div>
+        <div class="shortcuts-desc">Previous comment in current file (filter: open / resolved / all)</div>
       </div>
       <div class="shortcuts-row">
         <div class="shortcuts-keys"><kbd class="shortcuts-key">N</kbd><span style="color:var(--text-dim);font-size:10px">(Shift+n)</span></div>
-        <div class="shortcuts-desc">Next open comment across all files</div>
+        <div class="shortcuts-desc">Next comment across all files (filter: open / resolved / all)</div>
       </div>
       <div class="shortcuts-row">
         <div class="shortcuts-keys"><kbd class="shortcuts-key">P</kbd><span style="color:var(--text-dim);font-size:10px">(Shift+p)</span></div>
-        <div class="shortcuts-desc">Previous open comment across all files</div>
+        <div class="shortcuts-desc">Previous comment across all files (filter: open / resolved / all)</div>
       </div>
     </div>
     <div class="shortcuts-section">
@@ -1774,9 +1794,17 @@ const state = {
   multiSelect: { active: false, files: new Set() },
   // In-file comment navigation (prev/next jumps within the currently opened file)
   fileCommentNav: { ids: [], index: -1 },
-  // Cross-file open-comment navigation (Shift+n / Shift+p): id of the comment
+  // Cross-file comment navigation (Shift+n / Shift+p): id of the comment
   // last jumped to, so the next press resumes from there even after a re-render.
   openCommentNavCursor: null,
+  // Status filter for each navigator: 'open' | 'resolved' | 'all'. Persisted globally
+  // in localStorage (cra-nav-filter-file / cra-nav-filter-cross). Defaults preserve
+  // pre-filter behavior (in-file walked every rendered thread; cross-file was
+  // hardcoded to open).
+  commentNavFilter: {
+    file: (localStorage.getItem('cra-nav-filter-file') || 'all'),
+    cross: (localStorage.getItem('cra-nav-filter-cross') || 'open'),
+  },
   // Notification bell: per-project set of Claude reply IDs the user has seen.
   // Seeded on first-ever visit so pre-existing replies don't all show as new.
   seenReplyIds: new Set(),
@@ -3064,14 +3092,20 @@ function renderContent() {
 // ─── In-file comment navigation ───
 // Collects every comment rendered for the current file — file-scope cards in
 // #file-scope-panel plus line-scope threads inside the diff table — in DOM
-// order. Multi-file / view comments live in #scope-panel and are intentionally
-// excluded: those aren't anchored to *this* file specifically.
+// order, filtered by state.commentNavFilter.file. Multi-file / view comments
+// live in #scope-panel and are intentionally excluded: those aren't anchored
+// to *this* file specifically.
+function fileNavSelector() {
+  const f = state.commentNavFilter.file
+  const qual = f === 'open' ? '.status-open' : f === 'resolved' ? '.status-resolved' : ''
+  return `#file-scope-panel [data-comment-id]${qual}, #diff-table [data-comment-id]${qual}`
+}
 function updateFileCommentNav() {
   const wrap = $('#file-comment-nav')
   const countEl = $('#file-comment-nav-count')
   const prevBtn = $('#btn-file-comment-prev')
   const nextBtn = $('#btn-file-comment-next')
-  const nodes = document.querySelectorAll('#file-scope-panel [data-comment-id], #diff-table [data-comment-id]')
+  const nodes = document.querySelectorAll(fileNavSelector())
   const ids = Array.from(nodes).map(el => el.dataset.commentId)
   // Preserve position when the same comment is still in the list (common after
   // SSE refresh / reply add); otherwise reset.
@@ -3102,9 +3136,10 @@ function jumpFileComment(dir) {
   $('#file-comment-nav-count').textContent = `${idx + 1} / ${ids.length}`
 }
 
-// ─── Cross-file open-comment navigation (Shift+n / Shift+p) ───
-// Walks every open comment in the current view, across files / tool calls.
-// Same view (mode + git refs) — does not switch mode or refs.
+// ─── Cross-file comment navigation (Shift+n / Shift+p) ───
+// Walks every comment in the current view, across files / tool calls, filtered
+// by state.commentNavFilter.cross. Same view (mode + git refs) — does not
+// switch mode or refs.
 //
 // Order:
 //   tool-call mode:  (tool-call startedAt, anchor startLine)
@@ -3112,8 +3147,9 @@ function jumpFileComment(dir) {
 // view-scoped comments (no anchors) sort last with file=''.
 function listOpenCommentsInView() {
   // Like commentsMatchingCurrentView but ignores selectedCallId — we want every
-  // open comment across all tool calls / files in the current view.
-  let comments = state.comments.filter(c => c.status === 'open')
+  // comment across all tool calls / files in the current view.
+  const filter = state.commentNavFilter.cross
+  let comments = filter === 'all' ? state.comments.slice() : state.comments.filter(c => c.status === filter)
   if (state.mode === 'tool-call') {
     comments = comments.filter(c => c.viewContext?.source === 'tool-call')
   } else if (state.mode === 'browse') {
@@ -3154,9 +3190,11 @@ function updateOpenCommentNav() {
   }
   wrap.style.display = 'inline-flex'
   const idx = list.findIndex(c => c.id === state.openCommentNavCursor)
+  const filter = state.commentNavFilter.cross
+  const label = filter === 'all' ? 'total' : filter
   countEl.textContent = idx >= 0
     ? `${idx + 1} / ${list.length}`
-    : `${list.length} open`
+    : `${list.length} ${label}`
 }
 
 async function jumpOpenComment(dir) {
@@ -4538,6 +4576,21 @@ $('#btn-file-comment-prev').addEventListener('click', () => jumpFileComment(-1))
 $('#btn-file-comment-next').addEventListener('click', () => jumpFileComment(1))
 $('#btn-open-comment-prev').addEventListener('click', () => jumpOpenComment(-1))
 $('#btn-open-comment-next').addEventListener('click', () => jumpOpenComment(1))
+
+// ─── Comment-nav status filters (persisted globally) ───
+$('#file-comment-nav-filter').value = state.commentNavFilter.file
+$('#cross-comment-nav-filter').value = state.commentNavFilter.cross
+$('#file-comment-nav-filter').addEventListener('change', (e) => {
+  state.commentNavFilter.file = e.target.value
+  localStorage.setItem('cra-nav-filter-file', e.target.value)
+  updateFileCommentNav()
+})
+$('#cross-comment-nav-filter').addEventListener('change', (e) => {
+  state.commentNavFilter.cross = e.target.value
+  localStorage.setItem('cra-nav-filter-cross', e.target.value)
+  state.openCommentNavCursor = null
+  updateOpenCommentNav()
+})
 
 // ─── Notification bell wiring ───
 $('#btn-notif').addEventListener('click', (e) => { e.stopPropagation(); toggleNotifPanel() })
