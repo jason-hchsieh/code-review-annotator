@@ -1370,6 +1370,7 @@ const state = {
   flashIds: new Set(),   // ids to flash on next timeline render
   seenPaths: new Set(),  // file / folder paths marked as seen / unimportant (per project)
   seenCalls: new Set(),  // tool-call ids marked as seen (per project)
+  seenDiffs: new Map(),  // git-range only: file → {from, to} blob SHAs at mark-seen time. Used to auto-clear seen marks when the diff changes.
   hideSeen: false,       // when true, filter seen items out of the sidebar
   toolCallSort: 'time-asc', // 'time-asc' | 'path-asc' — tool-call timeline sort mode (global pref)
   // Per-file gap expansions for diff view (GitHub-style). Reset on target change.
@@ -1415,7 +1416,8 @@ function loadSeenForProject() {
   try {
     state.seenPaths = new Set(JSON.parse(localStorage.getItem(seenKey('paths')) ?? '[]'))
     state.seenCalls = new Set(JSON.parse(localStorage.getItem(seenKey('calls')) ?? '[]'))
-  } catch { state.seenPaths = new Set(); state.seenCalls = new Set() }
+    state.seenDiffs = new Map(JSON.parse(localStorage.getItem(seenKey('diffs')) ?? '[]'))
+  } catch { state.seenPaths = new Set(); state.seenCalls = new Set(); state.seenDiffs = new Map() }
   state.hideSeen = localStorage.getItem('cra-hide-seen') === '1'
   updateHideSeenBtn()
 }
@@ -1424,6 +1426,38 @@ function persistSeenPaths() {
 }
 function persistSeenCalls() {
   localStorage.setItem(seenKey('calls'), JSON.stringify([...state.seenCalls]))
+}
+function persistSeenDiffs() {
+  localStorage.setItem(seenKey('diffs'), JSON.stringify([...state.seenDiffs.entries()]))
+}
+
+// Git-range view: a "seen" mark is only valid while the diff fingerprint
+// (beforeSha + afterSha for the file) matches what was current when the user
+// marked it. If the diff has changed since (new commit, worktree edit,
+// etc.), auto-clear the mark and report the file as not seen.
+//
+// Files marked seen in other modes (tool-call / browse) have no fingerprint
+// recorded; we accept those as still-seen rather than aggressively clearing,
+// since the user's intent in those modes was view-mode-agnostic.
+function gitRangeFileIsSeen(f) {
+  if (!state.seenPaths.has(f.file)) return false
+  const rec = state.seenDiffs.get(f.file)
+  if (!rec) return true
+  if (rec.from === f.beforeSha && rec.to === f.afterSha) return true
+  state.seenPaths.delete(f.file)
+  state.seenDiffs.delete(f.file)
+  persistSeenPaths(); persistSeenDiffs()
+  return false
+}
+function toggleGitRangeFileSeen(f) {
+  if (state.seenPaths.has(f.file)) {
+    state.seenPaths.delete(f.file)
+    state.seenDiffs.delete(f.file)
+  } else {
+    state.seenPaths.add(f.file)
+    state.seenDiffs.set(f.file, { from: f.beforeSha, to: f.afterSha })
+  }
+  persistSeenPaths(); persistSeenDiffs()
 }
 function isPathMarked(path) { return state.seenPaths.has(path) }
 function hasSeenAncestor(path) {
@@ -1945,7 +1979,14 @@ function renderTimeline() {
     let items = filter
       ? state.viewFiles.filter(f => f.file.toLowerCase().includes(filter))
       : state.viewFiles
-    if (state.hideSeen) items = items.filter(f => !isPathSeen(f.file))
+    if (state.hideSeen) {
+      // git-range uses fingerprint-aware seen check (auto-clears stale marks);
+      // browse falls back to the path-only check.
+      const isSeen = state.mode === 'git-range'
+        ? (f) => gitRangeFileIsSeen(f) || hasSeenAncestor(f.file)
+        : (f) => isPathSeen(f.file)
+      items = items.filter(f => !isSeen(f))
+    }
     $('#tl-count').textContent = items.length
     if (items.length === 0) {
       const empty = document.createElement('div'); empty.className = 'timeline-empty'
@@ -2120,7 +2161,8 @@ function renderFileRow(f, level = 0, showPath = false, leafName = null) {
   const row = document.createElement('div')
   const isMulti = state.multiSelect.active
   const isSelected = isMulti && state.multiSelect.files.has(f.file)
-  const marked = isPathMarked(f.file)
+  const isGitRange = state.mode === 'git-range'
+  const marked = isGitRange ? gitRangeFileIsSeen(f) : isPathMarked(f.file)
   const ancestorMarked = hasSeenAncestor(f.file)
   row.className = 'tree-row file' + (state.selectedFile === f.file ? ' active' : '') + (isSelected ? ' multi-selected' : '')
     + (marked ? ' seen' : (ancestorMarked ? ' seen-ancestor' : ''))
@@ -2175,7 +2217,11 @@ function renderFileRow(f, level = 0, showPath = false, leafName = null) {
   row.appendChild(badges)
 
   const seenBtn = makeSeenButton(marked,
-    () => { togglePathSeen(f.file); renderTimeline(); updateHideSeenBtn() },
+    () => {
+      if (isGitRange) toggleGitRangeFileSeen(f)
+      else togglePathSeen(f.file)
+      renderTimeline(); updateHideSeenBtn()
+    },
     'Unmark file as seen', 'Mark file as seen / unimportant')
   row.appendChild(seenBtn)
 
@@ -3659,8 +3705,8 @@ $('#btn-sort').addEventListener('click', () => {
 $('#btn-clear-seen').addEventListener('click', () => {
   if (state.seenPaths.size + state.seenCalls.size === 0) return
   if (!confirm('Clear all seen / unimportant marks for this project?')) return
-  state.seenPaths.clear(); state.seenCalls.clear()
-  persistSeenPaths(); persistSeenCalls()
+  state.seenPaths.clear(); state.seenCalls.clear(); state.seenDiffs.clear()
+  persistSeenPaths(); persistSeenCalls(); persistSeenDiffs()
   updateHideSeenBtn(); renderTimeline()
 })
 

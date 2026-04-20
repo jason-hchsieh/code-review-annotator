@@ -357,7 +357,15 @@ export function startHttpServer(port: number) {
           const to = query.get('to')
           if (!from || !to) return json(res, 400, { error: 'from and to required for view=git-range' })
           try {
-            return json(res, 200, listChangedFiles(dir, from, to))
+            // Per-file blob SHAs let the UI fingerprint each diff so that
+            // "seen" marks auto-clear when the diff content changes (e.g. a
+            // new commit landed on the to-side, or the worktree was edited).
+            const files = listChangedFiles(dir, from, to)
+            return json(res, 200, files.map(f => ({
+              ...f,
+              beforeSha: computeBlobSha(readBlob(dir, from, f.file)),
+              afterSha: computeBlobSha(readBlob(dir, to, f.file)),
+            })))
           } catch (err: any) {
             return json(res, 400, { error: err.message ?? String(err) })
           }
