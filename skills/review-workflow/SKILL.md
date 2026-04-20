@@ -53,18 +53,25 @@ Anchors' `startLine` / `endLine` are 1-based file line numbers inside the refere
    - **multi-file** — The reviewer wants a coherent change across the listed files. Read all of them first, plan the change (extract a helper? rename a symbol? fix the same bug pattern in each?), then edit.
    - **view** — No file is pinned. Plan the change: may involve creating new files, adding tests, or a larger refactor. Consider asking the user for confirmation on scope before a big change.
 
-4. **Reply on the thread** explaining what you changed:
+4. **Verify your fix before declaring it done.** Closing the "I think I fixed it" gap is the whole point — never `mark_resolved` on faith. Run the project's standard check / test / lint:
+   - **Detect the command** from manifests at the project root: `package.json` scripts (`typecheck` / `test` / `lint`), `Cargo.toml` → `cargo check` + `cargo test` (+ `cargo clippy` if the repo uses it), `pyproject.toml` → `pytest` / `mypy` / `ruff`, `go.mod` → `go build ./... && go test ./...`. Check for a `Makefile`. If you can't pick one confidently, **ask the user once** ("What's the verify command for this project?") and reuse the answer for the rest of the session.
+   - **Scope the run** to what you touched when possible (`cargo test -p foo`, `pytest path/to/test.py`, `npx tsc --noEmit -p tsconfig.json`). Whole-suite is fine if narrowing is unclear — don't skip because it's slow.
+   - **On pass** → step 5.
+   - **On failure** → `reply_to_comment` with a one-line summary plus the relevant failure snippet, **leave the comment `open`** (do **not** `mark_resolved`), and move on to other comments. The user will triage.
+   - Skip verify only when the change cannot affect runtime (`.md`-only edits, removing dead comments). When in doubt, run it.
+
+5. **Reply on the thread** explaining what you changed:
    ```
    reply_to_comment({ id: "<comment-id>", body: "Extracted into helper `fooBar()`." })
    ```
    Keep replies short.
 
-5. **Mark resolved** after the fix and reply:
+6. **Mark resolved** after the fix is verified and replied:
    ```
    mark_resolved({ id: "<comment-id>" })
    ```
 
-6. **Generate a summary prompt** (optional):
+7. **Generate a summary prompt** (optional):
    ```
    get_export_prompt({ mode: "report" })
    ```
