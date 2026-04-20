@@ -573,6 +573,9 @@ body > * { position: relative; z-index: 1; }
   font-size: 10.5px; color: var(--text-muted); margin-bottom: 2px; display: flex; gap: 6px;
 }
 .scope-card-actions { display: flex; gap: 6px; margin-top: 4px; }
+.scope-card .comment-reply-form {
+  padding: 8px 0 0; background: transparent; border-top: 1px solid var(--border); margin-top: 4px;
+}
 
 /* Scope menu dropdown in call-header */
 .scope-menu-wrap { position: relative; display: inline-block; }
@@ -2743,8 +2746,28 @@ function buildScopeCard(comment, currentFile = null) {
     }
     card.appendChild(reps)
   }
+  card.appendChild(buildScopeReplyForm(comment))
   card.appendChild(scopeCardActions(comment))
   return card
+}
+
+function buildScopeReplyForm(comment) {
+  const form = document.createElement('div'); form.className = 'comment-reply-form'
+  const ta = document.createElement('textarea'); ta.placeholder = 'Reply to this comment…'
+  const fa = document.createElement('div'); fa.className = 'comment-reply-form-actions'
+  const submit = document.createElement('button')
+  submit.className = 'btn-primary'; submit.style.fontSize = '12px'; submit.textContent = 'Reply'
+  submit.addEventListener('click', async () => {
+    const text = ta.value.trim(); if (!text) return
+    try {
+      await api('POST', `/api/comments/${comment.id}/replies`, { body: text, author: 'human' })
+      ta.value = ''
+      await refreshAll()
+    } catch (err) { toast(`Failed: ${err.message}`) }
+  })
+  ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit.click() } })
+  fa.appendChild(submit); form.appendChild(ta); form.appendChild(fa)
+  return form
 }
 
 function buildScopeForm(panel, headerText, buildPayload, extraEl = null, onSuccess = null) {

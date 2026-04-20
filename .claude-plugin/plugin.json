@@ -1,6 +1,6 @@
 {
   "name": "code-review-annotator",
-  "version": "0.24.1",
+  "version": "0.24.2",
   "description": "Inline code review with MCP integration — add comments in the browser via SSH port forward, let Claude Code read and fix them via MCP tools.",
   "author": {
     "name": "jasonhch"
