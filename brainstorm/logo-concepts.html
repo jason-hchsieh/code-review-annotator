@@ -1,0 +1,169 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Redline — Logo Concepts</title>
+<style>
+  :root { --red: #e0392b; --red-soft: #d94b3e; --ink: #1a1a1a; --bg: #fafaf7; --muted: #6a6a6a; }
+  body { margin: 0; padding: 48px; font: 14px/1.5 -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  .sub { color: var(--muted); margin-bottom: 40px; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 32px; max-width: 1100px; }
+  .card { background: white; border: 1px solid #eee; border-radius: 10px; padding: 36px 28px 24px; }
+  .stage { display: flex; align-items: center; justify-content: center; min-height: 140px; margin-bottom: 18px; }
+  .name { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+  .desc { font-size: 13px; color: var(--muted); }
+  .tiny-row { display: flex; gap: 20px; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px dashed #eee; }
+  .tiny-row .label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.05em; }
+</style>
+</head>
+<body>
+
+<h1>Redline — Logo 候選</h1>
+<div class="sub">六個方向，每張右下角是 16px favicon 縮圖預覽。</div>
+
+<div class="grid">
+
+  <!-- 1. Wordmark with strike -->
+  <div class="card">
+    <div class="stage">
+      <svg width="300" height="80" viewBox="0 0 300 80">
+        <text x="150" y="52" text-anchor="middle" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="44" font-weight="700" fill="#1a1a1a" letter-spacing="-1">redline</text>
+        <line x1="30" y1="40" x2="270" y2="40" stroke="#e0392b" stroke-width="4" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="name">① Strike — 經典劃線</div>
+    <div class="desc">編輯在稿子上劃紅線的原型意象。字體用 monospace 呼應 code。</div>
+    <div class="tiny-row">
+      <span class="label">16px</span>
+      <svg width="16" height="16" viewBox="0 0 16 16"><line x1="1" y1="8" x2="15" y2="8" stroke="#e0392b" stroke-width="2.5" stroke-linecap="round"/></svg>
+      <span class="label">32px</span>
+      <svg width="32" height="32" viewBox="0 0 32 32"><line x1="3" y1="16" x2="29" y2="16" stroke="#e0392b" stroke-width="4" stroke-linecap="round"/></svg>
+    </div>
+  </div>
+
+  <!-- 2. Caret (proofreader's mark) -->
+  <div class="card">
+    <div class="stage">
+      <svg width="260" height="120" viewBox="0 0 260 120">
+        <!-- baseline -->
+        <line x1="40" y1="78" x2="220" y2="78" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round"/>
+        <!-- caret mark in red -->
+        <path d="M 115 78 L 130 54 L 145 78" fill="none" stroke="#e0392b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- wordmark -->
+        <text x="130" y="108" text-anchor="middle" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="16" font-weight="600" fill="#1a1a1a" letter-spacing="1">REDLINE</text>
+      </svg>
+    </div>
+    <div class="name">② Caret — 校稿插入符</div>
+    <div class="desc">proofreader's caret ‸ 是「這裡要改」的萬用標記。極簡、辨識度高。</div>
+    <div class="tiny-row">
+      <span class="label">16px</span>
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <line x1="2" y1="12" x2="14" y2="12" stroke="#1a1a1a" stroke-width="2"/>
+        <path d="M 5 12 L 8 6 L 11 12" fill="none" stroke="#e0392b" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- 3. Diff gutter -->
+  <div class="card">
+    <div class="stage">
+      <svg width="300" height="110" viewBox="0 0 300 110">
+        <!-- red gutter bar -->
+        <rect x="40" y="20" width="6" height="70" fill="#e0392b" rx="3"/>
+        <!-- code lines -->
+        <line x1="62" y1="30" x2="170" y2="30" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round"/>
+        <line x1="62" y1="48" x2="220" y2="48" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" opacity="0.35"/>
+        <line x1="62" y1="66" x2="200" y2="66" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" opacity="0.35"/>
+        <line x1="62" y1="84" x2="150" y2="84" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" opacity="0.35"/>
+        <!-- wordmark -->
+        <text x="240" y="106" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="13" font-weight="600" fill="#6a6a6a" text-anchor="end">redline</text>
+      </svg>
+    </div>
+    <div class="name">③ Gutter — diff 側邊標記</div>
+    <div class="desc">最工程師氣息的版本。左側紅條 = 「這段有改動需要看」。</div>
+    <div class="tiny-row">
+      <span class="label">16px</span>
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <rect x="2" y="2" width="3" height="12" fill="#e0392b" rx="1.5"/>
+        <line x1="7" y1="5" x2="14" y2="5" stroke="#1a1a1a" stroke-width="1.5"/>
+        <line x1="7" y1="9" x2="13" y2="9" stroke="#1a1a1a" stroke-width="1.5" opacity="0.4"/>
+        <line x1="7" y1="13" x2="12" y2="13" stroke="#1a1a1a" stroke-width="1.5" opacity="0.4"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- 4. Underline squiggle -->
+  <div class="card">
+    <div class="stage">
+      <svg width="280" height="100" viewBox="0 0 280 100">
+        <text x="140" y="55" text-anchor="middle" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="34" font-weight="700" fill="#1a1a1a" letter-spacing="-0.5">redline</text>
+        <!-- spellcheck squiggle -->
+        <path d="M 50 72 Q 58 66, 66 72 T 82 72 T 98 72 T 114 72 T 130 72 T 146 72 T 162 72 T 178 72 T 194 72 T 210 72 T 226 72" fill="none" stroke="#e0392b" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="name">④ Squiggle — 拼字檢查紅波浪</div>
+    <div class="desc">「這裡可能有問題」的通用視覺。親切、不嚴肅。</div>
+    <div class="tiny-row">
+      <span class="label">16px</span>
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <path d="M 1 10 Q 3 7, 5 10 T 9 10 T 13 10 T 15 10" fill="none" stroke="#e0392b" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- 5. Anchor on a line -->
+  <div class="card">
+    <div class="stage">
+      <svg width="280" height="110" viewBox="0 0 280 110">
+        <!-- line -->
+        <line x1="30" y1="55" x2="250" y2="55" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+        <!-- anchor dot with red ring -->
+        <circle cx="140" cy="55" r="11" fill="white" stroke="#e0392b" stroke-width="3.5"/>
+        <circle cx="140" cy="55" r="4" fill="#e0392b"/>
+        <!-- wordmark -->
+        <text x="140" y="95" text-anchor="middle" font-family="ui-monospace, SF Mono, Menlo, monospace" font-size="14" font-weight="600" fill="#1a1a1a" letter-spacing="1">REDLINE</text>
+      </svg>
+    </div>
+    <div class="name">⑤ Anchor — 錨點</div>
+    <div class="desc">直接呼應 <code>anchors[]</code> 資料模型：一條線 + 一個錨點。概念最精準。</div>
+    <div class="tiny-row">
+      <span class="label">16px</span>
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <line x1="1" y1="8" x2="15" y2="8" stroke="#1a1a1a" stroke-width="1.5"/>
+        <circle cx="8" cy="8" r="3.5" fill="white" stroke="#e0392b" stroke-width="1.8"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- 6. R monogram / pencil stroke -->
+  <div class="card">
+    <div class="stage">
+      <svg width="220" height="130" viewBox="0 0 220 130">
+        <!-- R made from a red stroke -->
+        <path d="M 60 100 L 60 30 L 105 30 Q 130 30, 130 52 Q 130 72, 105 72 L 70 72 L 125 100"
+              fill="none" stroke="#e0392b" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- tail stroke through baseline -->
+        <line x1="40" y1="114" x2="160" y2="114" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+      </svg>
+    </div>
+    <div class="name">⑥ R monogram</div>
+    <div class="desc">單字母 R 做成一筆畫紅色筆觸，下方黑線作基準。適合 favicon / app icon。</div>
+    <div class="tiny-row">
+      <span class="label">16px</span>
+      <svg width="16" height="16" viewBox="0 0 16 16">
+        <path d="M 4 13 L 4 3 L 10 3 Q 13 3, 13 6 Q 13 9, 10 9 L 5 9 L 12 13"
+              fill="none" stroke="#e0392b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="label">32px</span>
+      <svg width="32" height="32" viewBox="0 0 32 32">
+        <path d="M 8 26 L 8 6 L 20 6 Q 26 6, 26 12 Q 26 18, 20 18 L 10 18 L 24 26"
+              fill="none" stroke="#e0392b" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
