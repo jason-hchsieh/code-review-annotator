@@ -1996,7 +1996,7 @@ function renderFolderRow(folder, level) {
   const caret = document.createElement('span'); caret.className = 'tree-caret'; caret.textContent = '▾'
   const icon = document.createElement('span'); icon.className = 'tree-icon'
   icon.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.75 2.5h3.5l1.5 1.5h7.5a.75.75 0 01.75.75v8a.75.75 0 01-.75.75H1.75A.75.75 0 011 12.75v-9.5A.75.75 0 011.75 2.5z" opacity="0.85"/></svg>'
-  const name = document.createElement('span'); name.className = 'tree-name'; name.textContent = folder.name
+  const name = document.createElement('span'); name.className = 'tree-name'; name.textContent = folder.name; name.title = folder.path
 
   row.appendChild(caret); row.appendChild(icon); row.appendChild(name)
 
@@ -2113,7 +2113,7 @@ function renderFileRow(f, level = 0, showPath = false, leafName = null) {
   row.appendChild(icon)
 
   const displayName = leafName ?? f.file.split('/').pop()
-  const name = document.createElement('span'); name.className = 'tree-name'; name.textContent = displayName
+  const name = document.createElement('span'); name.className = 'tree-name'; name.textContent = displayName; name.title = f.file
   row.appendChild(name)
 
   if (showPath && f.file.includes('/')) {
@@ -2186,7 +2186,7 @@ function renderContent() {
     emptyEl.style.display='none'; hdr.style.display='flex'; table.style.display='table'
     $('#ch-tool').textContent = call.tool
     $('#ch-tool').className = `tool-badge ${call.tool}`
-    $('#ch-file').textContent = call.file
+    $('#ch-file').textContent = call.file; $('#ch-file').title = call.file
     const metaParts = [new Date(call.startedAt).toLocaleTimeString()]
     if (call.status === 'pending') metaParts.push('(pending)')
     else if (call.status === 'orphan') metaParts.push('(orphaned — post-hook never ran)')
@@ -2213,7 +2213,7 @@ function renderContent() {
     emptyEl.style.display='none'; hdr.style.display='flex'; table.style.display='table'
     $('#ch-tool').textContent = state.mode === 'browse' ? 'BROWSE' : 'DIFF'
     $('#ch-tool').className = `tool-badge ${state.mode === 'browse' ? 'modified' : 'Edit'}`
-    $('#ch-file').textContent = data.file
+    $('#ch-file').textContent = data.file; $('#ch-file').title = data.file
     $('#ch-meta').textContent = state.mode === 'browse'
       ? 'worktree'
       : `${abbreviate(state.gitRange.fromRef)} → ${abbreviate(state.gitRange.toRef)}`
