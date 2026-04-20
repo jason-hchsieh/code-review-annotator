@@ -1,5 +1,7 @@
 node_modules/
 dist/
+.review-log.json
+.review-log-blobs/
 .review-comments.json
 *.lock
 .playwright-mcp/
