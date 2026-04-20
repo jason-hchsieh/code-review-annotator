@@ -661,6 +661,13 @@ body > * { position: relative; z-index: 1; }
 }
 .btn-hide-seen:hover { color: var(--text); border-color: var(--border-strong); }
 .btn-hide-seen.active { background: var(--accent); color: var(--btn-ink); border-color: var(--accent); }
+.btn-sort {
+  padding: 2px 8px; background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border); border-radius: 4px;
+  font-size: 10.5px; cursor: pointer; font-family: var(--font-mono);
+  transition: all 0.12s var(--ease); white-space: nowrap;
+}
+.btn-sort:hover { color: var(--text); border-color: var(--border-strong); }
 .btn-clear-seen {
   padding: 2px 6px; background: transparent; color: var(--text-dim);
   border: 1px solid var(--border); border-radius: 4px;
@@ -1203,6 +1210,7 @@ body > * { position: relative; z-index: 1; }
     <div class="sidebar-header">
       <span class="sidebar-title" id="sidebar-title">Tool calls</span>
       <span class="sidebar-count" id="tl-count">0</span>
+      <button class="btn-sort" id="btn-sort" title="Sort: oldest → newest · click to sort A→Z by file path">⏱ time</button>
       <button class="btn-hide-seen" id="btn-hide-seen" title="Hide items marked as seen/unimportant">👁 hide seen</button>
       <button class="btn-clear-seen" id="btn-clear-seen" title="Clear all seen marks" style="display:none">clear</button>
       <button class="btn-multi-toggle" id="btn-multi-toggle" title="Multi-select files (comment across N files)" style="display:none">⊠ multi</button>
@@ -1360,6 +1368,7 @@ const state = {
   seenPaths: new Set(),  // file / folder paths marked as seen / unimportant (per project)
   seenCalls: new Set(),  // tool-call ids marked as seen (per project)
   hideSeen: false,       // when true, filter seen items out of the sidebar
+  toolCallSort: 'time-asc', // 'time-asc' | 'path-asc' — tool-call timeline sort mode (global pref)
   // Per-file gap expansions for diff view (GitHub-style). Reset on target change.
   gapExpansions: new Map(),
   // Scope-comment draft form: { kind: 'file' | 'multi-file' | 'view', anchors: Anchor[] }
@@ -1445,6 +1454,22 @@ function updateHideSeenBtn() {
   const clr = $('#btn-clear-seen')
   const total = state.seenPaths.size + state.seenCalls.size
   if (clr) clr.style.display = total > 0 ? 'inline-block' : 'none'
+}
+function loadToolCallSort() {
+  const v = localStorage.getItem('cra-tool-call-sort')
+  state.toolCallSort = (v === 'path-asc') ? 'path-asc' : 'time-asc'
+}
+function updateSortBtn() {
+  const btn = $('#btn-sort')
+  if (!btn) return
+  btn.style.display = state.mode === 'tool-call' ? 'inline-block' : 'none'
+  if (state.toolCallSort === 'path-asc') {
+    btn.textContent = 'A–Z path'
+    btn.title = 'Sort: file path A→Z · click to sort by time (oldest → newest)'
+  } else {
+    btn.textContent = '⏱ time'
+    btn.title = 'Sort: oldest → newest · click to sort A→Z by file path'
+  }
 }
 function makeSeenButton(isSeen, onToggle, titleSeen, titleUnseen) {
   const btn = document.createElement('button')
@@ -1771,6 +1796,7 @@ function applyModeUi() {
   if (btnMulti) btnMulti.style.display = state.mode === 'tool-call' ? 'none' : 'inline-block'
   const menuMulti = document.querySelector('#scope-menu button[data-scope="multi-file"]')
   if (menuMulti) menuMulti.disabled = state.mode === 'tool-call'
+  updateSortBtn()
 }
 
 function renderViewMeta() {
@@ -1891,6 +1917,12 @@ function renderTimeline() {
   if (state.mode === 'tool-call') {
     let items = filter ? state.toolCalls.filter(c => c.file.toLowerCase().includes(filter)) : state.toolCalls
     if (state.hideSeen) items = items.filter(c => !state.seenCalls.has(c.id) && !isPathSeen(c.file))
+    if (state.toolCallSort === 'path-asc') {
+      // Sort by file path (A→Z), tie-breaking on startedAt so repeated edits to the same
+      // file stay in chronological order within their group.
+      items = [...items].sort((a, b) =>
+        a.file.localeCompare(b.file) || a.startedAt.localeCompare(b.startedAt))
+    }
     $('#tl-count').textContent = items.length
     if (items.length === 0) {
       const empty = document.createElement('div'); empty.className = 'timeline-empty'
@@ -3596,6 +3628,11 @@ $('#btn-hide-seen').addEventListener('click', () => {
   localStorage.setItem('cra-hide-seen', state.hideSeen ? '1' : '0')
   updateHideSeenBtn(); renderTimeline()
 })
+$('#btn-sort').addEventListener('click', () => {
+  state.toolCallSort = state.toolCallSort === 'path-asc' ? 'time-asc' : 'path-asc'
+  localStorage.setItem('cra-tool-call-sort', state.toolCallSort)
+  updateSortBtn(); renderTimeline()
+})
 $('#btn-clear-seen').addEventListener('click', () => {
   if (state.seenPaths.size + state.seenCalls.size === 0) return
   if (!confirm('Clear all seen / unimportant marks for this project?')) return
@@ -3609,6 +3646,7 @@ $('#btn-clear-seen').addEventListener('click', () => {
   await loadProjects()
   if (state.project) {
     loadSeenForProject()
+    loadToolCallSort()
     const v = readViewFromHash()
     state.mode = v.mode
     state.gitRange = v.gitRange
