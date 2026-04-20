@@ -2213,10 +2213,28 @@ async function refreshViewFiles() {
   renderTimeline()
 }
 
+function commentsMatchingCurrentView() {
+  let comments = state.comments.filter(c => c.status === 'open')
+  if (state.mode === 'tool-call' && state.selectedCallId) {
+    comments = comments.filter(c => c.viewContext?.toolCallId === state.selectedCallId)
+  } else if (state.mode === 'browse') {
+    comments = comments.filter(c => c.viewContext?.source === 'browse')
+  } else if (state.mode === 'git-range') {
+    comments = comments.filter(c => c.viewContext?.source === 'git-range')
+    if (state.gitRange.fromRef) {
+      comments = comments.filter(c => (c.viewContext?.fromRef ?? '') === state.gitRange.fromRef)
+    }
+    if (state.gitRange.toRef) {
+      comments = comments.filter(c => (c.viewContext?.toRef ?? '') === state.gitRange.toRef)
+    }
+  }
+  return comments
+}
+
 let lastOpenCount = 0
 let openCountInitialized = false
 function updateExportBtn() {
-  const openCount = state.comments.filter(c => c.status === 'open').length
+  const openCount = commentsMatchingCurrentView().length
   const btn = $('#btn-export')
   const label = $('#btn-export-label')
   const countEl = $('#btn-export-count')
@@ -2522,7 +2540,7 @@ function selectCall(id) {
   state.selectedCallId = id; state.selection = null; state.gapExpansions = new Map()
   state.scopeForm = null
   if (isMobile()) closeSidebar()
-  renderContent(); renderTimeline()
+  renderContent(); renderTimeline(); updateExportBtn()
 }
 async function selectFile(file) {
   state.selectedFile = file; state.selection = null; state.gapExpansions = new Map()
@@ -3383,6 +3401,7 @@ async function applyGitRange() {
   writeViewToHash()
   await refreshViewFiles()
   renderContent()
+  updateExportBtn()
 }
 
 $('#gr-apply').addEventListener('click', applyGitRange)
@@ -3417,7 +3436,7 @@ function renderRangeChip() {
     state.gitRange = { fromRef: '', toRef: '' }
     state.selectedFile = null; state.viewFileData = null; state.viewFiles = []
     $('#gr-from').value = ''; $('#gr-to').value = ''
-    renderRangeChip(); renderViewMeta(); writeViewToHash(); renderTimeline(); renderContent()
+    renderRangeChip(); renderViewMeta(); writeViewToHash(); renderTimeline(); renderContent(); updateExportBtn()
   })
 }
 
@@ -3869,6 +3888,7 @@ $('#graph-apply').addEventListener('click', async () => {
   closeGraphPicker()
   await refreshViewFiles()
   renderContent()
+  updateExportBtn()
 })
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && $('#graph-modal').classList.contains('open')) {
