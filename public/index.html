@@ -731,7 +731,7 @@ body > * { position: relative; z-index: 1; }
 .scope-card-reply .meta {
   font-size: 10.5px; color: var(--text-muted); margin-bottom: 2px; display: flex; gap: 6px;
 }
-.scope-card-actions { display: flex; gap: 6px; margin-top: 4px; }
+.scope-card-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 .scope-card .comment-reply-form {
   padding: 8px 0 0; background: transparent; border-top: 1px solid var(--border); margin-top: 4px;
 }
@@ -3691,6 +3691,7 @@ function buildScopeCard(comment, currentFile = null) {
     if (e.target.closest('button, a, input, textarea')) return
     card.classList.toggle('collapsed')
   })
+  head.appendChild(scopeCardActions(comment))
   card.appendChild(head)
   const collapsible = document.createElement('div'); collapsible.className = 'scope-card-collapsible'
   if (comment.scope === 'multi-file' || comment.scope === 'file') {
@@ -3719,7 +3720,6 @@ function buildScopeCard(comment, currentFile = null) {
     collapsible.appendChild(reps)
   }
   collapsible.appendChild(buildScopeReplyForm(comment))
-  collapsible.appendChild(scopeCardActions(comment))
   card.appendChild(collapsible)
   return card
 }
