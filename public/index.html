@@ -1014,6 +1014,49 @@ body > * { position: relative; z-index: 1; }
 .view-bar-advanced { display: none; }
 .view-bar-advanced.open { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
 
+/* ── Ranges-with-comments dropdown ── */
+.rwc-wrap { position: relative; display: inline-flex; }
+.rwc-btn {
+  background: var(--bg); border: 1px solid var(--border); color: var(--text-muted);
+  padding: 5px 10px; border-radius: 4px; font-size: 11.5px; font-weight: 500;
+  cursor: pointer; outline: none; flex-shrink: 0; font-family: var(--font-ui);
+  transition: all 0.12s var(--ease);
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.rwc-btn:hover { border-color: var(--accent); color: var(--text); }
+.rwc-btn.has-current { border-color: var(--accent); color: var(--accent); }
+.rwc-btn .rwc-count {
+  background: var(--accent); color: var(--bg);
+  border-radius: 8px; padding: 0 6px; font-size: 10.5px; font-weight: 600;
+  min-width: 14px; text-align: center;
+}
+.rwc-dropdown {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0; z-index: 20;
+  background: var(--bg); border: 1px solid var(--border-strong); border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  min-width: 280px; max-width: 420px; max-height: 320px; overflow-y: auto;
+  padding: 4px 0;
+}
+.rwc-dropdown.open { display: block; }
+.rwc-empty {
+  padding: 10px 12px; color: var(--text-dim); font-size: 11.5px; font-style: italic;
+}
+.rwc-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+  cursor: pointer; font-family: var(--font-mono); font-size: 11.5px;
+  border-left: 2px solid transparent;
+}
+.rwc-item:hover { background: var(--accent-soft); }
+.rwc-item.current { border-left-color: var(--accent); background: var(--accent-soft); }
+.rwc-item .rwc-refs { flex: 1; min-width: 0; color: var(--text); display: flex; align-items: center; gap: 4px; }
+.rwc-item .rwc-refs .arrow { color: var(--text-dim); }
+.rwc-item .rwc-ref { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rwc-item .rwc-badge {
+  color: var(--text-dim); font-size: 10.5px; flex-shrink: 0;
+  font-family: var(--font-ui);
+}
+.rwc-item .rwc-badge .open-n { color: var(--accent); font-weight: 600; }
+
 .form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .form-row label { font-size: 12px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
 .form-row input, .form-row select {
@@ -1336,6 +1379,13 @@ body > * { position: relative; z-index: 1; }
           Pick visually
         </button>
         <span id="range-chip-slot"></span>
+        <span class="rwc-wrap" id="rwc-wrap" style="display:none">
+          <button class="rwc-btn" id="rwc-btn" title="Ranges that already have comments">
+            <span>with comments</span>
+            <span class="rwc-count" id="rwc-count">0</span>
+          </button>
+          <div class="rwc-dropdown" id="rwc-dropdown" role="menu"></div>
+        </span>
         <span class="spacer" style="flex:1"></span>
         <button class="advanced-toggle" id="toggle-advanced" title="Type refs manually">advanced</button>
       </div>
@@ -1954,6 +2004,11 @@ function applyModeUi() {
     $('#gr-from').value = state.gitRange.fromRef ?? ''
     $('#gr-to').value = state.gitRange.toRef ?? ''
     renderRangeChip()
+    renderRangesWithComments()
+    // Auto-open dropdown when entering git-range with no selection and prior ranges exist
+    if (!state.gitRange.fromRef && !state.gitRange.toRef && collectRangesWithComments().length > 0) {
+      toggleRangesWithCommentsDropdown(true)
+    }
   } else {
     sbTitle.textContent = 'Browse — files'
     viewBar.style.display = 'none'
@@ -2007,6 +2062,7 @@ async function switchMode(mode) {
 async function refreshData() {
   if (!state.project) return
   state.comments = await api('GET', '/api/comments')
+  renderRangesWithComments()
   if (state.mode === 'tool-call') {
     const calls = await api('GET', '/api/tool-calls')
     calls.sort((a, b) => a.startedAt.localeCompare(b.startedAt))
@@ -2939,7 +2995,7 @@ function appendCommentForm(tbody, target, viewData) {
     const created = await api('POST', '/api/comments', payload)
     state.selection = null
     state.comments.push(created)
-    renderContent(); renderTimeline(); updateExportBtn()
+    renderContent(); renderTimeline(); renderRangesWithComments(); updateExportBtn()
   })
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit.click() }
@@ -3419,6 +3475,7 @@ async function applyGitRange() {
   state.viewFileData = null
   renderViewMeta()
   renderRangeChip()
+  renderRangesWithComments()
   writeViewToHash()
   await refreshViewFiles()
   renderContent()
@@ -3457,9 +3514,95 @@ function renderRangeChip() {
     state.gitRange = { fromRef: '', toRef: '' }
     state.selectedFile = null; state.viewFileData = null; state.viewFiles = []
     $('#gr-from').value = ''; $('#gr-to').value = ''
-    renderRangeChip(); renderViewMeta(); writeViewToHash(); renderTimeline(); renderContent(); updateExportBtn()
+    renderRangeChip(); renderRangesWithComments(); renderViewMeta(); writeViewToHash(); renderTimeline(); renderContent(); updateExportBtn()
   })
 }
+
+// ─── Ranges-with-comments dropdown ───
+// Groups comments by their (fromRef, toRef) so the reviewer can jump back to
+// any range they already left notes on — comments only surface when you're on
+// the exact range they were written against, so this is the discovery path.
+function collectRangesWithComments() {
+  const byKey = new Map() // `${from}\u0000${to}` → { fromRef, toRef, open, total }
+  for (const c of state.comments) {
+    const vc = c.viewContext
+    if (!vc || vc.source !== 'git-range') continue
+    const fromRef = vc.fromRef ?? ''
+    const toRef = vc.toRef ?? ''
+    if (!fromRef || !toRef) continue
+    const key = `${fromRef}\u0000${toRef}`
+    let e = byKey.get(key)
+    if (!e) { e = { fromRef, toRef, open: 0, total: 0 }; byKey.set(key, e) }
+    e.total++
+    if (c.status !== 'resolved') e.open++
+  }
+  const out = [...byKey.values()]
+  // open-count desc, then total desc, then alpha by fromRef
+  out.sort((a, b) => (b.open - a.open) || (b.total - a.total) || a.fromRef.localeCompare(b.fromRef))
+  return out
+}
+
+function renderRangesWithComments() {
+  const wrap = $('#rwc-wrap')
+  const dropdown = $('#rwc-dropdown')
+  const btn = $('#rwc-btn')
+  const countEl = $('#rwc-count')
+  if (!wrap || state.mode !== 'git-range') { if (wrap) wrap.style.display = 'none'; return }
+  const ranges = collectRangesWithComments()
+  if (ranges.length === 0) { wrap.style.display = 'none'; dropdown.classList.remove('open'); return }
+  wrap.style.display = 'inline-flex'
+  const totalOpen = ranges.reduce((s, r) => s + r.open, 0)
+  countEl.textContent = String(totalOpen || ranges.length)
+  const curFrom = state.gitRange.fromRef ?? ''
+  const curTo = state.gitRange.toRef ?? ''
+  const curMatches = ranges.some(r => r.fromRef === curFrom && r.toRef === curTo)
+  btn.classList.toggle('has-current', curMatches)
+  dropdown.innerHTML = ranges.map(r => {
+    const isCurrent = r.fromRef === curFrom && r.toRef === curTo
+    const openPart = r.open > 0 ? `<span class="open-n">${r.open} open</span>` : ''
+    const resolvedPart = r.total - r.open > 0 ? `${r.total - r.open} resolved` : ''
+    const badge = [openPart, resolvedPart].filter(Boolean).join(' · ') || `${r.total}`
+    return `<div class="rwc-item${isCurrent ? ' current' : ''}" data-from="${escapeHtml(r.fromRef)}" data-to="${escapeHtml(r.toRef)}">
+      <span class="rwc-refs">
+        <span class="rwc-ref" title="${escapeHtml(r.fromRef)}">${escapeHtml(abbreviate(r.fromRef))}</span>
+        <span class="arrow">→</span>
+        <span class="rwc-ref" title="${escapeHtml(r.toRef)}">${escapeHtml(abbreviate(r.toRef))}</span>
+      </span>
+      <span class="rwc-badge">${badge}</span>
+    </div>`
+  }).join('')
+  for (const item of dropdown.querySelectorAll('.rwc-item')) {
+    item.addEventListener('click', async () => {
+      const fromRef = item.dataset.from
+      const toRef = item.dataset.to
+      dropdown.classList.remove('open')
+      if (state.gitRange.fromRef === fromRef && state.gitRange.toRef === toRef) return
+      state.gitRange = { fromRef, toRef }
+      state.selectedFile = null; state.viewFileData = null; state.viewFiles = []
+      $('#gr-from').value = fromRef; $('#gr-to').value = toRef
+      renderRangeChip(); renderRangesWithComments(); renderViewMeta(); writeViewToHash()
+      await refreshViewFiles()
+      renderContent(); updateExportBtn()
+    })
+  }
+}
+
+function toggleRangesWithCommentsDropdown(force) {
+  const dropdown = $('#rwc-dropdown')
+  if (!dropdown) return
+  const next = typeof force === 'boolean' ? force : !dropdown.classList.contains('open')
+  dropdown.classList.toggle('open', next)
+}
+
+$('#rwc-btn').addEventListener('click', (e) => {
+  e.stopPropagation()
+  toggleRangesWithCommentsDropdown()
+})
+document.addEventListener('click', (e) => {
+  const wrap = $('#rwc-wrap')
+  if (!wrap) return
+  if (!wrap.contains(e.target)) toggleRangesWithCommentsDropdown(false)
+})
 
 // ─── Graph picker ───
 const graph = {
@@ -3905,7 +4048,7 @@ $('#graph-apply').addEventListener('click', async () => {
   state.gitRange = { fromRef, toRef }
   state.selectedFile = null; state.viewFileData = null
   $('#gr-from').value = fromRef; $('#gr-to').value = toRef
-  renderRangeChip(); renderViewMeta(); writeViewToHash()
+  renderRangeChip(); renderRangesWithComments(); renderViewMeta(); writeViewToHash()
   closeGraphPicker()
   await refreshViewFiles()
   renderContent()
