@@ -285,6 +285,19 @@ The HTTP server, MCP server, and hook scripts all read/write this file. Install 
 
 ---
 
+## Restart after upgrading
+
+`.review-log.json` is read once into memory by every long-lived process (the MCP stdio server most importantly) and only re-loaded when its `mtime+size` signature changes (`syncFromDisk`, added in v0.21.1). **A long-lived process running an older build does not have that re-sync** — its in-memory snapshot is frozen at the moment it started, and any write it makes will overwrite whatever's currently on disk with that frozen state. After upgrading the annotator (or any time you've changed `src/log.ts`), kill any MCP/HTTP server processes started against the old code:
+
+```bash
+pgrep -af 'tsx.*code-review-annotator.*--mcp'
+# kill the PIDs that aren't from the current install
+```
+
+v0.24.1 added a defensive guard in `LogStore.save()` that aborts (`console.error` + throw) if the on-disk signature changed since the last sync — so a stale current-version process now fails loudly instead of silently clobbering data. Older processes do not have this guard; restart them.
+
+---
+
 ## Plugin Architecture
 
 When installed as a Claude Code plugin:

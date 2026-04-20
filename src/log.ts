@@ -301,7 +301,32 @@ export class LogStore {
     this.lastSignature = sig
   }
 
+  /**
+   * Refuse to overwrite if the file changed externally between our last sync
+   * and now. Without this guard a long-lived stale process (e.g. an MCP server
+   * started before syncFromDisk was added in v0.21.1, or a new process whose
+   * sync raced with another writer) can silently clobber writes from another
+   * process. Real incident on 2026-04-20: an Apr-18 MCP server's stale memory
+   * wiped 30 UI-created comments via mark_resolved → save().
+   *
+   * Public methods call syncFromDisk() at entry, then mutate, then save(). In
+   * the rare TOCTOU window between sync and save, another process may have
+   * written. We detect that by comparing signatures and abort with a loud
+   * error rather than overwrite. Caller can retry; the next syncFromDisk()
+   * will pick up the external change and the second attempt will succeed.
+   */
   private save(): void {
+    const currentSig = this.computeSignature()
+    if (currentSig !== this.lastSignature) {
+      const memCounts = `comments=${this.log.comments.length} toolCalls=${this.log.toolCalls.length}`
+      const msg =
+        `[code-review-annotator] LogStore.save aborted for ${this.storePath}: ` +
+        `disk changed since last sync (signature ${this.lastSignature} → ${currentSig}, in-memory ${memCounts}). ` +
+        `Another process wrote the file, or this process is stale (running an old build that does not sync). ` +
+        `Restart the server to pick up the latest state.`
+      console.error(msg)
+      throw new Error('LogStore.save aborted: disk changed since last sync')
+    }
     atomicWrite(this.storePath, JSON.stringify(this.log, null, 2))
     this.lastSignature = this.computeSignature()
   }
