@@ -1282,8 +1282,8 @@ body > * { position: relative; z-index: 1; }
     <span id="live-time"></span>
   </span>
   <div id="mode-switch" class="mode-switch" role="tablist">
-    <button data-mode="tool-call" class="active">Tool calls</button>
-    <button data-mode="git-range">Git diff</button>
+    <button data-mode="tool-call" hidden style="display:none">Tool calls</button>
+    <button data-mode="git-range" class="active">Git diff</button>
     <button data-mode="browse">Browse</button>
   </div>
   <div class="spacer"></div>
@@ -1459,7 +1459,7 @@ body > * { position: relative; z-index: 1; }
 <script>
 const state = {
   project: null,
-  mode: 'tool-call', // tool-call | git-range | browse
+  mode: 'git-range', // tool-call | git-range | browse — tool-call hidden in UI (button hidden); keep logic for easy revert
   // tool-call mode
   toolCalls: [],
   selectedCallId: null,
@@ -1654,9 +1654,9 @@ function makeSeenButton(isSeen, onToggle, titleSeen, titleUnseen) {
 // the current perspective. Format: #view=git-range&from=main&to=HEAD
 function readViewFromHash() {
   const h = new URLSearchParams((location.hash || '').replace(/^#/, ''))
-  const mode = h.get('view') ?? 'tool-call'
+  const mode = h.get('view') ?? 'git-range'
   return {
-    mode: (mode === 'git-range' || mode === 'browse' || mode === 'tool-call') ? mode : 'tool-call',
+    mode: (mode === 'git-range' || mode === 'browse' || mode === 'tool-call') ? mode : 'git-range',
     gitRange: { fromRef: h.get('from') ?? '', toRef: h.get('to') ?? '' },
   }
 }
