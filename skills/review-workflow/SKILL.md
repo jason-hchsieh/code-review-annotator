@@ -64,7 +64,17 @@ Anchors' `startLine` / `endLine` are 1-based file line numbers inside the refere
    ```
    reply_to_comment({ id: "<comment-id>", body: "Extracted into helper `fooBar()`." })
    ```
-   Keep replies short.
+   Keep replies short. The `body` is rendered as GitHub-flavored Markdown in the browser, so use:
+   - Backticks for inline `identifiers` and file paths.
+   - Fenced code blocks with a language tag for short snippets:
+     ````
+     ```ts
+     const flat = nested.flat(Infinity)
+     ```
+     ````
+   - `-` bullets for multi-step changes.
+
+   Reviewer comments and earlier replies are also Markdown — fenced code blocks in the `body` are usually suggestions, not literal text to copy unless the surrounding prose says so.
 
 6. **Mark resolved** after the fix is verified and replied:
    ```

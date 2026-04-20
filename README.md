@@ -138,10 +138,10 @@ Claude Code accesses these tools via the `code-review` MCP server:
 | Tool | Description |
 |------|-------------|
 | `get_tool_calls` | List captured tool-call snapshots. Filters: `file`, `status`. Returns compact records (id, tool, file, status, timestamps, line counts). |
-| `get_review_comments` | Fetch comments. Filters: `toolCallId`, `viewSource`, `fromRef`, `toRef`, `file`, `scope`, `status` (defaults to `open`). Each result carries `scope` (`line` / `file` / `multi-file` / `view`), `anchors[]` (each with `file`, `blobSha` and — for `line` scope — `startLine`, `endLine`, `anchorText`, `sourceLines`), `viewContext`, and (for `viewContext.source='tool-call'`) a compact `toolCall` summary. |
+| `get_review_comments` | Fetch comments. Filters: `toolCallId`, `viewSource`, `fromRef`, `toRef`, `file`, `scope`, `status` (defaults to `open`). Each result carries `scope` (`line` / `file` / `multi-file` / `view`), `anchors[]` (each with `file`, `blobSha` and — for `line` scope — `startLine`, `endLine`, `anchorText`, `sourceLines`), `viewContext`, and (for `viewContext.source='tool-call'`) a compact `toolCall` summary. Comment / reply `body` fields are GitHub-flavored Markdown. |
 | `get_export_prompt` | Generate a fix / report / both prompt string grouped by scope. Filters: `toolCallId`, `viewSource`, `fromRef`, `toRef`, `scope`, `mode`. |
 | `mark_resolved` | Mark a comment as resolved by ID. |
-| `reply_to_comment` | Add a reply to a comment thread (authored as `claude`). Use after fixing to explain what changed. |
+| `reply_to_comment` | Add a reply to a comment thread (authored as `claude`). Use after fixing to explain what changed. Body is rendered as GitHub-flavored Markdown — fenced code blocks with a language tag get syntax-highlighted in the browser. |
 
 `get_review_comments` parameters:
 
@@ -322,6 +322,7 @@ When installed as a Claude Code plugin:
 | MCP transport | `@modelcontextprotocol/sdk` stdio |
 | IDs | `nanoid` |
 | UI diffs | `diff@5.2.0` (CDN) for client-side unified diff |
+| Comment markdown | `marked@4.3.0` + `dompurify@3.0.11` + `highlight.js@11.10.0` (CDN) — comment & reply bodies render as GitHub-flavored Markdown with code-block syntax highlighting |
 | UI | Vanilla JS, single HTML file, four themes |
 
 ---

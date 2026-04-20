@@ -177,6 +177,8 @@ export function startMcpServer(dir: string) {
 
 Every comment also carries a viewContext saying which UI perspective it was written in: source='tool-call' (carrying toolCallId), 'git-range' (carrying fromRef/toRef), or 'browse'. side='before'/'after' for diffs, 'current' for browse.
 
+The 'body' field (and reply bodies under 'replies[]') is GitHub-flavored Markdown — reviewers may include fenced code blocks (with a language tag for syntax highlighting), lists, headings, tables, links, and inline \`code\`. Treat fenced code blocks as suggested snippets / examples, not literal text to copy verbatim unless the surrounding prose says so.
+
 The response includes sourceLines per anchor when applicable (scope='line') so you can see the exact text the reviewer pointed at. Defaults to open comments.`,
         inputSchema: {
           type: 'object',
@@ -218,12 +220,12 @@ The response includes sourceLines per anchor when applicable (scope='line') so y
       },
       {
         name: 'reply_to_comment',
-        description: 'Add a reply to a reviewer comment. Use this after fixing an issue to explain what you changed.',
+        description: 'Add a reply to a reviewer comment. Use this after fixing an issue to explain what you changed. The body is rendered as GitHub-flavored Markdown in the browser UI — use fenced code blocks with a language tag (```ts, ```py, etc.) for code samples, backticks for inline `identifiers`, and bullet lists for multi-step changes. Keep replies short.',
         inputSchema: {
           type: 'object',
           properties: {
             id: { type: 'string', description: 'Comment ID to reply to' },
-            body: { type: 'string', description: 'Reply text' },
+            body: { type: 'string', description: 'Reply text. Rendered as GitHub-flavored Markdown — fenced code blocks with a language tag get syntax-highlighted. Example:\n\nReplaced the loop with `Array.prototype.flat`:\n```ts\nconst flat = nested.flat(Infinity)\n```' },
           },
           required: ['id', 'body'],
         },
