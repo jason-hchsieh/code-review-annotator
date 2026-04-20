@@ -396,17 +396,19 @@ body > * { position: relative; z-index: 1; }
 .notif-head {
   padding: 10px 12px; border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+  gap: 8px;
 }
 .notif-head-title {
   font-size: 12px; font-weight: 600; color: var(--text);
   text-transform: uppercase; letter-spacing: 0.06em;
 }
+.notif-head-actions { display: flex; gap: 2px; }
 .notif-head-action {
   background: transparent; border: none; color: var(--text-muted);
   font-size: 11px; cursor: pointer; padding: 2px 6px; border-radius: 4px;
   font-family: var(--font-ui);
 }
-.notif-head-action:hover { background: var(--bg3); color: var(--text); }
+.notif-head-action:hover:not(:disabled) { background: var(--bg3); color: var(--text); }
 .notif-head-action:disabled { opacity: 0.4; cursor: default; }
 .notif-list { overflow-y: auto; flex: 1; }
 .notif-empty {
@@ -417,9 +419,16 @@ body > * { position: relative; z-index: 1; }
   padding: 10px 12px; border-bottom: 1px solid var(--border);
   cursor: pointer; display: flex; flex-direction: column; gap: 3px;
   transition: background 0.12s var(--ease);
+  position: relative;
 }
 .notif-item:last-child { border-bottom: none; }
 .notif-item:hover { background: var(--bg3); }
+.notif-item.unread::before {
+  content: ''; position: absolute; left: 4px; top: 14px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+}
+.notif-item.read { opacity: 0.55; }
+.notif-item.read:hover { opacity: 0.85; }
 .notif-item-meta {
   display: flex; align-items: center; gap: 6px;
   font-size: 10.5px; color: var(--text-dim);
@@ -1518,7 +1527,10 @@ body > * { position: relative; z-index: 1; }
     <div id="notif-panel" role="menu" aria-label="Unread replies">
       <div class="notif-head">
         <span class="notif-head-title">Replies from Claude</span>
-        <button class="notif-head-action" id="btn-notif-mark-all">Mark all read</button>
+        <div class="notif-head-actions">
+          <button class="notif-head-action" id="btn-notif-mark-all" title="Mark all as read (keeps them in the list)">Mark all read</button>
+          <button class="notif-head-action" id="btn-notif-clear-all" title="Dismiss all notifications (remove them from the list)">Clear all</button>
+        </div>
       </div>
       <div class="notif-list" id="notif-list"></div>
     </div>
@@ -1805,9 +1817,14 @@ const state = {
     file: (localStorage.getItem('cra-nav-filter-file') || 'all'),
     cross: (localStorage.getItem('cra-nav-filter-cross') || 'open'),
   },
-  // Notification bell: per-project set of Claude reply IDs the user has seen.
-  // Seeded on first-ever visit so pre-existing replies don't all show as new.
+  // Notification bell: per-project sets of Claude reply IDs.
+  //  - seenReplyIds: marked as read. Still shown in the panel (grayed),
+  //    but no longer counted in the unread badge.
+  //  - dismissedReplyIds: cleared from the panel entirely (× per item or
+  //    "Clear all"). Seeded on first-ever visit so pre-existing replies
+  //    don't all show as new.
   seenReplyIds: new Set(),
+  dismissedReplyIds: new Set(),
 }
 
 const EXPAND_STEP = 20
@@ -1845,9 +1862,11 @@ function loadSeenForProject() {
     state.seenCalls = new Set(JSON.parse(localStorage.getItem(seenKey('calls')) ?? '[]'))
     state.seenDiffs = new Map(JSON.parse(localStorage.getItem(seenKey('diffs')) ?? '[]'))
     state.seenReplyIds = new Set(JSON.parse(localStorage.getItem(seenKey('replies')) ?? '[]'))
+    state.dismissedReplyIds = new Set(JSON.parse(localStorage.getItem(seenKey('replies-dismissed')) ?? '[]'))
   } catch {
     state.seenPaths = new Set(); state.seenCalls = new Set()
     state.seenDiffs = new Map(); state.seenReplyIds = new Set()
+    state.dismissedReplyIds = new Set()
   }
   state.hideSeen = localStorage.getItem('cra-hide-seen') === '1'
   updateHideSeenBtn()
@@ -1863,6 +1882,9 @@ function persistSeenDiffs() {
 }
 function persistSeenReplies() {
   localStorage.setItem(seenKey('replies'), JSON.stringify([...state.seenReplyIds]))
+}
+function persistDismissedReplies() {
+  localStorage.setItem(seenKey('replies-dismissed'), JSON.stringify([...state.dismissedReplyIds]))
 }
 
 // Git-range view: a "seen" mark is only valid while the diff fingerprint
@@ -2389,16 +2411,21 @@ function listClaudeReplies() {
 
 function updateNotifications() {
   const all = listClaudeReplies()
-  // First-ever visit to this project: seed all existing Claude replies as seen
-  // so returning users don't get flooded. A persistent localStorage flag
-  // prevents re-seeding on later visits, so unread replies survive reloads.
+  // First-ever visit to this project: seed all existing Claude replies as
+  // both read and dismissed so returning users don't get flooded. A
+  // persistent localStorage flag prevents re-seeding on later visits, so
+  // new replies still surface as unread on reload.
   const seededKey = seenKey('replies-seeded')
   if (!localStorage.getItem(seededKey)) {
-    for (const { reply } of all) state.seenReplyIds.add(reply.id)
+    for (const { reply } of all) {
+      state.seenReplyIds.add(reply.id)
+      state.dismissedReplyIds.add(reply.id)
+    }
     persistSeenReplies()
+    persistDismissedReplies()
     localStorage.setItem(seededKey, '1')
   }
-  const unread = all.filter(({ reply }) => !state.seenReplyIds.has(reply.id))
+  const unread = all.filter(({ reply }) => !state.seenReplyIds.has(reply.id) && !state.dismissedReplyIds.has(reply.id))
   const btn = $('#btn-notif')
   const badge = $('#notif-badge')
   if (!btn || !badge) return
@@ -2421,21 +2448,25 @@ function updateNotifications() {
 function renderNotifPanel() {
   const list = $('#notif-list')
   const markAllBtn = $('#btn-notif-mark-all')
+  const clearAllBtn = $('#btn-notif-clear-all')
   if (!list) return
   const all = listClaudeReplies()
-  const unread = all.filter(({ reply }) => !state.seenReplyIds.has(reply.id))
+  const visible = all.filter(({ reply }) => !state.dismissedReplyIds.has(reply.id))
+  const unread = visible.filter(({ reply }) => !state.seenReplyIds.has(reply.id))
   list.innerHTML = ''
   if (markAllBtn) markAllBtn.disabled = unread.length === 0
-  if (unread.length === 0) {
+  if (clearAllBtn) clearAllBtn.disabled = visible.length === 0
+  if (visible.length === 0) {
     const empty = document.createElement('div')
     empty.className = 'notif-empty'
     empty.textContent = 'No new replies from Claude.'
     list.appendChild(empty)
     return
   }
-  for (const { comment, reply } of unread) {
+  for (const { comment, reply } of visible) {
     const item = document.createElement('div')
-    item.className = 'notif-item'
+    const isRead = state.seenReplyIds.has(reply.id)
+    item.className = 'notif-item ' + (isRead ? 'read' : 'unread')
     item.setAttribute('role', 'menuitem')
     item.tabIndex = 0
 
@@ -2445,8 +2476,8 @@ function renderNotifPanel() {
     time.textContent = relativeTime(reply.createdAt); time.title = new Date(reply.createdAt).toLocaleString()
     const clearBtn = document.createElement('button')
     clearBtn.className = 'notif-item-clear'; clearBtn.type = 'button'
-    clearBtn.textContent = '×'; clearBtn.title = 'Clear this notification'
-    clearBtn.setAttribute('aria-label', 'Clear notification')
+    clearBtn.textContent = '×'; clearBtn.title = 'Dismiss this notification'
+    clearBtn.setAttribute('aria-label', 'Dismiss notification')
     clearBtn.addEventListener('click', (ev) => { ev.stopPropagation(); dismissNotification(reply) })
     meta.appendChild(who); meta.appendChild(time); meta.appendChild(clearBtn)
 
@@ -2488,12 +2519,22 @@ function toggleNotifPanel() {
 }
 
 async function openNotification(comment, reply) {
+  // Navigating to a reply counts as reading it — drop it from the unread
+  // badge but leave it visible in the panel until the user explicitly
+  // dismisses it (× per item or "Clear all").
+  if (!state.seenReplyIds.has(reply.id)) {
+    state.seenReplyIds.add(reply.id)
+    persistSeenReplies()
+    updateNotifications()
+  }
   closeNotifPanel()
   await navigateToComment(comment)
 }
 
 function dismissNotification(reply) {
+  state.dismissedReplyIds.add(reply.id)
   state.seenReplyIds.add(reply.id)
+  persistDismissedReplies()
   persistSeenReplies()
   updateNotifications()
   renderNotifPanel()
@@ -4596,7 +4637,23 @@ $('#cross-comment-nav-filter').addEventListener('change', (e) => {
 $('#btn-notif').addEventListener('click', (e) => { e.stopPropagation(); toggleNotifPanel() })
 $('#notif-panel').addEventListener('click', (e) => e.stopPropagation())
 $('#btn-notif-mark-all').addEventListener('click', () => {
-  for (const { reply } of listClaudeReplies()) state.seenReplyIds.add(reply.id)
+  // Mark all non-dismissed replies as read. Keeps them visible in the
+  // panel (grayed) — use "Clear all" to remove them from the list.
+  for (const { reply } of listClaudeReplies()) {
+    if (!state.dismissedReplyIds.has(reply.id)) state.seenReplyIds.add(reply.id)
+  }
+  persistSeenReplies()
+  updateNotifications()
+  renderNotifPanel()
+})
+$('#btn-notif-clear-all').addEventListener('click', () => {
+  // Dismiss every visible reply from the panel. Also marks them as read
+  // so the unread badge goes to zero.
+  for (const { reply } of listClaudeReplies()) {
+    state.dismissedReplyIds.add(reply.id)
+    state.seenReplyIds.add(reply.id)
+  }
+  persistDismissedReplies()
   persistSeenReplies()
   updateNotifications()
   renderNotifPanel()
