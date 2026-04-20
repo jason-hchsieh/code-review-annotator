@@ -1147,6 +1147,15 @@ body > * { position: relative; z-index: 1; }
   100% { background: transparent; box-shadow: inset 0 0 0 transparent; }
 }
 
+/* ─── Sidebar resize handle ─── */
+#sidebar-resizer {
+  width: 5px; flex-shrink: 0; cursor: col-resize;
+  background: transparent; position: relative; z-index: 2;
+  transition: background 0.15s;
+}
+#sidebar-resizer:hover, #sidebar-resizer.dragging { background: var(--accent); opacity: 0.5; }
+@media (max-width: 600px) { #sidebar-resizer { display: none; } }
+
 /* ─── Hamburger button (hidden on desktop) ─── */
 #sidebar-toggle {
   display: none; background: transparent; border: 1px solid var(--border);
@@ -1345,6 +1354,7 @@ body > * { position: relative; z-index: 1; }
       <button id="btn-multi-comment" disabled>Comment</button>
     </div>
   </aside>
+  <div id="sidebar-resizer" title="Drag to resize sidebar"></div>
 
   <div id="sidebar-backdrop"></div>
   <section id="content">
@@ -4020,6 +4030,45 @@ $('#btn-clear-seen').addEventListener('click', () => {
     renderContent()
     startLiveStream()
   }
+})()
+
+// ── Sidebar drag-to-resize ──
+;(() => {
+  const MIN_W = 180, MAX_W = 600
+  const resizer = document.getElementById('sidebar-resizer')
+  const sidebar = document.getElementById('sidebar')
+
+  const saved = parseInt(localStorage.getItem('sidebarWidth'), 10)
+  if (saved >= MIN_W && saved <= MAX_W) {
+    document.documentElement.style.setProperty('--sidebar-width', saved + 'px')
+  }
+
+  let startX, startW
+  resizer.addEventListener('mousedown', e => {
+    if (window.innerWidth <= 600) return
+    e.preventDefault()
+    startX = e.clientX
+    startW = sidebar.getBoundingClientRect().width
+    resizer.classList.add('dragging')
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    function onMove(e) {
+      const w = Math.min(MAX_W, Math.max(MIN_W, startW + e.clientX - startX))
+      document.documentElement.style.setProperty('--sidebar-width', w + 'px')
+    }
+    function onUp() {
+      resizer.classList.remove('dragging')
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      const w = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width'), 10)
+      localStorage.setItem('sidebarWidth', w)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  })
 })()
 </script>
 </body>
