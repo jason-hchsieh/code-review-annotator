@@ -3783,6 +3783,7 @@ function renderDiff(before, after, beforeSha, afterSha, file, target, comments) 
   tbody.innerHTML = ''
   const rows = buildHunks(before, after ?? '', state.gapExpansions)
   const lang = detectLang(file)
+  let formAppended = false
 
   // Blob-aware side resolution: each line comment's anchor has a blobSha.
   // When the SHA matches before/after we know which side to render on;
@@ -3859,6 +3860,7 @@ function renderDiff(before, after, beforeSha, afterSha, file, target, comments) 
       const sideMatches = row.type === 'context' || visualSide === sel.side
       if (sideMatches && rowLineForSel === sel.endLine) {
         appendCommentForm(tbody, target, { before, after, beforeSha, afterSha, file })
+        formAppended = true
       }
     }
   }
@@ -3869,6 +3871,14 @@ function renderDiff(before, after, beforeSha, afterSha, file, target, comments) 
   const orphans = []
   for (const list of commentsByAnchor.values()) orphans.push(...list)
   if (orphans.length > 0) appendOrphanSection(tbody, orphans)
+
+  // Live-update fallback: the selection's endLine may no longer appear in the
+  // diff (file was edited underneath during an SSE refresh), which would drop
+  // the in-progress comment form and hide the user's half-typed draft. Append
+  // it at the bottom so bindDraft can restore the text on re-render.
+  if (state.selection && !formAppended) {
+    appendCommentForm(tbody, target, { before, after, beforeSha, afterSha, file })
+  }
 }
 
 function appendHunkSep(tbody, row) {
@@ -3903,6 +3913,7 @@ function renderBrowse(content, contentSha, file, target, comments) {
   const lang = detectLang(file)
   const lines = (content ?? '').split('\n')
   if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
+  let formAppended = false
   const migratedIds = new Set()
   const commentsByAnchor = new Map()
   for (const c of comments) {
@@ -3938,6 +3949,7 @@ function renderBrowse(content, contentSha, file, target, comments) {
     }
     if (state.selection && state.selection.side === 'current' && n === state.selection.endLine) {
       appendCommentForm(tbody, target, { before: '', after: content, beforeSha: '', afterSha: contentSha, file })
+      formAppended = true
     }
   }
 
@@ -3947,6 +3959,15 @@ function renderBrowse(content, contentSha, file, target, comments) {
   const orphans = []
   for (const list of commentsByAnchor.values()) orphans.push(...list)
   if (orphans.length > 0) appendOrphanSection(tbody, orphans)
+
+  // Live-update fallback: the selection's endLine may now exceed the file's
+  // current length (file was truncated underneath during an SSE refresh),
+  // which would drop the in-progress comment form and hide the user's
+  // half-typed draft. Append it at the bottom so bindDraft can restore the
+  // text on re-render.
+  if (state.selection && state.selection.side === 'current' && !formAppended) {
+    appendCommentForm(tbody, target, { before: '', after: content, beforeSha: '', afterSha: contentSha, file })
+  }
 }
 
 function handleLineClick(e, row, side, target) {
