@@ -635,7 +635,7 @@ body > * { position: relative; z-index: 1; }
   display: flex; flex-direction: column; gap: 6px;
 }
 .comment-reply-form textarea {
-  width: 100%; min-height: 44px; resize: vertical;
+  width: 100%; min-height: 44px; max-height: 240px; resize: vertical;
   background: var(--bg3); border: 1px solid var(--border); color: var(--text);
   border-radius: 4px; padding: 6px 10px; font-family: var(--font-ui); font-size: 12.5px;
   outline: none; transition: border-color 0.15s var(--ease);
@@ -670,7 +670,7 @@ body > * { position: relative; z-index: 1; }
 }
 .comment-form-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
 .comment-form-body textarea {
-  width: 100%; min-height: 60px; resize: vertical;
+  width: 100%; min-height: 60px; max-height: 400px; resize: vertical;
   background: var(--bg); border: 1px solid var(--border); color: var(--text);
   border-radius: 4px; padding: 6px 10px; font-family: var(--font-ui); font-size: 13px;
   outline: none;
@@ -768,7 +768,7 @@ body > * { position: relative; z-index: 1; }
 }
 .scope-form-head { font-size: 11.5px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
 .scope-form textarea {
-  width: 100%; min-height: 70px; resize: vertical;
+  width: 100%; min-height: 70px; max-height: 400px; resize: vertical;
   background: var(--bg2); border: 1px solid var(--border); color: var(--text);
   border-radius: 4px; padding: 8px 10px; font-family: var(--font-ui); font-size: 13px;
   outline: none;
@@ -2099,6 +2099,13 @@ async function api(method, path, body) {
 function toast(msg, ms = 2400) {
   const el = $('#toast'); el.textContent = msg; el.classList.add('visible')
   clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('visible'), ms)
+}
+
+// Auto-grow a textarea with content. CSS max-height caps the growth and triggers scroll.
+function autoGrowTextarea(ta) {
+  const resize = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px' }
+  ta.addEventListener('input', resize)
+  queueMicrotask(resize)
 }
 
 function relativeTime(iso) {
@@ -3580,6 +3587,7 @@ function appendCommentForm(tbody, target, viewData) {
   hdr.textContent = `New comment on ${sel.side} ${lineRef}`
   const body = document.createElement('div'); body.className = 'comment-form-body'
   const ta = document.createElement('textarea'); ta.placeholder = 'Leave a comment…'
+  autoGrowTextarea(ta)
   queueMicrotask(() => { ta.focus(); tr.scrollIntoView({ block: 'nearest' }) })
   const actions = document.createElement('div'); actions.className = 'comment-form-actions'
   const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
@@ -3695,6 +3703,7 @@ function appendCommentThread(tbody, comment, opts = {}) {
 
   const form = document.createElement('div'); form.className = 'comment-reply-form'
   const ta = document.createElement('textarea'); ta.placeholder = 'Reply to this comment…'
+  autoGrowTextarea(ta)
   const fa = document.createElement('div'); fa.className = 'comment-reply-form-actions'
   const submit = document.createElement('button')
   submit.className = 'btn-primary'; submit.style.fontSize = '12px'; submit.textContent = 'Reply'
@@ -3792,6 +3801,7 @@ function buildScopeCard(comment, currentFile = null) {
 function buildScopeReplyForm(comment) {
   const form = document.createElement('div'); form.className = 'comment-reply-form'
   const ta = document.createElement('textarea'); ta.placeholder = 'Reply to this comment…'
+  autoGrowTextarea(ta)
   const fa = document.createElement('div'); fa.className = 'comment-reply-form-actions'
   const submit = document.createElement('button')
   submit.className = 'btn-primary'; submit.style.fontSize = '12px'; submit.textContent = 'Reply'
@@ -3814,6 +3824,7 @@ function buildScopeForm(panel, headerText, buildPayload, extraEl = null, onSucce
   form.appendChild(hd)
   if (extraEl) form.appendChild(extraEl)
   const ta = document.createElement('textarea'); ta.placeholder = 'Leave a comment…'; form.appendChild(ta)
+  autoGrowTextarea(ta)
   const actions = document.createElement('div'); actions.className = 'scope-form-actions'
   const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
   cancel.addEventListener('click', () => { state.scopeForm = null; renderContent() })
@@ -3966,7 +3977,7 @@ function startEditComment(comment, bodyEl) {
   if (bodyEl.querySelector('textarea')) return
   const original = comment.body; bodyEl.innerHTML = ''
   const ta = document.createElement('textarea'); ta.value = original
-  ta.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-size:13px;resize:vertical;min-height:60px;outline:none;'
+  ta.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-size:13px;resize:vertical;min-height:60px;max-height:400px;outline:none;'
   const actions = document.createElement('div')
   actions.style.cssText = 'display:flex;gap:6px;justify-content:flex-end;margin-top:6px'
   const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
@@ -3980,13 +3991,14 @@ function startEditComment(comment, bodyEl) {
   })
   actions.appendChild(cancel); actions.appendChild(save)
   bodyEl.appendChild(ta); bodyEl.appendChild(actions); ta.focus()
+  autoGrowTextarea(ta)
 }
 
 function startEditReply(commentId, reply, bodyEl) {
   if (bodyEl.querySelector('textarea')) return
   const original = reply.body; bodyEl.innerHTML = ''
   const ta = document.createElement('textarea'); ta.value = original
-  ta.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-size:13px;resize:vertical;min-height:40px;outline:none;'
+  ta.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-size:13px;resize:vertical;min-height:40px;max-height:240px;outline:none;'
   const actions = document.createElement('div')
   actions.style.cssText = 'display:flex;gap:6px;justify-content:flex-end;margin-top:6px'
   const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
@@ -4000,6 +4012,7 @@ function startEditReply(commentId, reply, bodyEl) {
   })
   actions.appendChild(cancel); actions.appendChild(save)
   bodyEl.appendChild(ta); bodyEl.appendChild(actions); ta.focus()
+  autoGrowTextarea(ta)
 }
 
 // ─── Kebab ───
