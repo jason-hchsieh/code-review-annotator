@@ -5222,6 +5222,21 @@ for (const pill of document.querySelectorAll('.sidebar-filter-pill')) {
 }
 
 // ─── SSE ───
+// While the user is focused on a textarea we refresh data but defer the content
+// re-render, because renderContent() destroys and re-creates all textareas —
+// which drops IME composition buffers (e.g. mid-typed CJK input) and wipes
+// in-place edit textareas that aren't bindDraft-protected. The pending refresh
+// fires on focusout so the view catches up as soon as they're done typing.
+let pendingContentRefresh = false
+document.addEventListener('focusout', (e) => {
+  if (e.target?.tagName !== 'TEXTAREA') return
+  queueMicrotask(() => {
+    if (document.activeElement?.tagName === 'TEXTAREA') return
+    if (!pendingContentRefresh) return
+    pendingContentRefresh = false
+    renderContent()
+  })
+})
 function startLiveStream() {
   if (state.liveStream) { state.liveStream.close(); state.liveStream = null }
   if (!state.project) { setLiveState('idle'); return }
@@ -5231,7 +5246,12 @@ function startLiveStream() {
   es.addEventListener('log', async () => {
     setLiveState('connected')
     flashLive()
-    await refreshAll()
+    await refreshData()
+    if (document.activeElement?.tagName === 'TEXTAREA') {
+      pendingContentRefresh = true
+    } else {
+      renderContent()
+    }
   })
   es.onopen = () => setLiveState('connected')
   es.onerror = () => setLiveState('error')
