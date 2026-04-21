@@ -1865,6 +1865,18 @@ const state = {
   gapExpansions: new Map(),
   // Scope-comment draft form: { kind: 'file' | 'multi-file' | 'view', anchors: Anchor[] }
   scopeForm: null,
+  // Unsubmitted textarea content keyed by stable identifier (line/scope/reply).
+  // Restored when the same textarea re-renders (after navigation, SSE refresh,
+  // re-opening the same form). Lives in memory only — not persisted to disk.
+  drafts: new Map(),
+  // Draft key the user is currently editing + cursor position, so SSE-triggered
+  // re-renders can restore focus and cursor to the new textarea node.
+  activeDraftKey: null,
+  activeDraftCursor: null,
+  // Per-target snapshot of { selection, scopeForm } so an in-progress new
+  // comment form re-opens automatically when the user navigates back to the
+  // same tool call / file. Cleared when the user submits or cancels.
+  savedForms: new Map(),
   // Multi-file selection (active only in git-range/browse modes)
   multiSelect: { active: false, files: new Set() },
   // In-file comment navigation (prev/next jumps within the currently opened file)
@@ -2196,6 +2208,81 @@ function autoGrowTextarea(ta) {
   const resize = () => { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px' }
   ta.addEventListener('input', resize)
   queueMicrotask(resize)
+}
+
+// ─── Draft preservation ───
+// Keep unsubmitted textarea content alive across re-renders / navigation.
+// Call BEFORE autoGrowTextarea so the initial size reflects the restored value.
+function bindDraft(ta, key) {
+  if (!key) return
+  const saved = state.drafts.get(key)
+  if (saved) ta.value = saved
+  const recordCursor = () => {
+    state.activeDraftKey = key
+    state.activeDraftCursor = { start: ta.selectionStart, end: ta.selectionEnd }
+  }
+  ta.addEventListener('input', () => {
+    if (ta.value) state.drafts.set(key, ta.value)
+    else state.drafts.delete(key)
+    recordCursor()
+  })
+  ta.addEventListener('focus', recordCursor)
+  ta.addEventListener('keyup', recordCursor)
+  ta.addEventListener('click', recordCursor)
+  // SSE / navigation re-renders swap the old textarea for a new one. If this
+  // textarea matches the most recently focused draft, restore focus + cursor
+  // so the user's typing experience is uninterrupted.
+  if (state.activeDraftKey === key) {
+    queueMicrotask(() => {
+      if (document.activeElement !== ta) ta.focus()
+      const c = state.activeDraftCursor
+      if (c) { try { ta.setSelectionRange(c.start, c.end) } catch {} }
+    })
+  }
+}
+function clearDraft(key) {
+  if (!key) return
+  state.drafts.delete(key)
+  if (state.activeDraftKey === key) {
+    state.activeDraftKey = null
+    state.activeDraftCursor = null
+  }
+}
+
+// Stable per-target key for state.savedForms. Identifies the (mode, file/call)
+// the user is currently looking at, so an open-but-unsent form re-opens when
+// they come back. Returns null when the target is incomplete.
+function currentTargetKey() {
+  if (state.mode === 'tool-call') {
+    return state.selectedCallId ? `tc:${state.selectedCallId}` : null
+  }
+  if (state.mode === 'browse') {
+    return state.selectedFile ? `br:${state.selectedFile}` : null
+  }
+  if (state.mode === 'git-range') {
+    if (!state.gitRange.fromRef || !state.gitRange.toRef || !state.selectedFile) return null
+    return `gr:${state.gitRange.fromRef}:${state.gitRange.toRef}:${state.selectedFile}`
+  }
+  return null
+}
+
+function snapshotCurrentForm() {
+  const tk = currentTargetKey(); if (!tk) return
+  if (state.selection || state.scopeForm) {
+    state.savedForms.set(tk, {
+      selection: state.selection,
+      scopeForm: state.scopeForm,
+    })
+  } else {
+    state.savedForms.delete(tk)
+  }
+}
+
+function restoreFormForCurrentTarget() {
+  const tk = currentTargetKey(); if (!tk) return
+  const snap = state.savedForms.get(tk); if (!snap) return
+  if (snap.selection) state.selection = snap.selection
+  if (snap.scopeForm) state.scopeForm = snap.scopeForm
 }
 
 function relativeTime(iso) {
@@ -2601,6 +2688,7 @@ function wrapWithMarkdownToolbar(ta) {
 }
 
 async function switchMode(mode) {
+  snapshotCurrentForm()
   state.mode = mode
   state.selection = null
   state.selectedFile = null
@@ -2845,6 +2933,7 @@ async function navigateToComment(comment) {
   let needsRefresh = false
   let fileToLoad = null
   if (state.mode !== targetMode) {
+    snapshotCurrentForm()
     state.mode = targetMode
     state.selection = null
     state.scopeForm = null
@@ -2856,7 +2945,9 @@ async function navigateToComment(comment) {
   }
   if (targetMode === 'tool-call' && comment.viewContext?.toolCallId) {
     if (state.selectedCallId !== comment.viewContext.toolCallId) {
+      snapshotCurrentForm()
       state.selectedCallId = comment.viewContext.toolCallId
+      restoreFormForCurrentTarget()
       needsRefresh = true
     }
   } else if (targetMode === 'git-range') {
@@ -3302,8 +3393,10 @@ function renderFileRow(f, level = 0, showPath = false, leafName = null) {
 
 // ─── Content selection / rendering ───
 function selectCall(id) {
+  snapshotCurrentForm()
   state.selectedCallId = id; state.selection = null; state.gapExpansions = new Map()
   state.scopeForm = null
+  restoreFormForCurrentTarget()
   if (isMobile()) closeSidebar()
   renderContent(); renderTimeline(); updateExportBtn()
   // Auto-jump to first open comment if any exist for this call
@@ -3326,8 +3419,10 @@ function selectCall(id) {
   })
 }
 async function selectFile(file) {
+  snapshotCurrentForm()
   state.selectedFile = file; state.selection = null; state.gapExpansions = new Map()
   state.scopeForm = null
+  restoreFormForCurrentTarget()
   if (isMobile()) closeSidebar()
   try {
     if (state.mode === 'browse') {
@@ -3817,17 +3912,30 @@ function appendCommentForm(tbody, target, viewData) {
   hdr.textContent = `New comment on ${sel.side} ${lineRef}`
   const body = document.createElement('div'); body.className = 'comment-form-body'
   const ta = document.createElement('textarea'); ta.placeholder = 'Leave a comment…'
+  const draftKey = `line:${currentTargetKey() ?? ''}:${viewData.file}:${sel.side}:${sel.startLine}:${sel.endLine}`
+  const hadDraft = state.drafts.has(draftKey)
+  bindDraft(ta, draftKey)
   autoGrowTextarea(ta)
-  queueMicrotask(() => { ta.focus(); tr.scrollIntoView({ block: 'nearest' }) })
+  // On first open (no draft yet) jump to the form so it's visible. When a draft
+  // is being restored (SSE refresh or re-opening after navigation) skip the
+  // scroll — the user may be looking elsewhere and we don't want to yank them.
+  queueMicrotask(() => { ta.focus(); if (!hadDraft) tr.scrollIntoView({ block: 'nearest' }) })
   const actions = document.createElement('div'); actions.className = 'comment-form-actions'
   const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
-  cancel.addEventListener('click', () => { state.selection = null; renderContent() })
+  cancel.addEventListener('click', () => {
+    clearDraft(draftKey)
+    state.selection = null
+    snapshotCurrentForm()
+    renderContent()
+  })
   const submit = document.createElement('button'); submit.className = 'btn-primary'; submit.textContent = 'Add comment'
   submit.addEventListener('click', async () => {
     const text = ta.value.trim(); if (!text) return
     const payload = buildLineCommentPayload(target, viewData, sel, text)
     const created = await api('POST', '/api/comments', payload)
+    clearDraft(draftKey)
     state.selection = null
+    snapshotCurrentForm()
     state.comments.push(created)
     renderContent(); renderTimeline(); renderRangesWithComments(); updateExportBtn()
   })
@@ -3948,6 +4056,8 @@ function appendCommentThread(tbody, comment, opts = {}) {
 
   const form = document.createElement('div'); form.className = 'comment-reply-form'
   const ta = document.createElement('textarea'); ta.placeholder = 'Reply to this comment…'
+  const replyDraftKey = `reply:${comment.id}`
+  bindDraft(ta, replyDraftKey)
   autoGrowTextarea(ta)
   const fa = document.createElement('div'); fa.className = 'comment-reply-form-actions'
   const submit = document.createElement('button')
@@ -3956,6 +4066,7 @@ function appendCommentThread(tbody, comment, opts = {}) {
     const text = ta.value.trim(); if (!text) return
     await api('POST', `/api/comments/${comment.id}/replies`, { body: text, author: 'human' })
     ta.value = ''
+    clearDraft(replyDraftKey)
     await refreshAll()
   })
   ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); submit.click() } })
@@ -4076,6 +4187,8 @@ function buildScopeCard(comment, currentFile = null) {
 function buildScopeReplyForm(comment) {
   const form = document.createElement('div'); form.className = 'comment-reply-form'
   const ta = document.createElement('textarea'); ta.placeholder = 'Reply to this comment…'
+  const replyDraftKey = `reply:${comment.id}`
+  bindDraft(ta, replyDraftKey)
   autoGrowTextarea(ta)
   const fa = document.createElement('div'); fa.className = 'comment-reply-form-actions'
   const submit = document.createElement('button')
@@ -4085,6 +4198,7 @@ function buildScopeReplyForm(comment) {
     try {
       await api('POST', `/api/comments/${comment.id}/replies`, { body: text, author: 'human' })
       ta.value = ''
+      clearDraft(replyDraftKey)
       await refreshAll()
     } catch (err) { toast(`Failed: ${err.message}`) }
   })
@@ -4093,16 +4207,23 @@ function buildScopeReplyForm(comment) {
   return form
 }
 
-function buildScopeForm(panel, headerText, buildPayload, extraEl = null, onSuccess = null) {
+function buildScopeForm(panel, headerText, buildPayload, extraEl = null, onSuccess = null, draftKey = null) {
   const form = document.createElement('div'); form.className = 'scope-form'
   const hd = document.createElement('div'); hd.className = 'scope-form-head'; hd.textContent = headerText
   form.appendChild(hd)
   if (extraEl) form.appendChild(extraEl)
-  const ta = document.createElement('textarea'); ta.placeholder = 'Leave a comment…'; form.appendChild(wrapWithMarkdownToolbar(ta))
+  const ta = document.createElement('textarea'); ta.placeholder = 'Leave a comment…'
+  bindDraft(ta, draftKey)
+  form.appendChild(wrapWithMarkdownToolbar(ta))
   autoGrowTextarea(ta)
   const actions = document.createElement('div'); actions.className = 'scope-form-actions'
   const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
-  cancel.addEventListener('click', () => { state.scopeForm = null; renderContent() })
+  cancel.addEventListener('click', () => {
+    clearDraft(draftKey)
+    state.scopeForm = null
+    snapshotCurrentForm()
+    renderContent()
+  })
   const submit = document.createElement('button'); submit.className = 'btn-primary'; submit.textContent = 'Add comment'
   submit.addEventListener('click', async () => {
     const text = ta.value.trim(); if (!text) return
@@ -4110,7 +4231,9 @@ function buildScopeForm(panel, headerText, buildPayload, extraEl = null, onSucce
       const payload = await buildPayload(text)
       if (!payload) return
       const created = await api('POST', '/api/comments', payload)
+      clearDraft(draftKey)
       state.scopeForm = null
+      snapshotCurrentForm()
       if (onSuccess) onSuccess()
       state.comments.push(created)
       renderContent(); renderTimeline(); updateExportBtn()
@@ -4144,6 +4267,7 @@ function renderScopePanel(target) {
       const chip = document.createElement('span'); chip.className = 'file-chip'; chip.textContent = f
       summary.appendChild(chip)
     }
+    const multiKey = `scope-multi:${[...files].sort().join('|')}`
     buildScopeForm(
       panel,
       `New multi-file comment (${files.length} file${files.length === 1 ? '' : 's'})`,
@@ -4153,13 +4277,17 @@ function renderScopePanel(target) {
       },
       summary,
       () => { state.multiSelect.active = false; state.multiSelect.files.clear(); updateMultiSelectUi() },
+      multiKey,
     )
     rendered = true
   } else if (form?.kind === 'view') {
     const label = target.kind === 'tool-call' ? `this tool call` :
                   target.kind === 'git-range' ? `${abbreviate(state.gitRange.fromRef)} → ${abbreviate(state.gitRange.toRef)}` :
                   'browse (worktree)'
-    buildScopeForm(panel, `New review-level comment on ${label}`, async (text) => buildViewCommentPayload(target, text))
+    const viewKey = target.kind === 'tool-call' ? `scope-view:tc:${target.id}`
+                  : target.kind === 'git-range' ? `scope-view:gr:${state.gitRange.fromRef}:${state.gitRange.toRef}`
+                  : `scope-view:browse`
+    buildScopeForm(panel, `New review-level comment on ${label}`, async (text) => buildViewCommentPayload(target, text), null, null, viewKey)
     rendered = true
   }
 
@@ -4190,7 +4318,8 @@ function renderFileScopePanel(target, viewData) {
   let rendered = false
 
   if (form?.kind === 'file') {
-    buildScopeForm(panel, `New file-level comment on ${file}`, async (text) => buildFileCommentPayload(target, viewData, text))
+    const fileKey = `scope-file:${currentTargetKey() ?? ''}:${file}`
+    buildScopeForm(panel, `New file-level comment on ${file}`, async (text) => buildFileCommentPayload(target, viewData, text), null, null, fileKey)
     rendered = true
   }
   if (fileComments.length) {
