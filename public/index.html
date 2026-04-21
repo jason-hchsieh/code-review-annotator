@@ -729,8 +729,16 @@ body > * { position: relative; z-index: 1; }
   font-size: 12.5px; line-height: 1.5; color: var(--text); padding: 4px 0;
 }
 .scope-card-reply .meta {
-  font-size: 10.5px; color: var(--text-muted); margin-bottom: 2px; display: flex; gap: 6px;
+  font-size: 10.5px; color: var(--text-muted); margin-bottom: 2px; display: flex; gap: 6px; align-items: center;
 }
+.scope-card-meta {
+  font-size: 10.5px; color: var(--text-muted); margin-bottom: 2px; display: flex; gap: 6px; align-items: center;
+}
+.scope-card-copy-btn {
+  margin-left: auto; background: none; border: none; color: var(--text-dim);
+  font-size: 10.5px; cursor: pointer; padding: 1px 4px; border-radius: 3px;
+}
+.scope-card-copy-btn:hover { background: var(--bg3); color: var(--text); }
 .scope-card-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 .scope-card .comment-reply-form {
   padding: 8px 0 0; background: transparent; border-top: 1px solid var(--border); margin-top: 4px;
@@ -2099,6 +2107,33 @@ async function api(method, path, body) {
 function toast(msg, ms = 2400) {
   const el = $('#toast'); el.textContent = msg; el.classList.add('visible')
   clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('visible'), ms)
+}
+
+async function copyToClipboard(text, successMsg = 'Copied to clipboard') {
+  try {
+    await navigator.clipboard.writeText(text)
+    toast(successMsg)
+  } catch {
+    toast('Copy failed')
+  }
+}
+
+// Format a single comment or reply as plain text with an author · timestamp header.
+// Used by the Copy actions in comment menus.
+function formatMessageForCopy(author, createdAt, body) {
+  const who = author === 'claude' ? 'Claude' : 'Reviewer'
+  const ts = createdAt ? new Date(createdAt).toISOString() : ''
+  const header = ts ? `${who} · ${ts}` : who
+  return `${header}\n\n${body ?? ''}`.trimEnd()
+}
+
+// Format an entire comment thread (primary message + replies in order) as plain text.
+function formatThreadForCopy(comment) {
+  const parts = [formatMessageForCopy('human', comment.createdAt, comment.body)]
+  for (const r of (comment.replies ?? [])) {
+    parts.push(formatMessageForCopy(r.author, r.createdAt, r.body))
+  }
+  return parts.join('\n\n---\n\n')
 }
 
 // Auto-grow a textarea with content. CSS max-height caps the growth and triggers scroll.
@@ -3643,6 +3678,15 @@ function appendCommentThread(tbody, comment, opts = {}) {
   }
 
   const actions = document.createElement('div'); actions.className = 'comment-thread-actions'
+  const copyThreadBtn = document.createElement('button')
+  copyThreadBtn.className = 'comment-action-btn'
+  copyThreadBtn.textContent = 'Copy thread'
+  copyThreadBtn.title = 'Copy full thread to clipboard'
+  copyThreadBtn.addEventListener('click', (e) => {
+    e.stopPropagation()
+    copyToClipboard(formatThreadForCopy(comment), 'Thread copied')
+  })
+  actions.appendChild(copyThreadBtn)
   if (comment.status === 'open') {
     const btn = document.createElement('button')
     btn.className = 'comment-action-btn btn-resolve'; btn.textContent = 'Resolve'
@@ -3668,6 +3712,9 @@ function appendCommentThread(tbody, comment, opts = {}) {
   const bodyEl = document.createElement('div'); bodyEl.className = 'comment-body-text'; renderMarkdown(bodyEl, comment.body)
 
   const kebab = buildKebabMenu([
+    { label: 'Copy message', onClick: () => copyToClipboard(formatMessageForCopy('human', comment.createdAt, comment.body), 'Message copied') },
+    { label: 'Copy thread', onClick: () => copyToClipboard(formatThreadForCopy(comment), 'Thread copied') },
+    { separator: true },
     { label: 'Edit', onClick: () => startEditComment(comment, bodyEl) },
     { separator: true },
     { label: 'Delete comment', danger: true, onClick: () => deleteComment(comment) },
@@ -3690,6 +3737,9 @@ function appendCommentThread(tbody, comment, opts = {}) {
       rTs.textContent = relativeTime(r.createdAt); rTs.title = new Date(r.createdAt).toLocaleString()
       const rBody = document.createElement('div'); renderMarkdown(rBody, r.body)
       const rKebab = buildKebabMenu([
+        { label: 'Copy message', onClick: () => copyToClipboard(formatMessageForCopy(r.author, r.createdAt, r.body), 'Message copied') },
+        { label: 'Copy thread', onClick: () => copyToClipboard(formatThreadForCopy(comment), 'Thread copied') },
+        { separator: true },
         { label: 'Edit', onClick: () => startEditReply(comment.id, r, rBody) },
         { separator: true },
         { label: 'Delete reply', danger: true, onClick: () => deleteReply(comment.id, r) },
@@ -3743,6 +3793,15 @@ function scopeCardHead(comment) {
 
 function scopeCardActions(comment) {
   const actions = document.createElement('div'); actions.className = 'scope-card-actions'
+  const copyThread = document.createElement('button')
+  copyThread.className = 'comment-action-btn'
+  copyThread.textContent = 'Copy thread'
+  copyThread.title = 'Copy full thread to clipboard'
+  copyThread.addEventListener('click', (e) => {
+    e.stopPropagation()
+    copyToClipboard(formatThreadForCopy(comment), 'Thread copied')
+  })
+  actions.appendChild(copyThread)
   const toggle = document.createElement('button')
   toggle.className = 'comment-action-btn ' + (comment.status === 'open' ? 'btn-resolve' : 'btn-reopen')
   toggle.textContent = comment.status === 'open' ? 'Resolve' : 'Reopen'
@@ -3778,8 +3837,22 @@ function buildScopeCard(comment, currentFile = null) {
     }
     collapsible.appendChild(files)
   }
+  const bodyWrap = document.createElement('div'); bodyWrap.className = 'scope-card-primary'
+  const bodyMeta = document.createElement('div'); bodyMeta.className = 'scope-card-meta'
+  const primaryAuthor = document.createElement('span'); primaryAuthor.textContent = 'Reviewer'
+  const primaryTs = document.createElement('span')
+  primaryTs.textContent = relativeTime(comment.createdAt); primaryTs.title = new Date(comment.createdAt).toLocaleString()
+  const primaryCopy = document.createElement('button')
+  primaryCopy.className = 'scope-card-copy-btn'; primaryCopy.textContent = 'Copy'
+  primaryCopy.title = 'Copy message to clipboard'
+  primaryCopy.addEventListener('click', (e) => {
+    e.stopPropagation()
+    copyToClipboard(formatMessageForCopy('human', comment.createdAt, comment.body), 'Message copied')
+  })
+  bodyMeta.appendChild(primaryAuthor); bodyMeta.appendChild(primaryTs); bodyMeta.appendChild(primaryCopy)
   const body = document.createElement('div'); body.className = 'scope-card-body'; renderMarkdown(body, comment.body)
-  collapsible.appendChild(body)
+  bodyWrap.appendChild(bodyMeta); bodyWrap.appendChild(body)
+  collapsible.appendChild(bodyWrap)
   if (comment.replies?.length) {
     const reps = document.createElement('div'); reps.className = 'scope-card-replies'
     for (const r of comment.replies) {
@@ -3787,7 +3860,14 @@ function buildScopeCard(comment, currentFile = null) {
       const meta = document.createElement('div'); meta.className = 'meta'
       const who = document.createElement('span'); who.textContent = r.author === 'claude' ? 'Claude' : 'Reviewer'
       const ts = document.createElement('span'); ts.textContent = relativeTime(r.createdAt); ts.title = new Date(r.createdAt).toLocaleString()
-      meta.appendChild(who); meta.appendChild(ts)
+      const copyBtn = document.createElement('button')
+      copyBtn.className = 'scope-card-copy-btn'; copyBtn.textContent = 'Copy'
+      copyBtn.title = 'Copy message to clipboard'
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        copyToClipboard(formatMessageForCopy(r.author, r.createdAt, r.body), 'Message copied')
+      })
+      meta.appendChild(who); meta.appendChild(ts); meta.appendChild(copyBtn)
       const b = document.createElement('div'); renderMarkdown(b, r.body)
       rEl.appendChild(meta); rEl.appendChild(b); reps.appendChild(rEl)
     }
