@@ -784,6 +784,61 @@ body > * { position: relative; z-index: 1; }
 .scope-form textarea:focus { border-color: var(--accent); }
 .scope-form-actions { display: flex; justify-content: flex-end; gap: 6px; }
 
+/* GitHub-style markdown editor: tabs + formatting toolbar + textarea/preview */
+.md-editor {
+  display: flex; flex-direction: column;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  overflow: hidden; transition: border-color 0.15s var(--ease);
+}
+.md-editor:focus-within { border-color: var(--accent); }
+.md-editor .md-tabs {
+  display: flex; gap: 0; padding: 0 6px; background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+}
+.md-editor .md-tab {
+  background: transparent; border: 1px solid transparent; border-bottom: none;
+  color: var(--text-muted); padding: 6px 12px; margin-top: 4px;
+  font-family: var(--font-ui); font-size: 12px; font-weight: 500;
+  border-radius: 4px 4px 0 0; cursor: pointer;
+  transition: color 0.12s var(--ease), background 0.12s var(--ease);
+}
+.md-editor .md-tab:hover { color: var(--text); }
+.md-editor .md-tab.active {
+  background: var(--bg); color: var(--text);
+  border-color: var(--border); border-bottom-color: var(--bg);
+  margin-bottom: -1px;
+}
+.md-editor .md-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 1px;
+  padding: 4px 6px; background: var(--bg2); border-bottom: 1px solid var(--border);
+}
+.md-editor .md-toolbar-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0;
+  background: transparent; border: 1px solid transparent; border-radius: 4px;
+  color: var(--text-muted); cursor: pointer;
+  transition: background 0.1s var(--ease), color 0.1s var(--ease);
+}
+.md-editor .md-toolbar-btn:hover { background: var(--bg3); color: var(--text); }
+.md-editor .md-toolbar-btn:active { background: var(--accent-soft); }
+.md-editor .md-toolbar-btn svg { display: block; }
+.md-editor .md-toolbar-sep {
+  width: 1px; height: 18px; background: var(--border); margin: 0 4px;
+}
+.md-editor textarea {
+  border: none !important; border-radius: 0 !important;
+  background: var(--bg) !important;
+  padding: 8px 10px; width: 100%; box-sizing: border-box;
+  font-family: var(--font-ui); font-size: 13px; color: var(--text);
+  resize: vertical; outline: none;
+}
+.md-editor textarea:focus { border-color: transparent !important; }
+.md-editor .md-preview {
+  padding: 10px 12px; min-height: 60px; background: var(--bg);
+  font-size: 13px; line-height: 1.6; color: var(--text);
+}
+.md-editor .md-preview.empty { color: var(--text-muted); font-style: italic; }
+
 /* Multi-select mode */
 .btn-multi-toggle {
   background: transparent; border: 1px solid var(--border); color: var(--text-muted);
@@ -2405,6 +2460,146 @@ function renderMarkdown(el, text) {
   el.innerHTML = DOMPurify.sanitize(html)
 }
 
+// ─── GitHub-style markdown editor (Write/Preview tabs + formatting toolbar) ───
+const MD_ICONS = {
+  heading: '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M3.75 2a.75.75 0 0 1 .75.75V7h7V2.75a.75.75 0 0 1 1.5 0v10.5a.75.75 0 0 1-1.5 0V8.5h-7v4.75a.75.75 0 0 1-1.5 0V2.75A.75.75 0 0 1 3.75 2Z"/></svg>',
+  bold: '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M4 2h4.5a3.5 3.5 0 0 1 2.7 5.73A3.75 3.75 0 0 1 9 14H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Zm1 5h3.5a1.5 1.5 0 0 0 0-3H5v3Zm0 5h4a1.75 1.75 0 0 0 0-3.5H5V12Z"/></svg>',
+  italic: '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M6 2.75A.75.75 0 0 1 6.75 2h6.5a.75.75 0 0 1 0 1.5h-2.505l-3.858 9H9.25a.75.75 0 0 1 0 1.5h-6.5a.75.75 0 0 1 0-1.5h2.505l3.858-9H6.75A.75.75 0 0 1 6 2.75Z"/></svg>',
+  quote: '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M1.75 2.5a.75.75 0 0 0 0 1.5h12.5a.75.75 0 0 0 0-1.5H1.75Zm4 5a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Zm0 5a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5ZM2.5 7.75v5a.75.75 0 0 1-1.5 0v-5a.75.75 0 0 1 1.5 0Z"/></svg>',
+  code: '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"/></svg>',
+  link: '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M7.775 3.275a.75.75 0 0 0 1.06 1.06l1.25-1.25a2 2 0 1 1 2.83 2.83l-2.5 2.5a2 2 0 0 1-2.83 0 .75.75 0 0 0-1.06 1.06 3.5 3.5 0 0 0 4.95 0l2.5-2.5a3.5 3.5 0 0 0-4.95-4.95l-1.25 1.25Zm-4.69 9.64a2 2 0 0 1 0-2.83l2.5-2.5a2 2 0 0 1 2.83 0 .75.75 0 0 0 1.06-1.06 3.5 3.5 0 0 0-4.95 0l-2.5 2.5a3.5 3.5 0 0 0 4.95 4.95l1.25-1.25a.75.75 0 0 0-1.06-1.06l-1.25 1.25a2 2 0 0 1-2.83 0Z"/></svg>',
+  ul: '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M2 4a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm0 5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm1 4a1 1 0 1 0-2 0 1 1 0 0 0 2 0Zm2.75-9.5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Z"/></svg>',
+  ol: '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M0 2.748a.25.25 0 0 1 .389-.208l1.262.842a.25.25 0 0 1 0 .416L.39 4.64A.25.25 0 0 1 0 4.432V2.748Zm5.75-.248h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5Zm0 5h8.5a.75.75 0 0 1 0 1.5h-8.5a.75.75 0 0 1 0-1.5ZM.431 7.911A1 1 0 0 1 1.375 7.25h.75a1 1 0 0 1 1 1c0 .366-.158.652-.386.834L1.68 9.75H3v1H.5v-.819c0-.12.07-.23.184-.289L2.25 9.17a.25.25 0 0 0 .125-.216v-.204h-1v.161Zm.319 4.589A.75.75 0 0 1 1.5 12h.5a1 1 0 0 1 .882 1.471L2.625 14H3v1H.75v-.5h.75v-.5h-.5v-1h.5v-.5H.75Z"/></svg>',
+  task: '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M2.5 3.75a.25.25 0 0 1 .25-.25h10.5a.25.25 0 0 1 .25.25v8.5a.25.25 0 0 1-.25.25H2.75a.25.25 0 0 1-.25-.25v-8.5ZM2.75 2A1.75 1.75 0 0 0 1 3.75v8.5C1 13.216 1.784 14 2.75 14h10.5A1.75 1.75 0 0 0 15 12.25v-8.5A1.75 1.75 0 0 0 13.25 2H2.75Zm9.03 5.28a.75.75 0 0 0-1.06-1.06L7 9.94 5.78 8.72a.75.75 0 0 0-1.06 1.06L6.47 11.53a.75.75 0 0 0 1.06 0l4.25-4.25Z"/></svg>',
+}
+
+// Wraps a textarea with GitHub-style Write/Preview tabs and a formatting toolbar.
+// Returns the wrapper element to be inserted in place of the textarea.
+// The textarea's value/events still work normally — callers keep their reference to `ta`.
+function wrapWithMarkdownToolbar(ta) {
+  const wrap = document.createElement('div'); wrap.className = 'md-editor'
+
+  const tabs = document.createElement('div'); tabs.className = 'md-tabs'
+  const writeTab = document.createElement('button')
+  writeTab.type = 'button'; writeTab.className = 'md-tab active'; writeTab.textContent = 'Write'
+  const previewTab = document.createElement('button')
+  previewTab.type = 'button'; previewTab.className = 'md-tab'; previewTab.textContent = 'Preview'
+  tabs.appendChild(writeTab); tabs.appendChild(previewTab)
+
+  const toolbar = document.createElement('div'); toolbar.className = 'md-toolbar'
+  const preview = document.createElement('div'); preview.className = 'md-preview'
+  preview.style.display = 'none'
+
+  // --- text manipulation helpers ---
+  const wrapSelection = (before, after, placeholder) => {
+    const start = ta.selectionStart, end = ta.selectionEnd, v = ta.value
+    const hasSelection = end > start
+    const selected = hasSelection ? v.slice(start, end) : placeholder
+    ta.value = v.slice(0, start) + before + selected + after + v.slice(end)
+    const cs = start + before.length
+    const ce = cs + selected.length
+    ta.focus(); ta.setSelectionRange(cs, ce)
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+  const prefixLines = (prefix, placeholder) => {
+    const v = ta.value
+    const selStart = ta.selectionStart, selEnd = ta.selectionEnd
+    const lineStart = v.lastIndexOf('\n', selStart - 1) + 1
+    const nlAfter = v.indexOf('\n', selEnd)
+    const lineEnd = nlAfter === -1 ? v.length : nlAfter
+    const chunk = v.slice(lineStart, lineEnd) || placeholder
+    const lines = chunk.split('\n')
+    const out = lines.map((line, i) => {
+      const p = typeof prefix === 'function' ? prefix(i) : prefix
+      return p + line
+    }).join('\n')
+    ta.value = v.slice(0, lineStart) + out + v.slice(lineEnd)
+    ta.focus()
+    ta.setSelectionRange(lineStart, lineStart + out.length)
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+  const insertCodeBlock = () => {
+    const start = ta.selectionStart, end = ta.selectionEnd, v = ta.value
+    const selected = v.slice(start, end)
+    const block = '\n```\n' + (selected || 'code') + '\n```\n'
+    ta.value = v.slice(0, start) + block + v.slice(end)
+    const cs = start + 5 // after opening fence + newline
+    const ce = cs + (selected || 'code').length
+    ta.focus(); ta.setSelectionRange(cs, ce)
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+
+  const addBtn = (icon, title, fn) => {
+    const b = document.createElement('button')
+    b.type = 'button'; b.className = 'md-toolbar-btn'
+    b.title = title; b.setAttribute('aria-label', title)
+    b.innerHTML = icon
+    b.addEventListener('click', (e) => { e.preventDefault(); fn() })
+    toolbar.appendChild(b)
+    return b
+  }
+  const addSep = () => {
+    const s = document.createElement('span'); s.className = 'md-toolbar-sep'; toolbar.appendChild(s)
+  }
+
+  addBtn(MD_ICONS.heading, 'Heading', () => prefixLines('### ', 'Heading'))
+  addBtn(MD_ICONS.bold, 'Bold (Ctrl/Cmd+B)', () => wrapSelection('**', '**', 'bold text'))
+  addBtn(MD_ICONS.italic, 'Italic (Ctrl/Cmd+I)', () => wrapSelection('_', '_', 'italic text'))
+  addSep()
+  addBtn(MD_ICONS.quote, 'Quote', () => prefixLines('> ', 'quote'))
+  addBtn(MD_ICONS.code, 'Inline code (Ctrl/Cmd+E)', () => {
+    const start = ta.selectionStart, end = ta.selectionEnd
+    const selected = ta.value.slice(start, end)
+    // If multi-line selection, convert to fenced block; else inline.
+    if (selected.includes('\n')) insertCodeBlock()
+    else wrapSelection('`', '`', 'code')
+  })
+  addBtn(MD_ICONS.link, 'Link (Ctrl/Cmd+K)', () => {
+    const start = ta.selectionStart, end = ta.selectionEnd
+    const selected = ta.value.slice(start, end)
+    if (selected) wrapSelection('[', '](url)', selected)
+    else wrapSelection('[', '](url)', 'text')
+  })
+  addSep()
+  addBtn(MD_ICONS.ul, 'Unordered list', () => prefixLines('- ', 'item'))
+  addBtn(MD_ICONS.ol, 'Ordered list', () => prefixLines((i) => `${i + 1}. `, 'item'))
+  addBtn(MD_ICONS.task, 'Task list', () => prefixLines('- [ ] ', 'task'))
+
+  // --- keyboard shortcuts ---
+  ta.addEventListener('keydown', (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey) return
+    const k = e.key.toLowerCase()
+    if (k === 'b') { e.preventDefault(); wrapSelection('**', '**', 'bold text') }
+    else if (k === 'i') { e.preventDefault(); wrapSelection('_', '_', 'italic text') }
+    else if (k === 'k') { e.preventDefault(); wrapSelection('[', '](url)', ta.value.slice(ta.selectionStart, ta.selectionEnd) || 'text') }
+    else if (k === 'e') { e.preventDefault(); wrapSelection('`', '`', 'code') }
+  })
+
+  // --- Write / Preview switching ---
+  const showWrite = () => {
+    writeTab.classList.add('active'); previewTab.classList.remove('active')
+    ta.style.display = ''; preview.style.display = 'none'
+    toolbar.style.visibility = ''
+    queueMicrotask(() => ta.focus())
+  }
+  const showPreview = () => {
+    writeTab.classList.remove('active'); previewTab.classList.add('active')
+    const val = ta.value.trim()
+    if (val) { preview.classList.remove('empty'); renderMarkdown(preview, ta.value) }
+    else { preview.className = 'md-preview empty'; preview.textContent = 'Nothing to preview' }
+    ta.style.display = 'none'; preview.style.display = ''
+    toolbar.style.visibility = 'hidden'
+  }
+  writeTab.addEventListener('click', (e) => { e.preventDefault(); showWrite() })
+  previewTab.addEventListener('click', (e) => { e.preventDefault(); showPreview() })
+
+  wrap.appendChild(tabs)
+  wrap.appendChild(toolbar)
+  wrap.appendChild(ta)
+  wrap.appendChild(preview)
+  return wrap
+}
+
 async function switchMode(mode) {
   state.mode = mode
   state.selection = null
@@ -3641,7 +3836,7 @@ function appendCommentForm(tbody, target, viewData) {
     if (e.key === 'Escape') cancel.click()
   })
   actions.appendChild(cancel); actions.appendChild(submit)
-  body.appendChild(ta); body.appendChild(actions)
+  body.appendChild(wrapWithMarkdownToolbar(ta)); body.appendChild(actions)
   wrap.appendChild(hdr); wrap.appendChild(body)
   td.appendChild(wrap)
 }
@@ -3763,8 +3958,8 @@ function appendCommentThread(tbody, comment, opts = {}) {
     ta.value = ''
     await refreshAll()
   })
-  ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit.click() } })
-  fa.appendChild(submit); form.appendChild(ta); form.appendChild(fa)
+  ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); submit.click() } })
+  fa.appendChild(submit); form.appendChild(wrapWithMarkdownToolbar(ta)); form.appendChild(fa)
   collapsible.appendChild(form)
 
   thread.appendChild(hdr); thread.appendChild(collapsible)
@@ -3893,8 +4088,8 @@ function buildScopeReplyForm(comment) {
       await refreshAll()
     } catch (err) { toast(`Failed: ${err.message}`) }
   })
-  ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit.click() } })
-  fa.appendChild(submit); form.appendChild(ta); form.appendChild(fa)
+  ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); submit.click() } })
+  fa.appendChild(submit); form.appendChild(wrapWithMarkdownToolbar(ta)); form.appendChild(fa)
   return form
 }
 
@@ -3903,7 +4098,7 @@ function buildScopeForm(panel, headerText, buildPayload, extraEl = null, onSucce
   const hd = document.createElement('div'); hd.className = 'scope-form-head'; hd.textContent = headerText
   form.appendChild(hd)
   if (extraEl) form.appendChild(extraEl)
-  const ta = document.createElement('textarea'); ta.placeholder = 'Leave a comment…'; form.appendChild(ta)
+  const ta = document.createElement('textarea'); ta.placeholder = 'Leave a comment…'; form.appendChild(wrapWithMarkdownToolbar(ta))
   autoGrowTextarea(ta)
   const actions = document.createElement('div'); actions.className = 'scope-form-actions'
   const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
@@ -4057,7 +4252,7 @@ function startEditComment(comment, bodyEl) {
   if (bodyEl.querySelector('textarea')) return
   const original = comment.body; bodyEl.innerHTML = ''
   const ta = document.createElement('textarea'); ta.value = original
-  ta.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-size:13px;resize:vertical;min-height:60px;max-height:400px;outline:none;'
+  ta.style.cssText = 'min-height:60px;max-height:400px;font-size:13px;'
   const actions = document.createElement('div')
   actions.style.cssText = 'display:flex;gap:6px;justify-content:flex-end;margin-top:6px'
   const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
@@ -4070,7 +4265,7 @@ function startEditComment(comment, bodyEl) {
     await refreshAll()
   })
   actions.appendChild(cancel); actions.appendChild(save)
-  bodyEl.appendChild(ta); bodyEl.appendChild(actions); ta.focus()
+  bodyEl.appendChild(wrapWithMarkdownToolbar(ta)); bodyEl.appendChild(actions); ta.focus()
   autoGrowTextarea(ta)
 }
 
@@ -4078,7 +4273,7 @@ function startEditReply(commentId, reply, bodyEl) {
   if (bodyEl.querySelector('textarea')) return
   const original = reply.body; bodyEl.innerHTML = ''
   const ta = document.createElement('textarea'); ta.value = original
-  ta.style.cssText = 'width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:6px 8px;font-size:13px;resize:vertical;min-height:40px;max-height:240px;outline:none;'
+  ta.style.cssText = 'min-height:40px;max-height:240px;font-size:13px;'
   const actions = document.createElement('div')
   actions.style.cssText = 'display:flex;gap:6px;justify-content:flex-end;margin-top:6px'
   const cancel = document.createElement('button'); cancel.className = 'btn-cancel'; cancel.textContent = 'Cancel'
@@ -4091,7 +4286,7 @@ function startEditReply(commentId, reply, bodyEl) {
     await refreshAll()
   })
   actions.appendChild(cancel); actions.appendChild(save)
-  bodyEl.appendChild(ta); bodyEl.appendChild(actions); ta.focus()
+  bodyEl.appendChild(wrapWithMarkdownToolbar(ta)); bodyEl.appendChild(actions); ta.focus()
   autoGrowTextarea(ta)
 }
 
