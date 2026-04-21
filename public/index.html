@@ -511,6 +511,13 @@ body > * { position: relative; z-index: 1; }
   color: var(--text-dim); font-family: var(--font-mono); font-style: italic;
   white-space: nowrap;
 }
+.diff-row.orphan-sep {
+  background: var(--bg2); color: var(--text-dim);
+  font-size: 11px;
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.diff-row.orphan-sep td { padding: 6px 14px; vertical-align: middle; font-style: italic; }
+.diff-row.orphan-sep:hover { background: var(--bg2); }
 
 /* Comment threads */
 .comment-thread-row td { padding: 0; }
@@ -3701,12 +3708,20 @@ function renderDiff(before, after, beforeSha, afterSha, file, target, comments) 
     tr.addEventListener('click', (e) => handleLineClick(e, row, visualSide, target))
 
     if (row.beforeLine !== null) {
-      const list = commentsByAnchor.get(`before:${row.beforeLine}`)
-      if (list) for (const c of list) appendCommentThread(tbody, c, { migrated: migratedIds.has(c.id) })
+      const key = `before:${row.beforeLine}`
+      const list = commentsByAnchor.get(key)
+      if (list) {
+        for (const c of list) appendCommentThread(tbody, c, { migrated: migratedIds.has(c.id) })
+        commentsByAnchor.delete(key)
+      }
     }
     if (row.afterLine !== null) {
-      const list = commentsByAnchor.get(`after:${row.afterLine}`)
-      if (list) for (const c of list) appendCommentThread(tbody, c, { migrated: migratedIds.has(c.id) })
+      const key = `after:${row.afterLine}`
+      const list = commentsByAnchor.get(key)
+      if (list) {
+        for (const c of list) appendCommentThread(tbody, c, { migrated: migratedIds.has(c.id) })
+        commentsByAnchor.delete(key)
+      }
     }
     // Inline the comment form immediately after the last row in the current
     // selection — otherwise on a long diff the form appends far below and
@@ -3720,6 +3735,13 @@ function renderDiff(before, after, beforeSha, afterSha, file, target, comments) 
       }
     }
   }
+
+  // Orphans: comments whose anchor line is no longer present on either side
+  // of the diff (e.g. the code the comment was attached to was deleted). Show
+  // them at the bottom so they don't silently disappear.
+  const orphans = []
+  for (const list of commentsByAnchor.values()) orphans.push(...list)
+  if (orphans.length > 0) appendOrphanSection(tbody, orphans)
 }
 
 function appendHunkSep(tbody, row) {
@@ -3739,6 +3761,13 @@ function appendHunkSep(tbody, row) {
   tdExpand.appendChild(group)
   const tdCode = tr.insertCell(); tdCode.className = 'td-code td-hunk-label'
   tdCode.textContent = `… ${row.hidden} unchanged line${row.hidden === 1 ? '' : 's'} …`
+}
+
+function appendOrphanSection(tbody, comments) {
+  const sep = tbody.insertRow(); sep.className = 'diff-row orphan-sep'
+  const td = sep.insertCell(); td.colSpan = 4
+  td.textContent = `${comments.length} orphaned comment${comments.length === 1 ? '' : 's'} — the anchored code was deleted or is no longer visible in this view`
+  for (const c of comments) appendCommentThread(tbody, c, { migrated: true })
 }
 
 function renderBrowse(content, contentSha, file, target, comments) {
@@ -3774,12 +3803,23 @@ function renderBrowse(content, contentSha, file, target, comments) {
       if (n >= state.selection.startLine && n <= state.selection.endLine) tr.classList.add('selected')
     }
     tr.addEventListener('click', (e) => handleLineClick(e, { afterLine: n, beforeLine: null }, 'current', target))
-    const list = commentsByAnchor.get(`current:${n}`)
-    if (list) for (const c of list) appendCommentThread(tbody, c, { migrated: migratedIds.has(c.id) })
+    const key = `current:${n}`
+    const list = commentsByAnchor.get(key)
+    if (list) {
+      for (const c of list) appendCommentThread(tbody, c, { migrated: migratedIds.has(c.id) })
+      commentsByAnchor.delete(key)
+    }
     if (state.selection && state.selection.side === 'current' && n === state.selection.endLine) {
       appendCommentForm(tbody, target, { before: '', after: content, beforeSha: '', afterSha: contentSha, file })
     }
   }
+
+  // Orphans: comments whose anchor line is past the end of the current file
+  // (e.g. lines were deleted since the comment was written). Show them at
+  // the bottom so they don't silently disappear.
+  const orphans = []
+  for (const list of commentsByAnchor.values()) orphans.push(...list)
+  if (orphans.length > 0) appendOrphanSection(tbody, orphans)
 }
 
 function handleLineClick(e, row, side, target) {
