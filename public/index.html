@@ -3019,7 +3019,39 @@ async function refreshViewFiles() {
   } else {
     state.viewFiles = []
   }
+  await refreshSelectedFile()
   renderTimeline()
+}
+
+// Re-fetch the currently-open file's content so browse / git-range views
+// mirror live edits to the worktree (user IDE edits or Claude Code writes).
+// No-op when no file is selected or we're in tool-call mode (tool-call
+// snapshots are immutable — `refreshData` already re-fetches them whole).
+async function refreshSelectedFile() {
+  if (state.mode === 'tool-call') return
+  if (!state.selectedFile) return
+  try {
+    let next
+    if (state.mode === 'browse') {
+      next = await api('GET',
+        `/api/view/file?view=browse&path=${encodeURIComponent(state.selectedFile)}`)
+    } else if (state.mode === 'git-range') {
+      const { fromRef, toRef } = state.gitRange
+      if (!fromRef || !toRef) return
+      next = await api('GET',
+        `/api/view/file?view=git-range&path=${encodeURIComponent(state.selectedFile)}&from=${encodeURIComponent(fromRef)}&to=${encodeURIComponent(toRef)}`)
+    }
+    if (!next) return
+    const prev = state.viewFileData
+    if (prev && prev.file === next.file && prev.beforeSha === next.beforeSha && prev.afterSha === next.afterSha) {
+      return // content unchanged — skip re-render churn
+    }
+    state.viewFileData = next
+  } catch {
+    // Selected file may have been deleted on the worktree / ref. Leave the
+    // stale data in place so the user doesn't lose their comment draft; the
+    // file list refresh will show the deletion.
+  }
 }
 
 function commentsMatchingCurrentView() {
@@ -5247,6 +5279,21 @@ function startLiveStream() {
     setLiveState('connected')
     flashLive()
     await refreshData()
+    if (document.activeElement?.tagName === 'TEXTAREA') {
+      pendingContentRefresh = true
+    } else {
+      renderContent()
+    }
+  })
+  // Worktree / git-state changes don't affect comments or tool calls, so we
+  // skip the comment+tool-call round-trip and only refresh the file list +
+  // currently-open file content. Tool-call mode ignores this event because
+  // tool-call snapshots are immutable.
+  es.addEventListener('worktree', async () => {
+    setLiveState('connected')
+    flashLive()
+    if (state.mode === 'tool-call') return
+    await refreshViewFiles()
     if (document.activeElement?.tagName === 'TEXTAREA') {
       pendingContentRefresh = true
     } else {
