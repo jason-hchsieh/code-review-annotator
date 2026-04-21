@@ -3546,6 +3546,10 @@ function renderBrowse(content, contentSha, file, target, comments) {
 }
 
 function handleLineClick(e, row, side, target) {
+  // If the user drag-selected text, the browser still fires `click` on mouseup.
+  // Skip the line-toggle so they can copy text without the comment form popping up.
+  const textSel = window.getSelection()
+  if (textSel && !textSel.isCollapsed && textSel.toString().length > 0) return
   // Context rows anchor to 'after' by default — the current state is what
   // reviewers normally want to reference. (blob match still works: unchanged
   // lines exist in the after blob.)
