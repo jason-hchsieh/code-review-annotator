@@ -193,11 +193,14 @@ Every project-scoped endpoint takes a `project=<abs-dir>` query parameter identi
 | `PATCH` | `/api/comments/:id/replies/:replyId` | Update a reply's body |
 | `DELETE` | `/api/comments/:id/replies/:replyId` | Delete a reply |
 | `GET` | `/api/export?mode=fix\|report\|both&toolCallId=?&view=?&from=?&to=?&scope=?` | Generate prompt string (grouped by scope) |
-| `GET` | `/api/events` | Server-Sent Events stream. Sends `hello` on connect; then `log` when `.review-log.json` changes. 20 s `: ping` heartbeat. |
+| `GET` | `/api/events` | Server-Sent Events stream. Sends `hello` on connect; `log` when `.review-log.json` changes; `worktree` when the git state (HEAD / index / tracked or untracked worktree files) changes. 20 s `: ping` heartbeat. |
 
 ### Live updates
 
-The browser UI opens an `EventSource` against `/api/events` and auto-refetches the timeline when the server pushes a `log` event. The server runs one shared watcher per project (1.5 s tick, cheap signature: `.review-log.json` `mtime+size`). First SSE subscriber starts the watcher; last one disconnects it.
+The browser UI opens an `EventSource` against `/api/events` and auto-refetches when the server pushes an event. The server runs one shared watcher per project (1.5 s tick). First SSE subscriber starts the watcher; last one disconnects it. Two event types:
+
+- `log` — `.review-log.json` `mtime+size` changed. Comments / replies / tool-call snapshots may have moved; the client refetches the full payload.
+- `worktree` — the git state changed. The signature folds `.git/HEAD` mtime, `.git/index` mtime, `git status --porcelain` output, and the mtimes of every file that status lists, so it catches commits, staging, branch switches, and repeated edits to an already-modified file. The client only refreshes the file list + the currently-open file's content (Browse / Git-diff modes), not comments.
 
 ---
 
